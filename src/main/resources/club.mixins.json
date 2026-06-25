@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "com.club.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "MixinGameRenderer",
+    "MixinInGameOverlayRenderer",
+    "MixinHeldItemRenderer",
+    "MixinLivingEntity",
+    "MixinInGameHud"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "club",
+  "version": "${version}",
+  "name": "Club",
+  "description": "Premium Dark Glass utility client: hands, animations, screen stretch, visual tweaks and HUD.",
+  "authors": ["You"],
+  "environment": "*",
+  "icon": "assets/club/icon.png",
+  "entrypoints": {
+    "main": ["com.club.ClubMod"],
+    "client": ["com.club.ClubClient", "com.club.poc.PocBootstrap"]
+  },
+  "mixins": [
+    "club.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.1"
+  }
+}
