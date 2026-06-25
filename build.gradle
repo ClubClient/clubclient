@@ -67,21 +67,31 @@ tasks.register("genMsdfAtlas") {
 			def conn = url.openConnection()
 			conn.setConnectTimeout(30000)
 			conn.setReadTimeout(120000)
-			zip.withOutputStream { out -> conn.inputStream.transferTo(out) }
+			zip.withOutputStream { out ->
+				conn.inputStream.withCloseable { ins -> ins.transferTo(out) }
+			}
 			// Unzip using java.util.zip (no Gradle copy{}/zipTree)
 			def destDir = new File(toolDir, "msdf-atlas-gen-1.4")
 			destDir.mkdirs()
-			def zf = new java.util.zip.ZipFile(zip)
-			zf.entries().each { entry ->
-				def entryFile = new File(destDir, entry.name)
-				if (entry.isDirectory()) {
-					entryFile.mkdirs()
-				} else {
-					entryFile.parentFile?.mkdirs()
-					zf.getInputStream(entry).transferTo(new FileOutputStream(entryFile))
+			def destCanon = destDir.canonicalPath
+			new java.util.zip.ZipFile(zip).withCloseable { zf ->
+				zf.entries().each { entry ->
+					def entryFile = new File(destDir, entry.name)
+					// Zip-slip guard: ensure extracted path is under destDir
+					if (!entryFile.canonicalPath.startsWith(destCanon + File.separator) &&
+							entryFile.canonicalPath != destCanon) {
+						throw new GradleException("Zip-slip detected: ${entry.name}")
+					}
+					if (entry.isDirectory()) {
+						entryFile.mkdirs()
+					} else {
+						entryFile.parentFile?.mkdirs()
+						new FileOutputStream(entryFile).withCloseable { fos ->
+							zf.getInputStream(entry).withCloseable { ins -> ins.transferTo(fos) }
+						}
+					}
 				}
 			}
-			zf.close()
 		}
 		def charset = file("build/tools/ui_charset.txt")
 		charset.text = "[0x20, 0x7E], [0xA0, 0xFF], [0x0400, 0x04FF], 0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2026, 0x2192, 0x221E"
