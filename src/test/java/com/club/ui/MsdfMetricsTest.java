@@ -28,4 +28,9 @@ class MsdfMetricsTest {
     }
     @Test void missingGlyphNull() { assertNull(MsdfMetrics.parse(JSON).get(0x2603)); }
     @Test void lineHeightScales() { assertEquals(1.2f * 16f, MsdfMetrics.parse(JSON).lineHeight(16f), 1e-4); }
+    @Test void ascentDescentScaleAndSign() {
+        MsdfMetrics m = MsdfMetrics.parse(JSON);
+        assertEquals(0.96f * 10f, m.ascent(10f), 1e-4);
+        assertEquals(0.24f * 10f, m.descent(10f), 1e-4);
+    }
 }

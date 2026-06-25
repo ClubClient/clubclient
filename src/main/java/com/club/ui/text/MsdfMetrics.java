@@ -34,7 +34,7 @@ public final class MsdfMetrics {
         for (JsonElement ge : root.getAsJsonArray("glyphs")) {
             JsonObject g = ge.getAsJsonObject();
             Glyph gl = new Glyph();
-            gl.advance = g.get("advance").getAsFloat();
+            gl.advance = g.has("advance") ? g.get("advance").getAsFloat() : 0f;
             if (g.has("planeBounds") && g.has("atlasBounds")) {
                 JsonObject pb = g.getAsJsonObject("planeBounds");
                 gl.pl = pb.get("left").getAsFloat();  gl.pr = pb.get("right").getAsFloat();
@@ -65,6 +65,8 @@ public final class MsdfMetrics {
         return w;
     }
     public float lineHeight(float size) { return emLineHeight * size; }
+    /** Pixels above the baseline (positive). */
     public float ascent(float size) { return emAscender * size; }
+    /** Pixels below the baseline (positive magnitude; em descender is stored negative). */
     public float descent(float size) { return -emDescender * size; }
 }
