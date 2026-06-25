@@ -18,6 +18,8 @@ dependencies {
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	testImplementation "org.junit.jupiter:junit-jupiter:5.10.2"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.10.2"
 }
 
 processResources {
@@ -42,5 +44,40 @@ java {
 jar {
 	from("LICENSE") {
 		rename { "${it}_${project.base.archivesName.get()}"}
+	}
+}
+
+test {
+	useJUnitPlatform()
+}
+
+// Offline MSDF atlas generation. Downloads a pinned msdf-atlas-gen and renders
+// Inter weights to assets/club/ui/font/msdf/. Run manually: ./gradlew genMsdfAtlas
+tasks.register("genMsdfAtlas") {
+	group = "club"
+	description = "Generate MSDF atlases for Inter (Latin+Cyrillic+Punct+Symbols)."
+	doLast {
+		def toolDir = file("build/tools")
+		def exe = file("build/tools/msdf-atlas-gen-1.4/msdf-atlas-gen/msdf-atlas-gen.exe")
+		if (!exe.exists()) {
+			toolDir.mkdirs()
+			def zip = new File(toolDir, "msdf-atlas-gen-1.4-win64.zip")
+			new URL("https://github.com/Chlumsky/msdf-atlas-gen/releases/download/v1.4/msdf-atlas-gen-1.4-win64.zip")
+				.withInputStream { i -> zip.withOutputStream { o -> o << i } }
+			copy { from zipTree(zip); into new File(toolDir, "msdf-atlas-gen-1.4") }
+		}
+		def charset = file("build/tools/ui_charset.txt")
+		charset.text = "[0x20, 0x7E], [0xA0, 0xFF], [0x0400, 0x04FF], 0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2026, 0x2192, 0x221E"
+		def out = file("src/main/resources/assets/club/ui/font/msdf"); out.mkdirs()
+		["regular", "medium", "semibold"].each { w ->
+			exec {
+				commandLine exe.absolutePath,
+					"-font", file("src/main/resources/assets/club/font/inter_${w}.ttf").absolutePath,
+					"-charset", charset.absolutePath,
+					"-type", "msdf", "-format", "png", "-size", "40", "-pxrange", "6",
+					"-imageout", new File(out, "inter_${w}.png").absolutePath,
+					"-json", new File(out, "inter_${w}.json").absolutePath
+			}
+		}
 	}
 }
