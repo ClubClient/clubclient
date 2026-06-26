@@ -59,6 +59,10 @@ public final class ModernText implements UiText {
     /** Returns false if this instance has encountered an unrecoverable error. */
     public boolean healthy() { return !broken; }
 
+    /** Clear the broken flag and drop cached atlases so the next render re-attempts MODERN.
+     *  Also used to exercise the missing-atlas fail-safe (after toggling {@code club.ui.breakAtlas}). */
+    public void reset() { broken = false; registry.clearCache(); }
+
     // -------------------------------------------------------------------------
     // Lifecycle
     // -------------------------------------------------------------------------
