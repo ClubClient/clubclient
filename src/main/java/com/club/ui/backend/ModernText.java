@@ -53,6 +53,12 @@ public final class ModernText implements UiText {
     /** Cached supplier — avoids a new lambda instance per draw call. */
     private final Supplier<ShaderProgram> textSupplier = () -> UiShaders.TEXT;
 
+    /** Set to true on the first unrecoverable error; subsequent calls short-circuit. */
+    private boolean broken;
+
+    /** Returns false if this instance has encountered an unrecoverable error. */
+    public boolean healthy() { return !broken; }
+
     // -------------------------------------------------------------------------
     // Lifecycle
     // -------------------------------------------------------------------------
@@ -75,27 +81,62 @@ public final class ModernText implements UiText {
 
     @Override
     public float width(String text, Weight weight, float size) {
-        return layout.width(text, weight, size);
+        if (broken) return 0f;
+        try {
+            return layout.width(text, weight, size);
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            return 0f;
+        }
     }
 
     @Override
     public float ascent(Weight weight, float size) {
-        return registry.metrics(weight).ascent(size);
+        if (broken) return 0f;
+        try {
+            return registry.metrics(weight).ascent(size);
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            return 0f;
+        }
     }
 
     @Override
     public float descent(Weight weight, float size) {
-        return registry.metrics(weight).descent(size);
+        if (broken) return 0f;
+        try {
+            return registry.metrics(weight).descent(size);
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            return 0f;
+        }
     }
 
     @Override
     public float lineHeight(Weight weight, float size) {
-        return registry.metrics(weight).lineHeight(size);
+        if (broken) return size;
+        try {
+            return registry.metrics(weight).lineHeight(size);
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            return size;
+        }
     }
 
     @Override
     public List<String> wrap(String text, Weight weight, float size, float maxWidth) {
-        return layout.wrap(text, weight, size, maxWidth);
+        if (broken) return List.of();
+        try {
+            return layout.wrap(text, weight, size, maxWidth);
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            return List.of();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -116,27 +157,34 @@ public final class ModernText implements UiText {
      */
     @Override
     public float draw(String text, float x, float y, TextStyle style) {
-        float outlineW = 0f;
-        int   outlineC = 0;
-        float glowR    = 0f;
-        int   glowC    = 0;
+        if (broken) return x;
+        try {
+            float outlineW = 0f;
+            int   outlineC = 0;
+            float glowR    = 0f;
+            int   glowC    = 0;
 
-        if (style.effect instanceof TextEffect.Shadow sh) {
-            // Shadow pass — offset, shadow color, no outline/glow uniforms.
-            drawRun(text, x + sh.dx(), y + sh.dy(),
+            if (style.effect instanceof TextEffect.Shadow sh) {
+                // Shadow pass — offset, shadow color, no outline/glow uniforms.
+                drawRun(text, x + sh.dx(), y + sh.dy(),
+                        style.weight, style.size, style.align,
+                        sh.color(), 0f, 0, 0f, 0);
+            } else if (style.effect instanceof TextEffect.Outline o) {
+                outlineW = o.widthPx();
+                outlineC = o.color();
+            } else if (style.effect instanceof TextEffect.Glow g) {
+                glowR = g.radius();
+                glowC = g.color();
+            }
+
+            return drawRun(text, x, y,
                     style.weight, style.size, style.align,
-                    sh.color(), 0f, 0, 0f, 0);
-        } else if (style.effect instanceof TextEffect.Outline o) {
-            outlineW = o.widthPx();
-            outlineC = o.color();
-        } else if (style.effect instanceof TextEffect.Glow g) {
-            glowR = g.radius();
-            glowC = g.color();
+                    style.color, outlineW, outlineC, glowR, glowC);
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            return x;
         }
-
-        return drawRun(text, x, y,
-                style.weight, style.size, style.align,
-                style.color, outlineW, outlineC, glowR, glowC);
     }
 
     /**
@@ -145,11 +193,17 @@ public final class ModernText implements UiText {
      */
     @Override
     public void drawWrapped(String text, float x, float y, float maxWidth, TextStyle style) {
-        float lh = lineHeight(style.weight, style.size);
-        float cy = y;
-        for (String line : layout.wrap(text, style.weight, style.size, maxWidth)) {
-            draw(line, x, cy, style);
-            cy += lh;
+        if (broken) return;
+        try {
+            float lh = lineHeight(style.weight, style.size);
+            float cy = y;
+            for (String line : layout.wrap(text, style.weight, style.size, maxWidth)) {
+                draw(line, x, cy, style);
+                cy += lh;
+            }
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
         }
     }
 

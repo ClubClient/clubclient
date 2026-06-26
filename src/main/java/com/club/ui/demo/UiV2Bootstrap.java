@@ -17,7 +17,7 @@ public final class UiV2Bootstrap implements ClientModInitializer {
     private KeyBinding open;
     private int phase, timer, total, idx;
     private UiAcceptanceScreen screen;
-    private static final String[] SHOTS = {"uiv2_modern", "uiv2_modern_zoom", "uiv2_legacy"};
+    private static final String[] SHOTS = {"uiv2_modern", "uiv2_modern_zoom", "uiv2_legacy", "uiv2_fallback_no_atlas", "uiv2_forced_legacy"};
 
     @Override public void onInitializeClient() {
         if (!on("CLUB_UI", "club.ui")) return;
@@ -36,6 +36,8 @@ public final class UiV2Bootstrap implements ClientModInitializer {
                 idx++;
                 if (idx == 1) { screen.setZoom(5f, mc.getWindow().getScaledWidth() / 2f, mc.getWindow().getScaledHeight() / 2f); timer = 0; }
                 else if (idx == 2) { screen.setZoom(1f, 0, 0); Ui.setBackend(Ui.Backend.LEGACY); timer = 0; }
+                else if (idx == 3) { System.setProperty("club.ui.breakAtlas", "1"); Ui.setAuto(); screen = new UiAcceptanceScreen(); mc.setScreen(screen); timer = 0; }
+                else if (idx == 4) { System.clearProperty("club.ui.breakAtlas"); Ui.setBackend(Ui.Backend.LEGACY); timer = 0; }
                 else { phase = 2; timer = 0; } } }
             case 2 -> { if (++timer > 10) { phase = 3; mc.scheduleStop(); } }
         }

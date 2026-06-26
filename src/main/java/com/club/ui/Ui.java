@@ -15,7 +15,7 @@ public final class Ui {
     /** Call at the start of every screen/HUD render pass. */
     public static void beginFrame(DrawContext ctx) { Backends.begin(ctx); }
 
-    public static boolean modernAvailable() { return UiShaders.ready(); }
+    public static boolean modernAvailable() { return UiShaders.ready() && com.club.ui.backend.Backends.MODERN_T.healthy(); }
     public static Backend backend() {
         if (forced != null) return forced;
         return modernAvailable() ? Backend.MODERN : Backend.LEGACY;

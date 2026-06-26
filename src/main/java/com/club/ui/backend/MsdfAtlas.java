@@ -45,6 +45,7 @@ public final class MsdfAtlas {
      * @throws RuntimeException if the JSON resource cannot be found or parsed.
      */
     public static MsdfAtlas load(String weight) {
+        if ("1".equals(System.getProperty("club.ui.breakAtlas"))) throw new RuntimeException("simulated missing atlas: " + weight);
         ResourceManager rm = MinecraftClient.getInstance().getResourceManager();
         Identifier jsonId = Identifier.of("club", "ui/font/msdf/inter_" + weight + ".json");
         try (InputStream in = rm.getResourceOrThrow(jsonId).getInputStream()) {
