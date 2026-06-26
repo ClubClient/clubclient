@@ -1410,8 +1410,8 @@ public class UiAcceptanceScreen extends Screen {
     public void setZoom(float z, float cx, float cy) { zoom = z; zcx = cx; zcy = cy; }
 
     @Override public void render(DrawContext ctx, int mx, int my, float delta) {
-        ctx.fill(0, 0, width, height, BG);
         Ui.beginFrame(ctx);
+        Ui.renderer().rect(0, 0, width, height, BG);   // no direct ctx.fill — honours the hard rule
         UiContext c = new UiContext() {
             public UiRenderer renderer() { return Ui.renderer(); }
             public UiText text() { return Ui.text(); }
@@ -1567,7 +1567,7 @@ class ArchitectureRuleTest {
     @Test void noLowLevelRenderOutsideBackend() throws Exception {
         Path root = Paths.get("src/main/java/com/club/ui");
         List<String> banned = List.of("RenderSystem", "BufferBuilder", "Tessellator", "BufferRenderer",
-                "GlUniform", "DrawContext.fill", ".drawText(", "ClubFont", "RenderHelper");
+                "GlUniform", ".fill(", ".drawText(", "ClubFont", "RenderHelper");
         List<String> offenders = new ArrayList<>();
         try (Stream<Path> files = Files.walk(root)) {
             for (Path p : files.filter(f -> f.toString().endsWith(".java")).collect(Collectors.toList())) {
@@ -1585,7 +1585,7 @@ class ArchitectureRuleTest {
 - [ ] **Step 2: Run tests, expect pass**
 
 Run: `./gradlew.bat test --console=plain`
-Expected: PASS (demo screen uses only `Ui.renderer()`/`Ui.text()`; the one `ctx.fill` for the background is the screen clearing — if flagged, move the clear behind `Ui.renderer().rect(...)` and re-run).
+Expected: PASS — the demo screen clears its background via `Ui.renderer().rect(...)` and renders only through `Ui.renderer()`/`Ui.text()`; no banned low-level call appears outside `backend/`.
 
 - [ ] **Step 3: Commit**
 
