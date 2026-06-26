@@ -17,16 +17,15 @@ class TextLayoutTest {
     // space = advance 0.3, no bounds. Anything else = null (unrenderable).
     static GlyphSource fakeSource() {
         return new GlyphSource() {
-            public ResolvedGlyph resolve(Weight w, int cp) {
-                if (cp == ' ') { MsdfMetrics.Glyph g = new MsdfMetrics.Glyph(); g.advance = 0.3f; g.hasBounds = false; return new ResolvedGlyph(1, g); }
+            public boolean resolve(Weight w, int cp, ResolvedGlyph out) {
+                if (cp == ' ') { out.atlasId = 1; MsdfMetrics.Glyph g = new MsdfMetrics.Glyph(); g.advance = 0.3f; g.hasBounds = false; out.glyph = g; return true; }
                 if (cp >= 'A' && cp <= 'Z') {
                     MsdfMetrics.Glyph g = new MsdfMetrics.Glyph();
-                    g.advance = 0.5f; g.hasBounds = true;
-                    g.pl = 0f; g.pr = 0.4f; g.pb = 0f; g.pt = 0.7f;
+                    g.advance = 0.5f; g.hasBounds = true; g.pl = 0f; g.pr = 0.4f; g.pb = 0f; g.pt = 0.7f;
                     g.u0 = 0f; g.v0 = 0f; g.u1 = 1f; g.v1 = 1f;
-                    return new ResolvedGlyph(1, g);
+                    out.atlasId = 1; out.glyph = g; return true;
                 }
-                return null;
+                return false;
             }
             public MsdfMetrics metrics(Weight w) { return MsdfMetrics.parse(MsdfMetricsTest.JSON); }
         };

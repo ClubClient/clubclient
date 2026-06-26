@@ -1,5 +1,8 @@
 package com.club.ui.text;
 
-/** A glyph resolved to its atlas page + metrics. {@code atlasId} is opaque to layout — the renderer
- *  maps it to a GL texture. Glyph-cache seam: ids may span multiple atlases/families/fallback. */
-public record ResolvedGlyph(int atlasId, MsdfMetrics.Glyph glyph) {}
+/** Mutable holder filled by {@link GlyphSource#resolve}. Reused per layout to avoid per-glyph
+ *  allocation on the text hot path; implementations must not retain a reference to it. */
+public final class ResolvedGlyph {
+    public int atlasId;
+    public MsdfMetrics.Glyph glyph;
+}

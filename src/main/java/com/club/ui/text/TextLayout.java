@@ -10,6 +10,7 @@ import java.util.List;
  *  (layout-time, not per-frame hot path). */
 public final class TextLayout {
     private final GlyphSource source;
+    private final ResolvedGlyph scratch = new ResolvedGlyph();
     public TextLayout(GlyphSource source) { this.source = source; }
 
     /** Advance width (px) of one line, without rendering. Allocation-free. */
@@ -18,8 +19,7 @@ public final class TextLayout {
         for (int i = 0; i < text.length(); ) {
             int cp = text.codePointAt(i);
             i += Character.charCount(cp);
-            ResolvedGlyph rg = source.resolve(weight, cp);
-            if (rg != null) w += rg.glyph().advance * size;
+            if (source.resolve(weight, cp, scratch)) w += scratch.glyph.advance * size;
         }
         return w;
     }
@@ -36,13 +36,12 @@ public final class TextLayout {
         for (int i = 0; i < text.length(); ) {
             int cp = text.codePointAt(i);
             i += Character.charCount(cp);
-            ResolvedGlyph rg = source.resolve(weight, cp);
-            if (rg == null) continue;
-            MsdfMetrics.Glyph g = rg.glyph();
+            if (!source.resolve(weight, cp, scratch)) continue;
+            MsdfMetrics.Glyph g = scratch.glyph;
             if (g.hasBounds) {
                 float x0 = penX + g.pl * size, x1 = penX + g.pr * size;
                 float y0 = baseY - g.pt * size, y1 = baseY - g.pb * size;
-                sink.glyph(rg.atlasId(), x0, y0, x1, y1, g.u0, g.v0, g.u1, g.v1);
+                sink.glyph(scratch.atlasId, x0, y0, x1, y1, g.u0, g.v0, g.u1, g.v1);
             }
             penX += g.advance * size;
         }
