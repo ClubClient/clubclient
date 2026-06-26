@@ -44,6 +44,8 @@ public final class ModernBackend implements UiRenderer {
     // Per-frame state
     // -------------------------------------------------------------------------
     private DrawContext ctx;
+    private double frameScale = 1.0;
+    private int frameFbHeight = 0;
 
     // -------------------------------------------------------------------------
     // Opacity stack — primitive flat array, no boxing/allocation per push.
@@ -74,6 +76,10 @@ public final class ModernBackend implements UiRenderer {
         this.ctx = drawContext;
         opacityTop = 0;
         clipTop = 0;
+        RenderSystem.disableScissor();
+        net.minecraft.client.util.Window win = MinecraftClient.getInstance().getWindow();
+        frameScale = win.getScaleFactor();
+        frameFbHeight = win.getFramebufferHeight();
     }
 
     // -------------------------------------------------------------------------
@@ -218,7 +224,7 @@ public final class ModernBackend implements UiRenderer {
         if (opacityTop < MAX_STACK) {
             opacityStack[opacityTop++] = current * clamped;
         }
-        // If stack is full, silently clamp (defensive; 64-deep opacity nesting is pathological).
+        // FIXME overflow: push silently dropped when stack is full (MAX_STACK) — surfaces as full-opacity draw
     }
 
     @Override
@@ -356,7 +362,10 @@ public final class ModernBackend implements UiRenderer {
      * Intersection ensures that nested clips only ever narrow the visible region.
      */
     private void pushClipEntry(float x, float y, float w, float h, float radius) {
-        if (clipTop >= MAX_STACK) return;  // defensive; 64-deep clip nesting is pathological.
+        if (clipTop >= MAX_STACK) {
+            // FIXME overflow: push silently dropped when stack is full (MAX_STACK) — surfaces as unclipped draw
+            return;
+        }
 
         float nx, ny, nw, nh;
         if (clipTop > 0) {
@@ -396,15 +405,11 @@ public final class ModernBackend implements UiRenderer {
         float h = clipStack[base + 3];
         // radius stored at [base+4] — used by future rounded-clip shader mask; ignored here.
 
-        MinecraftClient mc = MinecraftClient.getInstance();
-        double scale = mc.getWindow().getScaleFactor();
-        int fbHeight = mc.getWindow().getFramebufferHeight();
-
         // GUI → framebuffer pixel conversion; GL scissor origin is bottom-left.
-        int sx = (int) Math.round(x * scale);
-        int sw = (int) Math.round(w * scale);
-        int sh = (int) Math.round(h * scale);
-        int sy = fbHeight - (int) Math.round((y + h) * scale);   // flip Y
+        int sx = (int) Math.round(x * frameScale);
+        int sw = (int) Math.round(w * frameScale);
+        int sh = (int) Math.round(h * frameScale);
+        int sy = frameFbHeight - (int) Math.round((y + h) * frameScale);   // flip Y
 
         RenderSystem.enableScissor(sx, sy, sw, sh);
     }
