@@ -8,7 +8,7 @@ public final class FocusManager {
     private int index = -1;
 
     public void register(Component c) { focusables.add(c); }
-    public void clear() { focusables.clear(); setIndex(-1); }
+    public void clear() { setIndex(-1); focusables.clear(); }
     public Component focused() { return index < 0 ? null : focusables.get(index); }
 
     public void focus(Component c) { setIndex(focusables.indexOf(c)); }
