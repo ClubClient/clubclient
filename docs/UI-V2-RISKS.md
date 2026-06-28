@@ -15,3 +15,6 @@
 | R8 | `line()` в Stage 1 только осепараллельный (диагонали аппроксимируются) | 🟢 | accepted | компоненты Stage 1 держат линии осепараллельными |
 | R9 | Хост JDK 25 vs toolchain Java 21 (loom) | 🟢 | low | в PoC `runClient` отрабатывал; следим в T10 |
 | R10 | Слабые GPU: лишние draw-call (один quad на фигуру + uniform-апдейты) | 🟢 | assessed-low | для UI-масштаба (десятки элементов/кадр) незначительно; MSDF требует `fwidth`/derivatives — core в GL 3.2 (MC-минимум), есть везде. Батчинг — опционально позже |
+| R11 | Arch-guard `.fill(` ложно срабатывал на layout-API `Sizing.fill()/Spacer.fill()` | 🟢 | closed | M2.1 (`f4dd518`, user-approved): strip-list расширен (как для `Arrays.fill`); реальный `DrawContext.fill(` по-прежнему ловится. **Урок:** diff-scoped per-task ревью не видят кросс-tree arch-регресс → гонять полный arch-test на гейте |
+| R12 | `Linear.measure()` для Fill/Weight отдаёт intrinsic-размер (не allocated) — недо-счёт при size-to-content родителе | 🟢 | pinned | M2.1: семантика осознанно закреплена golden-тестом `measureReportsIntrinsicSizeIgnoringFlex` + doc; уточнение позже — аддитивно, без смены контракта |
+| R13 | `Container.mouseScrolled` не проверяет `enabled` (в отличие от `mouseClicked`) | 🟢 | deferred | политика scroll-over-disabled решается вместе с `ScrollArea` в M2.2 (scrollable-виджетов в M2.1 нет) |

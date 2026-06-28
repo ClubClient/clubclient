@@ -50,3 +50,16 @@ UI (десятки элементов) незначительно. Текст (T
 
 - `MsdfMetrics` autobox **FIXED**: lookup по char-ключу переведён на `int`-keyed структуру — автобокс
   `Character` на каждый глиф устранён.
+
+## Stage 2 / M2.1 — Layout / Motion / Component (снимок после M2.1)
+
+| Метрика | Значение (M2.1) | План |
+|---|---|---|
+| **Аллокации в `render()`** | **нет** — `Container.render` итерирует поле `children` (без `new`); `Spacer`/`UiContextImpl` render — no-op/делегация; alloc-rule §5.6 (стили/Transition — в полях) | — |
+| **Аллокации в `layout()`** | **нет на стабильном дереве** — `Linear` scratch `mainExt/crossDes` — переиспользуемые поля (grow-only `ensureScratch`) | кэш measure/layout при неизменных входах (§11, не реализуем сейчас) |
+| **measure/layout** | пересчёт каждый кадр (caching заложен, не включён — §11) | dirty-флаг кэш позже |
+| **Motion** | `Transition` хранит примитивы (`float from/to/start`); `Easing`/`Curves` — stateless константы-лямбды; аллокаций нет | — |
+| **Render seam** | единая точка `UiContext.renderer()/text()`; layout/component не рисуют → batching-backend подключается за `UiRenderer/UiText` без правок компонентов | батчер фигур — Stage 2 backend (seam готов) |
+
+> Принцип сохранён: контракт не зависит от способа сабмита; виртуализация/кэш/батчинг — аддитивно (§11),
+> без переписывания компонентов.

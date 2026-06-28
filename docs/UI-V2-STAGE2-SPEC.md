@@ -252,6 +252,11 @@ public final class Spacer extends Component {     // гибкий/фиксиро
 Семантика: `Column/Row` мерят детей, раздают остаток main-оси (Fill поровну / Weight пропорционально / Spacer),
 выравнивают по cross-оси (`STRETCH` тянет, иначе START/CENTER/END), применяют `padding`/`gap` (всё — токены).
 
+> **Реализация (M2.1):** `Column`/`Row` — тонкие публичные обёртки над общим **package-private** движком
+> `Linear extends Container` (axis-generic measure/layout, DRY — алгоритм не дублируется). Наружу видны только
+> `Column`/`Row`; `Linear` не входит в public API. `measure()` возвращает **intrinsic content size** (Fill/Weight
+> отдают свой измеренный размер; расширение — только в `layout()` при наличии бюджета — закреплено golden-тестом).
+
 ---
 
 ## 5. Component model (`com.club.ui.component`)
