@@ -17,8 +17,10 @@ class ArchitectureRuleTest {
                 String rel = root.relativize(p).toString().replace('\\', '/');
                 if (rel.startsWith("backend/")) continue;          // backend may use low-level calls
                 String src = Files.readString(p);
-                // Strip stdlib fill calls so ".fill(" only matches DrawContext-style ctx.fill(
-                String srcStripped = src.replace("Arrays.fill(", "").replace("Collections.fill(", "");
+                // Strip known-safe non-render .fill( callers so ".fill(" only matches DrawContext-style ctx.fill(
+                // (stdlib + the approved layout design-system API Sizing.fill()/Spacer.fill() — approved 2026-06-28).
+                String srcStripped = src.replace("Arrays.fill(", "").replace("Collections.fill(", "")
+                        .replace("Sizing.fill(", "").replace("Spacer.fill(", "");
                 for (String b : banned) {
                     String check = b.equals(".fill(") ? srcStripped : src;
                     if (check.contains(b)) offenders.add(rel + " :: " + b);
@@ -26,5 +28,17 @@ class ArchitectureRuleTest {
             }
         }
         assertTrue(offenders.isEmpty(), "Hard-rule violations: " + offenders);
+    }
+
+    @Test void layoutDoesNotDependOnTheme() throws Exception {
+        Path layout = Paths.get("src/main/java/com/club/ui/layout");
+        List<String> offenders = new ArrayList<>();
+        try (Stream<Path> files = Files.walk(layout)) {
+            for (Path p : files.filter(f -> f.toString().endsWith(".java")).collect(Collectors.toList())) {
+                if (Files.readString(p).contains("com.club.ui.theme"))
+                    offenders.add(layout.relativize(p).toString().replace('\\', '/'));
+            }
+        }
+        assertTrue(offenders.isEmpty(), "layout/ must stay theme-free (pure math): " + offenders);
     }
 }
