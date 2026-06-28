@@ -33,15 +33,17 @@ public final class LegacyText implements UiText {
     }
     @Override public float draw(String s, float x, float y, TextStyle st) {
         if (ctx == null) return x;
+        float origX = x;
         float sc = scale(st.size);
-        if (st.align == Align.CENTER) x -= width(s, st.weight, st.size) / 2f;
-        else if (st.align == Align.RIGHT) x -= width(s, st.weight, st.size);
+        float w = width(s, st.weight, st.size);
+        if (st.align == Align.CENTER) x -= w / 2f;
+        else if (st.align == Align.RIGHT) x -= w;
         ctx.getMatrices().push();
         ctx.getMatrices().translate(x, y, 0);
         ctx.getMatrices().scale(sc, sc, 1f);
         ctx.drawText(tr(), s, 0, 0, st.color, false);
         ctx.getMatrices().pop();
-        return x + width(s, st.weight, st.size);
+        return origX + w;
     }
     @Override public void drawWrapped(String s, float x, float y, float maxWidth, TextStyle st) {
         float lh = lineHeight(st.weight, st.size), cy = y;

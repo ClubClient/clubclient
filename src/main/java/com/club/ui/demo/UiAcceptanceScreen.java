@@ -20,29 +20,40 @@ public class UiAcceptanceScreen extends Screen {
     private static final int BG = 0xFF0B111A, TXT = 0xFFF4F6FA, MUT = 0xFFA6ADBB,
             ACC = 0xFF7CABFF, ACC2 = 0xFF78D7FF, SURF = 0xFF131B2A, BORD = 0xFF1D2536;
     private float zoom = 1f, zcx, zcy;
+
+    /**
+     * Canonical allocation pattern: UiContext is created once as a field, not per frame.
+     * PRODUCTION components must follow this same pattern — hoist UiContext (and TextStyle /
+     * TextEffect) to fields or static final constants; never allocate them inside render().
+     */
+    private final UiContext ctx = new UiContext() {
+        public UiRenderer renderer() { return Ui.renderer(); }
+        public UiText text() { return Ui.text(); }
+        public float time() { return 0f; }
+    };
+
     public UiAcceptanceScreen() { super(Text.literal("UI V2 Acceptance")); }
     public void setZoom(float z, float cx, float cy) { zoom = z; zcx = cx; zcy = cy; }
 
-    @Override public void render(DrawContext ctx, int mx, int my, float delta) {
-        Ui.beginFrame(ctx);
+    @Override public void render(DrawContext drawCtx, int mx, int my, float delta) {
+        Ui.beginFrame(drawCtx);
         Ui.renderer().rect(0, 0, width, height, BG);   // no direct ctx.fill — honours the hard rule
-        UiContext c = new UiContext() {
-            public UiRenderer renderer() { return Ui.renderer(); }
-            public UiText text() { return Ui.text(); }
-            public float time() { return 0f; }
-        };
+        UiContext c = ctx;
         UiText t = c.text();
         t.draw("UI V2 — backend: " + Ui.backend(), 24, 16, TextStyle.of(Weight.SEMIBOLD, 18, TXT));
 
         boolean zoomed = zoom != 1f;
-        if (zoomed) { ctx.getMatrices().push(); ctx.getMatrices().translate(zcx, zcy, 0); ctx.getMatrices().scale(zoom, zoom, 1f); ctx.getMatrices().translate(-zcx, -zcy, 0); }
+        if (zoomed) { drawCtx.getMatrices().push(); drawCtx.getMatrices().translate(zcx, zcy, 0); drawCtx.getMatrices().scale(zoom, zoom, 1f); drawCtx.getMatrices().translate(-zcx, -zcy, 0); }
         content(c, 24, 56);
-        if (zoomed) ctx.getMatrices().pop();
+        if (zoomed) drawCtx.getMatrices().pop();
     }
 
     private void content(UiContext c, int x, int y) {
         UiRenderer r = c.renderer(); UiText t = c.text();
         // text weights/effects
+        // NOTE: TextStyle/TextEffect instances below are created per-frame for demo variety.
+        // PRODUCTION components must hoist TextStyle/TextEffect to static final constants or
+        // fields — never allocate them inside render().
         t.draw("Regular Ag Яр", x, y, TextStyle.of(Weight.REGULAR, 22, TXT));
         t.draw("Medium Ag Яр", x + 200, y, TextStyle.of(Weight.MEDIUM, 22, TXT));
         t.draw("SemiBold Ag Яр", x + 400, y, TextStyle.of(Weight.SEMIBOLD, 22, TXT));

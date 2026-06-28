@@ -41,6 +41,16 @@ public final class ModernBackend implements UiRenderer {
     private final java.util.function.Supplier<ShaderProgram> sdfSupplier = () -> UiShaders.SDF;
 
     // -------------------------------------------------------------------------
+    // Fail-safe barrier — mirrors ModernText.broken / healthy().
+    // -------------------------------------------------------------------------
+
+    /** Set to true on the first unrecoverable GL error; subsequent draw calls short-circuit. */
+    private boolean broken;
+
+    /** Returns false if this instance has encountered an unrecoverable error. */
+    public boolean healthy() { return !broken; }
+
+    // -------------------------------------------------------------------------
     // Per-frame state
     // -------------------------------------------------------------------------
     private DrawContext ctx;
@@ -74,9 +84,11 @@ public final class ModernBackend implements UiRenderer {
      */
     public void begin(DrawContext drawContext) {
         this.ctx = drawContext;
+        // Only clear a scissor that we actually left open from a prior frame; do NOT clobber
+        // an external (HUD / other-mod) scissor when modern shapes are idle.
+        if (clipTop > 0) RenderSystem.disableScissor();
         opacityTop = 0;
         clipTop = 0;
-        RenderSystem.disableScissor();
         net.minecraft.client.util.Window win = MinecraftClient.getInstance().getWindow();
         frameScale = win.getScaleFactor();
         frameFbHeight = win.getFramebufferHeight();
@@ -217,14 +229,19 @@ public final class ModernBackend implements UiRenderer {
     // UiRenderer — opacity stack
     // -------------------------------------------------------------------------
 
+    /** Logged once when the opacity stack overflows, then suppressed to avoid log spam. */
+    private boolean opacityOverflowWarned;
+
     @Override
     public void pushOpacity(float multiplier) {
         float clamped = Math.max(0f, Math.min(1f, multiplier));
         float current = (opacityTop == 0) ? 1f : opacityStack[opacityTop - 1];
         if (opacityTop < MAX_STACK) {
             opacityStack[opacityTop++] = current * clamped;
+        } else if (!opacityOverflowWarned) {
+            opacityOverflowWarned = true;
+            System.err.println("[club.ui] pushOpacity overflow (depth=" + MAX_STACK + ") — push dropped, draw will use full opacity");
         }
-        // FIXME overflow: push silently dropped when stack is full (MAX_STACK) — surfaces as full-opacity draw
     }
 
     @Override
@@ -266,7 +283,7 @@ public final class ModernBackend implements UiRenderer {
                                 float pad, int mode,
                                 int colorA, int colorB, int gradAxis,
                                 float feather, float thickness) {
-        if (ctx == null || w <= 0 || h <= 0 || !UiShaders.ready()) return;
+        if (broken || ctx == null || w <= 0 || h <= 0 || !UiShaders.ready()) return;
 
         // Apply current accumulated opacity to both colors — pure int arithmetic, no alloc.
         float opacity = currentOpacity();
@@ -316,46 +333,54 @@ public final class ModernBackend implements UiRenderer {
                                int mode, int gradAxis,
                                float feather, float thickness,
                                int colorA, int colorB) {
-        ShaderProgram shader = UiShaders.SDF;
+        try {
+            ShaderProgram shader = UiShaders.SDF;
 
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableCull();
-        RenderSystem.setShader(sdfSupplier);   // cached supplier — no lambda alloc
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.disableCull();
+            RenderSystem.setShader(sdfSupplier);   // cached supplier — no lambda alloc
 
-        // Set uniforms.
-        setUniform2f(shader, "HalfSize",     halfW, halfH);
-        setUniform4f(shader, "CornerRadii",  rtl, rtr, rbr, rbl);
-        setUniformI (shader, "Mode",         mode);
-        setUniformI (shader, "GradAxis",     gradAxis);
-        setUniform1f(shader, "Feather",      feather);
-        setUniform1f(shader, "Thickness",    thickness);
-        setUniformColor(shader, "ColorB",    colorB);
+            // Set uniforms.
+            setUniform2f(shader, "HalfSize",     halfW, halfH);
+            setUniform4f(shader, "CornerRadii",  rtl, rtr, rbr, rbl);
+            setUniformI (shader, "Mode",         mode);
+            setUniformI (shader, "GradAxis",     gradAxis);
+            setUniform1f(shader, "Feather",      feather);
+            setUniform1f(shader, "Thickness",    thickness);
+            setUniformColor(shader, "ColorB",    colorB);
 
-        // Decompose colorA into RGBA bytes for vertex color — pure int ops, no alloc.
-        int r = (colorA >>> 16) & 0xFF;
-        int g = (colorA >>>  8) & 0xFF;
-        int b =  colorA         & 0xFF;
-        int a = (colorA >>> 24) & 0xFF;
+            // Decompose colorA into RGBA bytes for vertex color — pure int ops, no alloc.
+            int r = (colorA >>> 16) & 0xFF;
+            int g = (colorA >>>  8) & 0xFF;
+            int b =  colorA         & 0xFF;
+            int a = (colorA >>> 24) & 0xFF;
 
-        Matrix4f mat = ctx.getMatrices().peek().getPositionMatrix();
+            Matrix4f mat = ctx.getMatrices().peek().getPositionMatrix();
 
-        // Stage-1 immediate mode: one begin/end per shape (unavoidable with Tessellator API).
-        // BATCHING SEAM: accumulate vertex data here instead of submitting immediately.
-        BufferBuilder bb = Tessellator.getInstance().begin(
-                VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
-        bb.vertex(mat, qx0, qy0, 0f).texture(qx0 - cx, qy0 - cy).color(r, g, b, a);
-        bb.vertex(mat, qx0, qy1, 0f).texture(qx0 - cx, qy1 - cy).color(r, g, b, a);
-        bb.vertex(mat, qx1, qy1, 0f).texture(qx1 - cx, qy1 - cy).color(r, g, b, a);
-        bb.vertex(mat, qx1, qy0, 0f).texture(qx1 - cx, qy0 - cy).color(r, g, b, a);
-        BufferRenderer.drawWithGlobalProgram(bb.end());
+            // Stage-1 immediate mode: one begin/end per shape (unavoidable with Tessellator API).
+            // BATCHING SEAM: accumulate vertex data here instead of submitting immediately.
+            BufferBuilder bb = Tessellator.getInstance().begin(
+                    VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+            bb.vertex(mat, qx0, qy0, 0f).texture(qx0 - cx, qy0 - cy).color(r, g, b, a);
+            bb.vertex(mat, qx0, qy1, 0f).texture(qx0 - cx, qy1 - cy).color(r, g, b, a);
+            bb.vertex(mat, qx1, qy1, 0f).texture(qx1 - cx, qy1 - cy).color(r, g, b, a);
+            bb.vertex(mat, qx1, qy0, 0f).texture(qx1 - cx, qy0 - cy).color(r, g, b, a);
+            BufferRenderer.drawWithGlobalProgram(bb.end());
 
-        RenderSystem.enableCull();
+            RenderSystem.enableCull();
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] modern shapes unavailable -> LEGACY: " + e);
+        }
     }
 
     // -------------------------------------------------------------------------
     // Clip stack helpers
     // -------------------------------------------------------------------------
+
+    /** Logged once when the clip stack overflows, then suppressed to avoid log spam. */
+    private boolean clipOverflowWarned;
 
     /**
      * Pushes a new clip, intersecting with the current top entry if one exists.
@@ -363,7 +388,10 @@ public final class ModernBackend implements UiRenderer {
      */
     private void pushClipEntry(float x, float y, float w, float h, float radius) {
         if (clipTop >= MAX_STACK) {
-            // FIXME overflow: push silently dropped when stack is full (MAX_STACK) — surfaces as unclipped draw
+            if (!clipOverflowWarned) {
+                clipOverflowWarned = true;
+                System.err.println("[club.ui] pushClip overflow (depth=" + MAX_STACK + ") — push dropped, draw will be unclipped");
+            }
             return;
         }
 

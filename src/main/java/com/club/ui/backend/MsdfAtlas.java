@@ -70,10 +70,17 @@ public final class MsdfAtlas {
         ResourceManager rm = MinecraftClient.getInstance().getResourceManager();
         try (InputStream in = rm.getResourceOrThrow(pngId).getInputStream()) {
             NativeImage img = NativeImage.read(in);
-            NativeImageBackedTexture tex = new NativeImageBackedTexture(img);
-            tex.setFilter(true, false);   // bilinear, no mip — correct for SDF
-            MinecraftClient.getInstance().getTextureManager().registerTexture(textureId, tex);
-            textureLoaded = true;
+            boolean owned = false;
+            try {
+                NativeImageBackedTexture tex = new NativeImageBackedTexture(img);
+                // NativeImageBackedTexture took ownership of img; don't close it on success
+                owned = true;
+                tex.setFilter(true, false);   // bilinear, no mip — correct for SDF
+                MinecraftClient.getInstance().getTextureManager().registerTexture(textureId, tex);
+                textureLoaded = true;
+            } finally {
+                if (!owned) img.close();
+            }
         } catch (Exception e) {
             throw new RuntimeException("MsdfAtlas: failed to load texture for '" + pngId + "'", e);
         }

@@ -3,8 +3,8 @@ package com.club.ui.text;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Arrays;
+import java.util.TreeMap;
 
 /** Pure model + parser of msdf-atlas-gen JSON. No Minecraft/GL dependencies. */
 public final class MsdfMetrics {
@@ -18,7 +18,10 @@ public final class MsdfMetrics {
     public int atlasW, atlasH;
     public float distanceRange;
     public float emLineHeight, emAscender, emDescender;
-    private final Map<Integer, Glyph> glyphs = new HashMap<>();
+
+    // int-keyed lookup — no autoboxing on get()
+    private int[]   keys = new int[0];
+    private Glyph[] vals = new Glyph[0];
 
     public static MsdfMetrics parse(String json) {
         MsdfMetrics m = new MsdfMetrics();
@@ -29,8 +32,11 @@ public final class MsdfMetrics {
         m.distanceRange = atlas.get("distanceRange").getAsFloat();
         JsonObject me = root.getAsJsonObject("metrics");
         m.emLineHeight = me.get("lineHeight").getAsFloat();
-        m.emAscender = me.get("ascender").getAsFloat();
+        m.emAscender  = me.get("ascender").getAsFloat();
         m.emDescender = me.get("descender").getAsFloat();
+
+        // Collect into TreeMap (load-time only — not a hot path)
+        TreeMap<Integer, Glyph> tmp = new TreeMap<>();
         for (JsonElement ge : root.getAsJsonArray("glyphs")) {
             JsonObject g = ge.getAsJsonObject();
             Glyph gl = new Glyph();
@@ -47,23 +53,45 @@ public final class MsdfMetrics {
                 gl.v1 = 1f - abm / m.atlasH;
                 gl.hasBounds = true;
             }
-            m.glyphs.put(g.get("unicode").getAsInt(), gl);
+            tmp.put(g.get("unicode").getAsInt(), gl);
+        }
+
+        // Materialize sorted parallel arrays
+        int n = tmp.size();
+        m.keys = new int[n];
+        m.vals = new Glyph[n];
+        int i = 0;
+        for (java.util.Map.Entry<Integer, Glyph> e : tmp.entrySet()) {
+            m.keys[i] = e.getKey();
+            m.vals[i] = e.getValue();
+            i++;
         }
         return m;
     }
 
-    public Glyph get(int cp) { return glyphs.get(cp); }
-    public float advanceOf(int cp) { Glyph g = glyphs.get(cp); return g == null ? 0f : g.advance; }
+    public Glyph get(int cp) {
+        int idx = Arrays.binarySearch(keys, cp);
+        return idx >= 0 ? vals[idx] : null;
+    }
+
+    public float advanceOf(int cp) {
+        Glyph g = get(cp);
+        return g == null ? 0f : g.advance;
+    }
 
     public float width(String s, float size) {
         float w = 0;
-        for (int i = 0; i < s.length(); i++) {
-            Glyph g = glyphs.get((int) s.charAt(i));
-            if (g == null) g = glyphs.get((int) '?');
+        int len = s.length();
+        for (int i = 0; i < len; ) {
+            int cp = s.codePointAt(i);
+            Glyph g = get(cp);
+            if (g == null) g = get('?');
             if (g != null) w += g.advance * size;
+            i += Character.charCount(cp);
         }
         return w;
     }
+
     public float lineHeight(float size) { return emLineHeight * size; }
     /** Pixels above the baseline (positive). */
     public float ascent(float size) { return emAscender * size; }

@@ -9,7 +9,12 @@ import net.minecraft.client.gui.DrawContext;
 /** Fallback renderer over DrawContext.fill. Not resolution-independent. Used only when MODERN is unavailable. */
 public final class LegacyBackend implements UiRenderer {
     private DrawContext ctx;
-    public void begin(DrawContext ctx) { this.ctx = ctx; }
+
+    /** Clip stack stored as interleaved int quads: x0, y0, x1, y1 per entry. */
+    private final int[] clipStack = new int[64]; // supports up to 16 nested clips
+    private int clipDepth = 0;
+
+    public void begin(DrawContext ctx) { this.ctx = ctx; clipDepth = 0; }
     @Override public boolean isResolutionIndependent() { return false; }
 
     @Override public void rect(float x, float y, float w, float h, int c) {
@@ -39,10 +44,28 @@ public final class LegacyBackend implements UiRenderer {
     @Override public void circle(float cx, float cy, float r, int c) { rect(cx - r, cy - r, r * 2, r * 2, c); }
 
     @Override public void pushClip(float x, float y, float w, float h) {
-        if (ctx != null) ctx.enableScissor((int) x, (int) y, (int) (x + w), (int) (y + h));
+        if (ctx == null) return;
+        int x0 = (int) x, y0 = (int) y, x1 = (int) (x + w), y1 = (int) (y + h);
+        int base = clipDepth * 4;
+        clipStack[base]     = x0;
+        clipStack[base + 1] = y0;
+        clipStack[base + 2] = x1;
+        clipStack[base + 3] = y1;
+        clipDepth++;
+        ctx.enableScissor(x0, y0, x1, y1);
     }
     @Override public void pushRoundedClip(float x, float y, float w, float h, float r) { pushClip(x, y, w, h); }
-    @Override public void popClip() { if (ctx != null) ctx.disableScissor(); }
+    @Override public void popClip() {
+        if (ctx == null || clipDepth == 0) return;
+        clipDepth--;
+        if (clipDepth == 0) {
+            ctx.disableScissor();
+        } else {
+            // restore the parent clip rect
+            int base = (clipDepth - 1) * 4;
+            ctx.enableScissor(clipStack[base], clipStack[base + 1], clipStack[base + 2], clipStack[base + 3]);
+        }
+    }
     @Override public void pushOpacity(float m) {}
     @Override public void popOpacity() {}
 }
