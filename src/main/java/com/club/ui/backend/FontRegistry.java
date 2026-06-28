@@ -86,10 +86,6 @@ public final class FontRegistry implements GlyphSource {
         };
     }
 
-    /** Drop cached atlas pages so the next {@link #resolve} reloads them — used to exercise the
-     *  missing-atlas fail-safe. A future eviction policy (multi-atlas/emoji) would also live here. */
-    public void clearCache() { java.util.Arrays.fill(atlases, null); }
-
     /** Lazy atlas accessor — loads on first access. */
     private MsdfAtlas atlas(int id) {
         if (atlases[id] == null) {
