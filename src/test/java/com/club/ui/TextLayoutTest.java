@@ -51,8 +51,22 @@ class TextLayoutTest {
         TextLayout L = new TextLayout(fakeSource()); Rec r = new Rec();
         L.layoutLine("AB", Weight.MEDIUM, 10f, 100f, 0f, Align.LEFT, r);
         assertEquals(2, r.q.size());
+        // x0 checks (index [1])
         assertEquals(100f, r.q.get(0)[1], 1e-4);
         assertEquals(105f, r.q.get(1)[1], 1e-4);
+        // y0 checks (index [2]): baseY = yTop(0) + ascent(10) = 0.96*10 = 9.6; y0 = baseY - pt*size = 9.6 - 0.7*10 = 2.6
+        float expectedBaseY = 0f + MsdfMetrics.parse(MsdfMetricsTest.JSON).ascent(10f); // 9.6
+        float expectedY0    = expectedBaseY - 0.7f * 10f;                               // 2.6
+        assertEquals(expectedY0, r.q.get(0)[2], 1e-4, "y0 of first glyph");
+        assertEquals(expectedY0, r.q.get(1)[2], 1e-4, "y0 of second glyph");
+    }
+    @Test void centerAlignShiftsByHalfWidth() {
+        TextLayout L = new TextLayout(fakeSource()); Rec r = new Rec();
+        // "AB": advance = (0.5+0.5)*10 = 10; penX = 100 - 10/2 = 95; first glyph x0 = 95 + pl(0)*10 = 95
+        L.layoutLine("AB", Weight.MEDIUM, 10f, 100f, 0f, Align.CENTER, r);
+        assertEquals(2, r.q.size());
+        assertEquals(95f, r.q.get(0)[1], 1e-4, "CENTER: first glyph x0");
+        assertEquals(100f, r.q.get(1)[1], 1e-4, "CENTER: second glyph x0");
     }
     @Test void spaceEmitsNoQuadButAdvances() {
         TextLayout L = new TextLayout(fakeSource()); Rec r = new Rec();
@@ -67,7 +81,10 @@ class TextLayoutTest {
     }
     @Test void wrapsByWidth() {
         TextLayout L = new TextLayout(fakeSource());
+        // "AA" = 10px fits in 12px; "AA AA" = 23px doesn't; wraps to ["AA", "AA"]
         List<String> lines = L.wrap("AA AA", Weight.MEDIUM, 10f, 12f);
         assertEquals(2, lines.size());
+        assertEquals("AA", lines.get(0), "first wrapped line content");
+        assertEquals("AA", lines.get(1), "second wrapped line content");
     }
 }

@@ -17,7 +17,12 @@ class ArchitectureRuleTest {
                 String rel = root.relativize(p).toString().replace('\\', '/');
                 if (rel.startsWith("backend/")) continue;          // backend may use low-level calls
                 String src = Files.readString(p);
-                for (String b : banned) if (src.contains(b)) offenders.add(rel + " :: " + b);
+                // Strip stdlib fill calls so ".fill(" only matches DrawContext-style ctx.fill(
+                String srcStripped = src.replace("Arrays.fill(", "").replace("Collections.fill(", "");
+                for (String b : banned) {
+                    String check = b.equals(".fill(") ? srcStripped : src;
+                    if (check.contains(b)) offenders.add(rel + " :: " + b);
+                }
             }
         }
         assertTrue(offenders.isEmpty(), "Hard-rule violations: " + offenders);
