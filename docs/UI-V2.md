@@ -258,6 +258,8 @@ public interface UiContext {
 - Состояния (`hovered/pressed/focused/disabled`) визуализируются исключительно токенами (wash, focus-ring,
   alpha). Никаких литералов.
 - События наружу — через колбэки/листенеры (`onClick`, `onChange`, `onSelect`).
+- **Allocation rule:** компоненты обязаны хранить `UiContext`, `TextStyle` и `TextEffect` в полях или
+  `static final` константах. Создание этих объектов внутри `render()` запрещено (per-frame allocation).
 
 **Минимальный набор (Stage 2), эскиз API:**
 - `Button` — `label`, `variant {PRIMARY, GHOST}`, `onClick`. Состояния hover/press/disabled.

@@ -28,3 +28,25 @@ UI (десятки элементов) незначительно. Текст (T
 
 > Принцип: контракт `UiRenderer` намеренно не зависит от способа сабмита → батчинг добавляется без
 > переписывания компонентов.
+
+## Text Performance Ledger (Stage 1 ModernText)
+
+| Метрика | Значение (Stage 1) |
+|---|---|
+| **Glyph draw** | 1 quad/glyph, батчится в **1 draw/run** (одним `BufferBuilder` на строку → один `BufferRenderer.drawWithGlobalProgram`) |
+| **Texture binds** | **1** на run (MSDF-атлас весá; смена atlas = смена bind, но внутри одного run — 0 смен) |
+| **Shader binds** | **1** на run (`ui_msdf_text`, выставляется один раз перед loop по глифам) |
+| **Atlas switches within a run** | **0** — все глифы строки берутся из одного атласа одного веса |
+
+**Известные per-frame издержки (Stage 1):**
+
+- `drawWrapped()` **re-wraps each frame**: внутри — `ArrayList`, `StringBuilder`, `String.split` на каждый
+  вызов. Компоненты, показывающие статичный или редко меняющийся текст, **должны кэшировать wrapped lines**
+  (пересчитывать только при изменении текста/ширины).
+- `getUniform(String)` **lookup per draw**: `ShaderProgram.getUniform(String)` вызывается по имени на каждый
+  глиф/run. Stage 2: кэшировать ссылки `GlUniform` при инициализации бэкенда.
+
+**Исправленные находки:**
+
+- `MsdfMetrics` autobox **FIXED**: lookup по char-ключу переведён на `int`-keyed структуру — автобокс
+  `Character` на каждый глиф устранён.
