@@ -1,6 +1,5 @@
 package com.club.ui.component;
 import com.club.ui.UiContext;
-import com.club.ui.layout.Size;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
