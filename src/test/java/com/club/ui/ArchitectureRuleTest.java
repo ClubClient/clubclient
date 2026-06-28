@@ -27,4 +27,16 @@ class ArchitectureRuleTest {
         }
         assertTrue(offenders.isEmpty(), "Hard-rule violations: " + offenders);
     }
+
+    @Test void layoutDoesNotDependOnTheme() throws Exception {
+        Path layout = Paths.get("src/main/java/com/club/ui/layout");
+        List<String> offenders = new ArrayList<>();
+        try (Stream<Path> files = Files.walk(layout)) {
+            for (Path p : files.filter(f -> f.toString().endsWith(".java")).collect(Collectors.toList())) {
+                if (Files.readString(p).contains("com.club.ui.theme"))
+                    offenders.add(layout.relativize(p).toString().replace('\\', '/'));
+            }
+        }
+        assertTrue(offenders.isEmpty(), "layout/ must stay theme-free (pure math): " + offenders);
+    }
 }

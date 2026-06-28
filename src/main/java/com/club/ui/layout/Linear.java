@@ -33,6 +33,12 @@ abstract class Linear extends Container {
     private float mainOf(float w, float h) { return horizontal ? w : h; }
     private float crossOf(float w, float h) { return horizontal ? h : w; }
 
+    /**
+     * Intrinsic CONTENT size. A Fill/Weight child contributes its own measured main-extent
+     * (a Fixed Spacer contributes its length; a flexible Spacer contributes 0). Flex expansion
+     * happens only in {@link #layout} when an explicit main-axis budget exists, so a
+     * size-to-content parent wraps its children tightly. (Pinned: measureReportsIntrinsicSizeIgnoringFlex.)
+     */
     @Override public Size measure(float availW, float availH) {
         float innerW = availW - padding.horizontal(), innerH = availH - padding.vertical();
         float mainSum = 0f, crossMax = 0f; int n = children.size();

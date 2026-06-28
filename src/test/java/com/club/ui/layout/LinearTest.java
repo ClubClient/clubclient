@@ -68,6 +68,16 @@ class LinearTest {
         col.layout(0, 0, 50, 100);
         assertEquals(40, a.yTop());                                      // (100-20)/2
     }
+    @Test void measureReportsIntrinsicSizeIgnoringFlex() {
+        // measure() reports intrinsic CONTENT size: a Fill/Weight child contributes its own
+        // measured extent, NOT an expanded one. Expansion happens only at layout() given a budget.
+        Column col = new Column().padding(Insets.ZERO).gap(0);
+        col.add(new Tile(40, 12));                 // Fixed
+        col.add(new Tile(40, 30), Sizing.fill());  // Fill: still contributes intrinsic 30
+        Size m = col.measure(100, 100);
+        assertEquals(40, m.w());                   // cross = widest child
+        assertEquals(42, m.h());                   // main = 12 + 30 intrinsic (Fill not expanded)
+    }
     @Test void rowIsHorizontalTranspose() {
         Row row = new Row().padding(Insets.ZERO).gap(5).crossAlign(CrossAlign.START);
         Tile a = new Tile(12, 40), b = new Tile(20, 40);
