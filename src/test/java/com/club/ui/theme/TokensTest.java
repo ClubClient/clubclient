@@ -26,11 +26,32 @@ class TokensTest {
         assertEquals(Tokens.palette().ink2(), Tokens.surface().bg1());   // bg1 == ink2 (#0B111A)
         assertEquals(Tokens.palette().accent(), Tokens.accent().accent());
     }
-    @Test void typographyTitleRole() {
-        Typography.Role t = Tokens.type().title();
-        assertEquals(Weight.SEMIBOLD, t.weight());
-        assertEquals(16f, t.size());
-        assertEquals(22f, t.lineHeight());
+    @Test void typographyAllRoles() {
+        Typography ty = Tokens.type();
+        // display
+        assertEquals(Weight.SEMIBOLD, ty.display().weight());
+        assertEquals(20f,             ty.display().size());
+        assertEquals(26f,             ty.display().lineHeight());
+        // title
+        assertEquals(Weight.SEMIBOLD, ty.title().weight());
+        assertEquals(16f,             ty.title().size());
+        assertEquals(22f,             ty.title().lineHeight());
+        // heading
+        assertEquals(Weight.MEDIUM,   ty.heading().weight());
+        assertEquals(15f,             ty.heading().size());
+        assertEquals(20f,             ty.heading().lineHeight());
+        // body
+        assertEquals(Weight.MEDIUM,   ty.body().weight());
+        assertEquals(13f,             ty.body().size());
+        assertEquals(18f,             ty.body().lineHeight());
+        // label
+        assertEquals(Weight.MEDIUM,   ty.label().weight());
+        assertEquals(12f,             ty.label().size());
+        assertEquals(16f,             ty.label().lineHeight());
+        // caption
+        assertEquals(Weight.REGULAR,  ty.caption().weight());
+        assertEquals(12f,             ty.caption().size());
+        assertEquals(16f,             ty.caption().lineHeight());
     }
     @Test void elevationLevel1HasShadow() {
         Elevation.Level l1 = Tokens.elevation().level1();

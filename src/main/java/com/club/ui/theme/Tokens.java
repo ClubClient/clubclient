@@ -5,7 +5,7 @@ import com.club.ui.theme.themes.ClubDark;
 /** Active-theme facade. The single access point for all design tokens. */
 public final class Tokens {
     private Tokens() {}
-    private static Theme active = ClubDark.create();
+    private static volatile Theme active = ClubDark.create();
     public static void setTheme(Theme t) { active = t; }
     public static Theme theme()        { return active; }
     public static Palette    palette()  { return active.palette(); }
