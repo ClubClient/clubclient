@@ -59,10 +59,13 @@ in-client точки входа — её добавит Stage 2/3, вызвав 
 Полный свод правил и рабочий процесс — [AI_CONTEXT.md](AI_CONTEXT.md).
 
 ## 6. Следующий шаг разработки
-**Stage 2 — дизайн-система: Tokens + библиотека компонентов** (поверх контрактов Stage 1). Стартует с чистого `main`.
-Что входит/не входит и критерии — [ROADMAP.md](ROADMAP.md); контракты токенов/компонентов уже зафиксированы в
-`docs/UI-V2.md` §6–8. Важно при интеграции: добавить вызов `Ui.init()` (регистрация шейдеров) в клиентский init.
-Перед кодом — спека по токенам/компонентам и **approve** пользователя.
+**Stage 2 — дизайн-система. M2.1 Foundation ✅ ЗАВЕРШЁН и в `main`**: tokens+theme+ClubDark, гибрид-layout
+Column/Row/Stack/Spacer (над package-private `Linear`), motion (Easing/Curves/Transition),
+Component/Container/FocusManager/UiContextImpl. Канон — `docs/UI-V2-STAGE2-SPEC.md` (APPROVED & FROZEN),
+план — `docs/UI-V2-STAGE2-M2.1-PLAN.md`. 66 тестов; arch-guard + машинный `layout⊬theme`.
+**Следующий шаг — M2.2 Core Widgets** (Label/Divider/Panel/Card/Window/ScrollArea/Button/Toggle/Checkbox/Slider):
+сперва спека-уточнение API виджетов + **approve**, затем план, затем код. `Ui.init()` перенесён в Stage 3 (ClickGUI);
+`main` пока library-only.
 
 ## 7. Что обязательно прочитать перед написанием кода
 1. [AI_CONTEXT.md](AI_CONTEXT.md) — правила, процесс, как работать с пользователем.

@@ -4,14 +4,14 @@
 > Обновлять при каждом значимом шаге. Дата последнего обновления: **2026-06-28**.
 
 ## Current Stage
-**Stage 2 / M2.1 Foundation — РЕАЛИЗОВАН** на ветке `feat/ui-v2-m2.1-foundation` (READY to merge, ждёт approve). Stage 1 в `main`.
+**Stage 2 / M2.1 Foundation — ЗАВЕРШЁН и в `main`.** Следующий — **M2.2 Core Widgets** (по процессу spec → review → plan → impl).
 
 ## Current Goal
-Смержить M2.1 в `main` (по approve) → перейти к **M2.2 Core Widgets**.
+Подготовить **спеку M2.2 Core Widgets** (уточнение API виджетов поверх Foundation) на ветке `feat/ui-v2-m2.2-core`, получить approve — затем план, затем код.
 
 ## Current Task
-M2.1 Foundation готов: 19 коммитов, **66 тестов / 0 падений**, `gradlew build` зелёный, arch-guard (вкл. машинный
-`layout⊬theme`) зелёный, keystone arch-review SOUND, финальное whole-branch ревью **READY**. Ожидается approve на merge.
+M2.1 смержён в `main` (Foundation: 66 тестов 0 падений; arch-guard + машинный `layout⊬theme`; keystone arch-review SOUND;
+final review READY). Старт M2.2: сперва спека API core-виджетов. **Кода виджетов ещё нет.**
 
 ## Completed
 - **Stage 1 — рендер-фундамент `com.club.ui`** (merge `ce27dab`):
@@ -28,12 +28,12 @@ M2.1 Foundation готов: 19 коммитов, **66 тестов / 0 паде�
   keystone arch-review SOUND; final review READY. Без реальных виджетов (M2.2).
 
 ## In Progress
-- M2.1 Foundation — ожидает approve на merge в `main`.
+- **M2.2 Core Widgets — подготовка спеки** (ветка `feat/ui-v2-m2.2-core`). Кода нет.
 
 ## Next
-1. **Merge M2.1** в `main` (по approve пользователя).
-2. **M2.2 Core Widgets** — Label/Divider/Panel/Card/Window/ScrollArea/Button/Toggle/Checkbox/Slider + gated dev-галерея
-   (отдельная спека-уточнение API виджетов + план M2.2).
+1. **Спека M2.2 Core Widgets** — уточнение API виджетов (Label/Divider/Panel/Card/Window/ScrollArea/Button/Toggle/
+   Checkbox/Slider) поверх Foundation + gated dev-галерея → **approve**.
+2. **План M2.2** → approve → реализация (subagent-driven).
 3. **M2.3 Extended Widgets** — Dropdown/TextField/TabBar/Category/SearchBar/Tooltip/Badge/ProgressBar.
 4. **`Ui.init()`-привязка** к клиентскому init — перенесена в Stage 3 (ClickGUI); `main` остаётся library-only.
 - Открытый вопрос M2.2: политика `mouseScrolled` на disabled-контейнере (R13) — решить с `ScrollArea`.
