@@ -23,9 +23,11 @@ class ComponentTest {
     @Test void inputDefaultsAreInert() {
         Probe p = new Probe();
         assertFalse(p.mouseClicked(0, 0, 0));
+        assertFalse(p.mouseReleased(0, 0, 0));
         assertFalse(p.keyPressed(0, 0, 0));
         assertFalse(p.charTyped('a', 0));
         assertFalse(p.mouseScrolled(0, 0, 1));
+        p.mouseMoved(0, 0);
         assertTrue(p.enabled); assertTrue(p.visible);
         assertFalse(p.isHovered());
     }
