@@ -12,6 +12,21 @@ class TokensTest {
         assertNotNull(Tokens.type()); assertNotNull(Tokens.surface()); assertNotNull(Tokens.accent());
         assertNotNull(Tokens.border()); assertNotNull(Tokens.shadow()); assertNotNull(Tokens.glow());
         assertNotNull(Tokens.elevation()); assertNotNull(Tokens.motion());
+        assertNotNull(Tokens.interaction());
+    }
+    @Test void interactionTokensReferenceExistingTokensNoNewHex() {
+        Interaction in = Tokens.interaction();
+        // focusRing references accent — not a new color
+        assertEquals(Tokens.accent().accent(), in.focusRing());
+        // hover/press overlays reuse palette colors (RGB equal), only alpha differs
+        assertEquals(Tokens.palette().white() & 0xFFFFFF, in.hoverWash()    & 0xFFFFFF);
+        assertEquals(Tokens.palette().ink0()  & 0xFFFFFF, in.pressOverlay() & 0xFFFFFF);
+        // overlays are semi-transparent (alpha < full)
+        assertTrue(((in.hoverWash()    >>> 24) & 0xFF) < 0xFF);
+        assertTrue(((in.pressOverlay() >>> 24) & 0xFF) < 0xFF);
+        // scalars sane
+        assertTrue(in.disabledAlpha() > 0f && in.disabledAlpha() < 1f);
+        assertTrue(in.focusRingWidth() > 0f);
     }
     @Test void clubDarkValues() {
         assertEquals(0xFF0B111A, Tokens.surface().bg1());
@@ -61,7 +76,8 @@ class TokensTest {
     @Test void setThemeSwaps() {
         Theme base = ClubDarkRef();
         Theme alt = new Theme(base.palette(), new Radius(1,2,3,4,5), base.spacing(), base.type(), base.surface(),
-            base.accent(), base.border(), base.shadow(), base.glow(), base.elevation(), base.motion());
+            base.accent(), base.border(), base.shadow(), base.glow(), base.elevation(), base.motion(),
+            base.interaction());
         Tokens.setTheme(alt);
         assertEquals(3f, Tokens.radius().md());
     }

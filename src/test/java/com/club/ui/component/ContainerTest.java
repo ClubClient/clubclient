@@ -13,6 +13,11 @@ class ContainerTest {
     static class Box extends Container {
         void add(Component c) { addChild(c); }
     }
+    static class ScrollProbe extends Component {
+        int scrolls;
+        @Override public void render(UiContext ctx) { }
+        @Override public boolean mouseScrolled(double mx, double my, double amount) { scrolls++; return true; }
+    }
     @Test void clickRoutesToTopmostContainingChild() {
         Box box = new Box(); box.layout(0, 0, 100, 100);
         ClickProbe a = new ClickProbe(true);  a.layout(0, 0, 50, 50);
@@ -43,5 +48,19 @@ class ContainerTest {
         box.add(a); box.add(b);
         box.mouseMoved(10, 10);
         assertTrue(a.isHovered()); assertFalse(b.isHovered());
+    }
+    @Test void scrollReachesEnabledChild() {                     // R13 baseline
+        Box box = new Box(); box.layout(0, 0, 100, 100);
+        ScrollProbe a = new ScrollProbe(); a.layout(0, 0, 50, 50);
+        box.add(a);
+        assertTrue(box.mouseScrolled(10, 10, 1));
+        assertEquals(1, a.scrolls);
+    }
+    @Test void scrollSkipsDisabledChild() {                      // R13: disabled rejects scroll, uniform with click
+        Box box = new Box(); box.layout(0, 0, 100, 100);
+        ScrollProbe a = new ScrollProbe(); a.layout(0, 0, 50, 50); a.enabled = false;
+        box.add(a);
+        assertFalse(box.mouseScrolled(10, 10, 1));
+        assertEquals(0, a.scrolls);
     }
 }

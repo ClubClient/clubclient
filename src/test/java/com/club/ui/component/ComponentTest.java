@@ -24,6 +24,7 @@ class ComponentTest {
         Probe p = new Probe();
         assertFalse(p.mouseClicked(0, 0, 0));
         assertFalse(p.mouseReleased(0, 0, 0));
+        assertFalse(p.mouseDragged(0, 0, 0, 0, 0));
         assertFalse(p.keyPressed(0, 0, 0));
         assertFalse(p.charTyped('a', 0));
         assertFalse(p.mouseScrolled(0, 0, 1));

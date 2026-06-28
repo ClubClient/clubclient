@@ -84,13 +84,14 @@ public final class Tokens {
     public static Glow       glow();
     public static Elevation  elevation();    // NEW (уровни глубины)
     public static Motion     motion();
+    public static Interaction interaction(); // NEW (state-скаляры hover/press/focus/disabled)
     public static void       setTheme(Theme t);
     public static Theme      theme();
 }
 
 public record Theme(Palette palette, Radius radius, Spacing spacing, Typography type,
                     Surface surface, Accent accent, Border border, Shadow shadow,
-                    Glow glow, Elevation elevation, Motion motion) {}
+                    Glow glow, Elevation elevation, Motion motion, Interaction interaction) {}
 ```
 
 Все группы — immutable records. Доступ: `Tokens.radius().md`, `Tokens.accent().accent`, и т.п.
@@ -199,9 +200,32 @@ public record Motion(Durations durations, Easings easings) {
 | Shadow | sm/md/lg | `(0,1,4,blk@25%) / (0,4,12,blk@30%) / (0,8,24,blk@35%)`¹ |
 | Glow | subtle/active | `(6, accent@10%) / (10, accent@18%)`¹ сдержанно |
 | Motion.dur | instant/fast/normal/slow | `0 / 0.12 / 0.20 / 0.32` с |
+| Interaction | hoverWash/pressOverlay/disabledAlpha/focusRing/focusRingWidth | `white@~9% / ink0@~15% / 0.38 / =accent / 1.5px`¹ |
 
 ¹ — **принятый стартовый дефолт темы** (утв. 2026-06-28; в DESIGN.md прямого значения нет). Эволюционирует через
 `Theme`/`DESIGN.md` без изменения API Tokens. Остальное — прямые значения DESIGN.md.
+
+### 3.9 Interaction — state-скаляры (NEW, approved 2026-06-28)
+
+Минимальный набор значений для визуализации интерактивных состояний (§5.5), которых **нет** в существующих
+группах. Принцип G2 (утв.): **не плодить крупную StateTokens-подсистему** — это маленький immutable record
+(≤6 значений), который **ссылается** на существующие `Palette/Accent`, а не дублирует hex. Цвета вычисляются из
+палитры в файле темы (единственное санкц. место литералов). Компоненты берут готовые значения отсюда — никаких
+числовых литералов состояний в виджетах.
+
+```java
+public record Interaction(
+    int   hoverWash,       // overlay-цвет hover (= white@~9%, из palette.white в теме)
+    int   pressOverlay,    // overlay-цвет press (= ink0@~15%, из palette.ink0 в теме)
+    float disabledAlpha,   // множитель прозрачности disabled (ctx.renderer().pushOpacity)
+    int   focusRing,       // цвет focus-ring (= palette.accent — ссылка, не новый hex)
+    float focusRingWidth   // толщина focus-ring (px)
+) {}
+```
+
+`hoverWash`/`pressOverlay` — готовые ARGB (база+альфа собрана из палитры в теме). `focusRing` ссылается на
+`accent`. `disabledAlpha`/`focusRingWidth` — скаляры. Значения тюнятся через `Theme`/`DESIGN.md` (в т.ч. на
+приёмке M2.2) без изменения API. **API заморожен после этого approve.**
 
 ---
 
@@ -275,6 +299,8 @@ public abstract class Component {
 
     public boolean mouseClicked(double mx, double my, int button)  { return false; }
     public boolean mouseReleased(double mx, double my, int button) { return false; }
+    public boolean mouseDragged(double mx, double my, int button,   // NEW (G1): доставляется захватом
+                                double dx, double dy) { return false; }
     public void    mouseMoved(double mx, double my) {}
     public boolean mouseScrolled(double mx, double my, double amount) { return false; }
     public boolean keyPressed(int key, int scan, int mods) { return false; }
@@ -282,13 +308,21 @@ public abstract class Component {
 }
 ```
 
+`mouseDragged` (G1, approved 2026-06-28) — единственный санкц. механизм drag для всех виджетов (Slider, Window,
+ScrollArea-скроллбар, Dropdown). Сигнатура совместима с ванильным `Screen` (`mx,my,button,dx,dy`) → проброс из
+экрана Stage 3 тривиален. Доставляется только через capture (§5.7), не по hit-test.
+
 ### 5.2 Container
 
 ```java
 public abstract class Container extends Component {
     protected final List<Component> children;    // создаётся вне render() (alloc-rule)
-    // диспатч ввода: hit-test по bounds → ребёнку в z-порядке; событие "всплывает" (true = поглощено)
-    // hover из mouseMoved; render() рисует видимых детей (clip при необходимости)
+    // click/scroll: hit-test по bounds → ребёнку в z-порядке (visible && enabled && contains); событие
+    //   "всплывает" (true = поглощено). Поглотивший press-ребёнок запоминается как pressedChild (capture-head).
+    // release/drag: НЕ hit-test — доставляются ТОЛЬКО pressedChild (§5.7), цепочкой до листа; release очищает
+    //   pressedChild на каждом уровне (capture освобождается). Без broadcast-release.
+    // hover из mouseMoved; render() рисует видимых детей (clip при необходимости).
+    // R13 (утв.): scroll, как и все consumable-события, игнорирует disabled-ребёнка (enabled-чек единообразен).
 }
 ```
 
@@ -304,14 +338,32 @@ public abstract class Container extends Component {
 
 ### 5.5 Interaction state machine
 
-`hovered` ← `mouseMoved` внутри bounds; `pressed` ← mouse-down внутри (сброс на release/leave); `focused` ← через
-`FocusManager`; `disabled` ← `!enabled`. Все состояния **визуализируются только токенами** (hover-wash, focus-ring,
-alpha) — литералов нет. Переходы анимируются через motion-каркас (§6).
+`hovered` ← `mouseMoved` внутри bounds; `pressed` ← mouse-down внутри, надёжный сброс на release/leave **благодаря
+гарантированной доставке release через capture** (§5.7) — виджет сам ведёт своё `pressed` в `mouseClicked`/
+`mouseReleased`; `focused` ← через `FocusManager`; `disabled` ← `!enabled`. Все состояния **визуализируются только
+токенами** (`hover-wash`/`pressOverlay`/`focusRing`/`disabledAlpha` — из `Tokens.interaction()`, §3.9) — литералов
+нет. Переходы анимируются через motion-каркас (§6).
 
 ### 5.6 Allocation rule (§7)
 
 `TextStyle`, `TextEffect`, `UiContext`, `Transition`, списки детей — в полях / `static final`. Создание в `render()`
 запрещено (per-frame alloc). Hot-path без аллокаций (`docs/UI-V2-PERF.md`).
+
+### 5.7 Pointer capture (G1, approved 2026-06-28)
+
+Фундаментальный механизм Foundation: **единственный** способ drag для всех будущих виджетов. Без него
+drag-виджеты (Slider/Window/ScrollArea/Dropdown) некорректны — событие теряется, как только курсор покидает bounds.
+
+**Модель.** При `mouseClicked` контейнер запоминает поглотившего ребёнка в `pressedChild` — это **capture-head**
+данного уровня; цепочка `pressedChild` от корня до листа = активный захват, **владелец — root** (его `pressedChild`
+есть голова захвата). Последующие `mouseReleased`/`mouseDragged`:
+- **не делают hit-test** и **не бродкастятся** — идут строго по цепочке `pressedChild` до листа-владельца захвата;
+- доставляются листу **даже когда курсор вне его bounds** (потому что маршрут — по `pressedChild`, не по `contains`);
+- `mouseReleased` очищает `pressedChild` на каждом уровне при разворачивании рекурсии → захват освобождён.
+
+Один механизм, без дублирования логики, без временных решений. Корневой `Container` уже держит захват в своём
+`pressedChild`; экран-владелец (dev-галерея в Stage 2, `Screen` в Stage 3) лишь пробрасывает мышиные события в
+корень. `disabled`-ребёнок не может быть захвачен (enabled-чек в press-диспатче).
 
 ---
 
@@ -407,12 +459,19 @@ position-passive соблюдён; логика покрыта тестами; d
 
 - **backend-only** ✓ — рендер только через `ctx.renderer()/text()`.
 - **нет low-level вне backend** ✓ — гарантирует `ArchitectureRuleTest`.
-- **контракты Stage 1 не менялись** ✓ — `UiRenderer/UiText/Ui/UiContext` нетронуты; добавлены только `Palette`/
-  `Elevation` в токен-фасад (§6 расширение, утверждено) + новые слои `layout/motion/component`.
+- **контракты Stage 1 (рендер) не менялись** ✓ — `UiRenderer/UiText/Ui/UiContext` нетронуты; добавлены только
+  `Palette`/`Elevation`/`Interaction` в токен-фасад (§3 расширение, утверждено) + новые слои `layout/motion/component`.
 - **gui/hud не тронуты** ✓.
 
 После approve спецификации — архитектура Stage 2 **заморожена** (изменения только при серьёзных причинах,
 с обсуждением).
+
+> **Утверждённая поправка к Foundation-API (2026-06-28, M2.2-prep, явный approve пользователя).** До старта
+> виджетов M2.2 в **модель компонента Stage 2** (не в рендер-контракты Stage 1) внесены: G1 — pointer capture
+> (`Component.mouseDragged`, capture-диспатч release/drag в `Container`, §5.7); G2 — токен-группа `Interaction`
+> (§3.9, ≤6 значений, ссылается на Palette/Accent); R13 — `mouseScrolled` уважает `disabled` единообразно.
+> Это устраняет внутреннюю несамодостаточность §5.5 (state-машина требовала надёжного release, которого
+> не было). После этой поправки Foundation-API заморожен.
 
 ---
 

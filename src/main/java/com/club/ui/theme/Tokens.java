@@ -19,4 +19,5 @@ public final class Tokens {
     public static Glow       glow()     { return active.glow(); }
     public static Elevation  elevation(){ return active.elevation(); }
     public static Motion     motion()   { return active.motion(); }
+    public static Interaction interaction() { return active.interaction(); }
 }

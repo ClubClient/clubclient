@@ -7,11 +7,16 @@
 **Stage 2 / M2.1 Foundation — ЗАВЕРШЁН и в `main`.** Следующий — **M2.2 Core Widgets** (по процессу spec → review → plan → impl).
 
 ## Current Goal
-Подготовить **спеку M2.2 Core Widgets** (уточнение API виджетов поверх Foundation) на ветке `feat/ui-v2-m2.2-core`, получить approve — затем план, затем код.
+**M2.2 infra-prep** (ветка `feat/ui-v2-m2.2-core`): реализовать утверждённые Foundation-доработки до виджетов —
+**G1** pointer capture, **G2** `Interaction`-токены, **R13** disabled-scroll. Затем — спека API виджетов → approve.
 
 ## Current Task
-M2.1 смержён в `main` (Foundation: 66 тестов 0 падений; arch-guard + машинный `layout⊬theme`; keystone arch-review SOUND;
-final review READY). Старт M2.2: сперва спека API core-виджетов. **Кода виджетов ещё нет.**
+Infra-Readiness audit проведён; пользователь **approve** (2026-06-28) на: **G1** — pointer capture как фундамент
+(`Component.mouseDragged` + capture-диспатч release/drag в `Container`, маршрут только захваченному до release,
+без broadcast/дублей); **G2** — маленький immutable `Interaction`-record (≤6 значений, ссылается на Palette/Accent,
+не отдельная крупная подсистема); **R13** — `mouseScrolled` уважает `disabled` единообразно с прочим вводом.
+Spec ([UI-V2-STAGE2-SPEC.md](../UI-V2-STAGE2-SPEC.md) §3.9/§5.1/§5.2/§5.5/§5.7/§10) обновлён. Реализация инфры —
+по TDD. **Кода виджетов по-прежнему нет и не пишется до завершения infra-prep.**
 
 ## Completed
 - **Stage 1 — рендер-фундамент `com.club.ui`** (merge `ce27dab`):
@@ -28,15 +33,18 @@ final review READY). Старт M2.2: сперва спека API core-видж�
   keystone arch-review SOUND; final review READY. Без реальных виджетов (M2.2).
 
 ## In Progress
-- **M2.2 Core Widgets — подготовка спеки** (ветка `feat/ui-v2-m2.2-core`). Кода нет.
+- **M2.2 infra-prep — РЕАЛИЗОВАНО, ждёт approve** (ветка `feat/ui-v2-m2.2-core`): G1 capture + G2 `Interaction` + R13.
+  TDD (RED→GREEN); `gradlew build` зелёный; **76 тестов 0 падений** (+10: CaptureTest 7, ContainerTest +2 R13,
+  TokensTest +1); arch-guard зелёный. Виджетов нет. Не закоммичено.
 
 ## Next
-1. **Спека M2.2 Core Widgets** — уточнение API виджетов (Label/Divider/Panel/Card/Window/ScrollArea/Button/Toggle/
+1. **Завершить infra-prep** (G1/G2/R13) → тесты+arch-guard зелёные → infra-prep report → **approve**.
+2. **Спека M2.2 Core Widgets** — уточнение API виджетов (Label/Divider/Panel/Card/Window/ScrollArea/Button/Toggle/
    Checkbox/Slider) поверх Foundation + gated dev-галерея → **approve**.
-2. **План M2.2** → approve → реализация (subagent-driven).
-3. **M2.3 Extended Widgets** — Dropdown/TextField/TabBar/Category/SearchBar/Tooltip/Badge/ProgressBar.
-4. **`Ui.init()`-привязка** к клиентскому init — перенесена в Stage 3 (ClickGUI); `main` остаётся library-only.
-- Открытый вопрос M2.2: политика `mouseScrolled` на disabled-контейнере (R13) — решить с `ScrollArea`.
+3. **План M2.2** → approve → реализация (subagent-driven).
+4. **M2.3 Extended Widgets** — Dropdown/TextField/TabBar/Category/SearchBar/Tooltip/Badge/ProgressBar.
+   Заложенный M2.3-пререквизит: overlay/portal-слой для поповеров/тултипов (escape ancestor-clip) — НЕ нужен для M2.2.
+5. **`Ui.init()`-привязка** к клиентскому init — перенесена в Stage 3 (ClickGUI); `main` остаётся library-only.
 
 ## Blocked
 — (ничего)

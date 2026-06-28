@@ -49,6 +49,13 @@ public final class ClubDark {
             new Motion.Durations(0f, 0.12f, 0.20f, 0.32f),
             new Motion.Easings(Curves.STANDARD, Curves.DECELERATE, Curves.ACCELERATE, Curves.LINEAR));
 
-        return new Theme(p, radius, spacing, type, surface, accent, border, shadow, glow, elevation, motion);
+        Interaction interaction = new Interaction(
+            Color.withAlpha(p.white(), 0x17),   // hoverWash    — white ~9%
+            Color.withAlpha(p.ink0(),  0x26),   // pressOverlay — ink0 ~15%
+            0.38f,                              // disabledAlpha
+            p.accent(),                         // focusRing (reference to accent)
+            1.5f);                              // focusRingWidth
+
+        return new Theme(p, radius, spacing, type, surface, accent, border, shadow, glow, elevation, motion, interaction);
     }
 }

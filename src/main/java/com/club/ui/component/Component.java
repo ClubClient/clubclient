@@ -18,6 +18,8 @@ public abstract class Component {
 
     public boolean mouseClicked(double mx, double my, int button)     { return false; }
     public boolean mouseReleased(double mx, double my, int button)    { return false; }
+    /** Delivered only to the capture owner (the press-consuming component); see Container's pressedChild routing. */
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) { return false; }
     public void    mouseMoved(double mx, double my)                   { }
     public boolean mouseScrolled(double mx, double my, double amount) { return false; }
     public boolean keyPressed(int key, int scan, int mods)           { return false; }
