@@ -8,9 +8,9 @@ class MotionTest {
             assertEquals(0f, e.apply(0f), 1e-5);
             assertEquals(1f, e.apply(1f), 1e-5);
             assertTrue(e.apply(0.49f) <= e.apply(0.51f), "easing must be monotonic non-decreasing");
+            assertEquals(0f, e.apply(-1f), 1e-5, "input below 0 clamped to 0");
+            assertEquals(1f, e.apply(2f), 1e-5, "input above 1 clamped to 1");
         }
-        assertEquals(0f, Curves.STANDARD.apply(-1f), 1e-5, "input clamped to 0");
-        assertEquals(1f, Curves.STANDARD.apply(2f), 1e-5, "input clamped to 1");
     }
     @Test void transitionInterpolatesAndSettles() {
         Transition tr = new Transition(0f, 0.2f, Curves.LINEAR);
