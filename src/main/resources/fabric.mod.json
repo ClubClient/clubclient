@@ -9,7 +9,7 @@
   "icon": "assets/club/icon.png",
   "entrypoints": {
     "main": ["com.club.ClubMod"],
-    "client": ["com.club.ClubClient", "com.club.poc.PocBootstrap"]
+    "client": ["com.club.ClubClient"]
   },
   "mixins": [
     "club.mixins.json"
