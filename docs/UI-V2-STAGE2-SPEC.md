@@ -195,7 +195,7 @@ public record Motion(Durations durations, Easings easings) {
 | Border | subtle/default/strong/thickness | white@6% / `#1D2536` / `#2A3550`¹ / `1px` |
 | Radius | xs/sm/md/lg/xl | `4 / 6 / 10 / 14¹ / 20¹` |
 | Spacing | xs/sm/md/lg/xl/xxl | `4 / 8 / 12 / 16 / 24 / 32`¹ |
-| Typography | display/title/heading/body/label/caption | SB·20/22¹ · SB·16/22 · M·15/20 · M·13/18 · M·12/16 · R·12/16 |
+| Typography | display/title/heading/body/label/caption | SB·20/26¹ · SB·16/22 · M·15/20 · M·13/18 · M·12/16 · R·12/16 |
 | Shadow | sm/md/lg | `(0,1,4,blk@25%) / (0,4,12,blk@30%) / (0,8,24,blk@35%)`¹ |
 | Glow | subtle/active | `(6, accent@10%) / (10, accent@18%)`¹ сдержанно |
 | Motion.dur | instant/fast/normal/slow | `0 / 0.12 / 0.20 / 0.32` с |
