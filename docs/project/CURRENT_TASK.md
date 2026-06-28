@@ -1,17 +1,17 @@
 # CURRENT_TASK — живой статус
 
 > ЕДИНСТВЕННЫЙ постоянно обновляемый файл. Новый чат читает его первым, чтобы понять «где мы сейчас».
-> Обновлять при каждом значимом шаге. Дата последнего обновления: **2026-06-26**.
+> Обновлять при каждом значимом шаге. Дата последнего обновления: **2026-06-28**.
 
 ## Current Stage
-**Между Stage 1 и Stage 2.** Stage 1 завершён и в `main`. Stage 2 ещё не начат.
+**Stage 2 — Design System (стартовал).** Stage 1 в `main`. Spec Stage 2 **approved & frozen** (2026-06-28).
 
 ## Current Goal
-Подготовить старт **Stage 2** (Tokens + библиотека компонентов) с чистого `main`.
+Реализовать **Stage 2** дизайн-систему (Tokens + layout + motion + компоненты) по `docs/UI-V2-STAGE2-SPEC.md`.
 
 ## Current Task
-Нет активной задачи реализации. Ожидается команда пользователя начать Stage 2 (тогда: спека токенов/компонентов →
-approve → план → реализация).
+Spec Stage 2 заморожен. Пишется **план реализации** (writing-plans) → ревью плана пользователем → реализация
+**M2.1 Foundation**. Кода компонентов ещё нет.
 
 ## Completed
 - **Stage 1 — рендер-фундамент `com.club.ui`** (merge `ce27dab`):
@@ -19,16 +19,18 @@ approve → план → реализация).
   core-шейдеры `ui_*`; MSDF-атласы Inter (Latin+Cyrillic) + `genMsdfAtlas`; 7 тестов (вкл. arch-guard).
   Рантайм-проверен; финальный 4-мерный review + фиксы применены; PoC/демо удалены; `gradlew build` зелёный.
 - Документация проекта `docs/project/*` + ledgers `docs/UI-V2-RISKS.md` / `docs/UI-V2-PERF.md`.
+- **Stage 2 Spec** approved & frozen (`docs/UI-V2-STAGE2-SPEC.md`, 2026-06-28): полная токен-система
+  (+Palette/Elevation), гибрид-layout (Column/Row/Stack/Spacer), motion-каркас, component/Container/FocusManager,
+  core/extended компоненты, milestones M2.1–2.3, governing principles (Theme=единств. источник вида, DESIGN.md=канон).
 
 ## In Progress
-— (пусто)
+- Stage 2 — план реализации (writing-plans).
 
 ## Next
-1. **Stage 2 — Tokens** (`com.club.ui.theme`: Radius/Spacing/Typography/Surface/Accent/Border/Shadow/Glow/Motion) —
-   контракт в `docs/UI-V2.md` §6.
-2. **Stage 2 — Components** (Button/Toggle/Slider/Dropdown/Checkbox/Card/Section/Window/Tab/TextField) — контракт §7–8.
-3. При интеграции компонентов/ClickGUI добавить вызов **`Ui.init()`** (регистрация шейдеров) в клиентский init —
-   сейчас фундамент library-only, точки входа нет.
+1. **M2.1 Foundation** — `theme/` (все токены + ClubDark) · `layout/` · `motion/` · `component/` base (после approve плана).
+2. **M2.2 Core Widgets** — Label/Divider/Panel/Card/Window/ScrollArea/Button/Toggle/Checkbox/Slider + gated dev-галерея.
+3. **M2.3 Extended Widgets** — Dropdown/TextField/TabBar/Category/SearchBar/Tooltip/Badge/ProgressBar.
+4. **`Ui.init()`-привязка** к клиентскому init — перенесена в Stage 3 (ClickGUI); `main` остаётся library-only.
 
 ## Blocked
 — (ничего)
