@@ -4,6 +4,7 @@ import com.club.config.ClubConfig;
 import com.club.gui.ClubScreen;
 import com.club.gui.sandbox.SandboxBootstrap;
 import com.club.gui.sandbox.UiSandboxScreen;
+import com.club.ui.devgallery.WidgetGalleryScreen; // [M2.2 DEV GALLERY — TEMPORARY, remove before merge]
 import com.club.hud.HudManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -15,6 +16,7 @@ import org.lwjgl.glfw.GLFW;
 public class ClubClient implements ClientModInitializer {
     public static KeyBinding openMenuKey;
     public static KeyBinding openSandboxKey;
+    public static KeyBinding openGalleryKey; // [M2.2 DEV GALLERY — TEMPORARY, remove before merge]
 
     @Override
     public void onInitializeClient() {
@@ -40,6 +42,14 @@ public class ClubClient implements ClientModInitializer {
                 "key.category.club"
         ));
 
+        // [M2.2 DEV GALLERY — TEMPORARY, remove before merge] keybind: Open Widget Gallery (default G)
+        openGalleryKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.club.open_gallery",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_G,
+                "key.category.club"
+        ));
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openMenuKey.wasPressed()) {
                 if (client.player != null) {
@@ -48,6 +58,10 @@ public class ClubClient implements ClientModInitializer {
             }
             while (openSandboxKey.wasPressed()) {
                 client.setScreen(new UiSandboxScreen());
+            }
+            // [M2.2 DEV GALLERY — TEMPORARY, remove before merge]
+            while (openGalleryKey.wasPressed()) {
+                client.setScreen(new WidgetGalleryScreen());
             }
         });
 
