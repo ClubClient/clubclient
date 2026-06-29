@@ -47,4 +47,15 @@ final class WidgetPaint {
     static void pressOverlay(UiContext ctx, float x, float y, float w, float h, float radius) {
         ctx.renderer().roundedRect(x, y, w, h, radius, Tokens.interaction().pressOverlay());
     }
+
+    /**
+     * Clip a rounded region and render {@code content} inside it (pushRoundedClip → render → popClip).
+     * The shared rounded-clip-of-content pattern used by Panel/Card/Window. Alloc-free (Component param,
+     * no lambda). Caller guards null content.
+     */
+    static void clipRounded(UiContext ctx, float x, float y, float w, float h, float radius, Component content) {
+        ctx.renderer().pushRoundedClip(x, y, w, h, radius);
+        content.render(ctx);
+        ctx.renderer().popClip();
+    }
 }

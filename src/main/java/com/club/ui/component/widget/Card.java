@@ -81,19 +81,10 @@ public final class Card extends Container {
         column().layout(x, y, w, h);
     }
 
-    /**
-     * render: WidgetPaint.elevation (level1) paints shadow→fill→border in one call,
-     * then content is clipped to the rounded rect.
-     *
-     * NOTE — rule-of-three observation: Panel also does pushRoundedClip→child.render→popClip.
-     * Window will be a third site. Flagged in card-report.md so the controller can lift this
-     * into WidgetPaint if desired (a lambda-based helper would allocate per frame, so not done here).
-     */
+    /** render: elevation (level1) frame, then the inner Column clipped to the rounded rect. */
     @Override public void render(UiContext ctx) {
         float r = Tokens.radius().lg();
         WidgetPaint.elevation(ctx, x, y, w, h, r, Tokens.elevation().level1());
-        ctx.renderer().pushRoundedClip(x, y, w, h, r);
-        column().render(ctx);
-        ctx.renderer().popClip();
+        WidgetPaint.clipRounded(ctx, x, y, w, h, r, column());
     }
 }

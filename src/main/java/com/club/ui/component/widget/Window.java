@@ -24,12 +24,7 @@ import com.club.ui.theme.Typography;
  * {@link #position} or drag; the parent layout does NOT assign position here.
  *
  * <p>render: {@link WidgetPaint#elevation} (level2) for the frame, then
- * {@code pushRoundedClip → column.render → popClip}.
- *
- * <p><b>Rule-of-three note:</b> the {@code pushRoundedClip → render → popClip} pattern appears in
- * Panel (site 1), Card (site 2), and here (site 3). Flagged for the controller to lift into a
- * {@code WidgetPaint.clipRounded(...)} helper — NOT done here to avoid a merge conflict with the
- * controller's integration pass.
+ * {@link WidgetPaint#clipRounded} for the column (titleBar + content).
  */
 public final class Window extends Container {
 
@@ -111,19 +106,11 @@ public final class Window extends Container {
         column.layout(this.x, this.y, this.w, this.h);
     }
 
-    /**
-     * render: WidgetPaint.elevation (level2) paints shadow→fill→border in one call,
-     * then the column (titleBar + content) is clipped to the window's rounded rect.
-     *
-     * Rule-of-three (clip site 3 of 3): Panel=site1, Card=site2, Window=site3.
-     * Controller will lift pushRoundedClip→render→popClip into WidgetPaint.clipRounded() afterward.
-     */
+    /** render: elevation (level2) frame, then the column (titleBar + content) clipped to the rounded rect. */
     @Override public void render(UiContext ctx) {
         float r = Tokens.radius().lg();
         WidgetPaint.elevation(ctx, x, y, w, h, r, Tokens.elevation().level2());
-        ctx.renderer().pushRoundedClip(x, y, w, h, r);
-        column.render(ctx);
-        ctx.renderer().popClip();
+        WidgetPaint.clipRounded(ctx, x, y, w, h, r, column);
     }
 
     // -------------------------------------------------------------------------
@@ -136,6 +123,8 @@ public final class Window extends Container {
      * mouseDragged delegates to Window.moveBy(dx, dy).
      */
     private final class TitleBar extends Component {
+
+        private TextStyle titleStyle;   // built once (title is immutable per Window) — alloc-free render
 
         /**
          * measure: uses only {@code role.lineHeight()} — headless-safe (never calls Ui.text().width).
@@ -161,14 +150,14 @@ public final class Window extends Container {
             return true;
         }
 
-        /** Draws the title-bar background and title text. TextStyle allocated once (field-cached via styleDirty). */
+        /** Draws the title-bar background and title text (TextStyle cached once — no per-frame alloc). */
         @Override public void render(UiContext ctx) {
             ctx.renderer().rect(x, y, w, h, Tokens.surface().surfaceHi());
-            Typography.Role role = Tokens.type().title();
-            // TextStyle is built once here; no per-frame alloc because TitleBar is not in the hot render path
-            // where styleDirty logic would matter — the title is immutable per Window instance.
-            TextStyle st = TextStyle.of(role.weight(), role.size(), Tokens.palette().textHi());
-            ctx.text().draw(title, x + Tokens.spacing().md(), y + Tokens.spacing().sm(), st);
+            if (titleStyle == null) {
+                Typography.Role role = Tokens.type().title();
+                titleStyle = TextStyle.of(role.weight(), role.size(), Tokens.palette().textHi());
+            }
+            ctx.text().draw(title, x + Tokens.spacing().md(), y + Tokens.spacing().sm(), titleStyle);
         }
     }
 }

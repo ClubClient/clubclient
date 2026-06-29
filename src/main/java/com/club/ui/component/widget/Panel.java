@@ -49,10 +49,6 @@ public final class Panel extends Container {
     @Override public void render(UiContext ctx) {
         float r = Tokens.radius().md();
         WidgetPaint.flatSurface(ctx, x, y, w, h, r, Tokens.surface().surface());
-        if (child != null) {
-            ctx.renderer().pushRoundedClip(x, y, w, h, r);
-            child.render(ctx);
-            ctx.renderer().popClip();
-        }
+        if (child != null) WidgetPaint.clipRounded(ctx, x, y, w, h, r, child);
     }
 }

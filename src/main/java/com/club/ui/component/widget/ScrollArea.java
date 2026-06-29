@@ -29,7 +29,6 @@ public final class ScrollArea extends Container {
 
     // Thumb-drag state (pointer-capture model)
     private boolean draggingThumb;
-    private float thumbGrabY;
 
     public ScrollArea(Component content) {
         this.content = content;
@@ -93,7 +92,6 @@ public final class ScrollArea extends Container {
         // If the click lands on the scrollbar thumb, capture it for dragging.
         if (overflowing() && inThumb(mx, my)) {
             draggingThumb = true;
-            thumbGrabY = (float) my;
             return true;
         }
         // Otherwise route the press to the content child (normal capture chain).
