@@ -22,14 +22,15 @@ public final class Button extends Control {
     private Runnable onClick;
     private final Transition hover =
             new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
+    private boolean styleInit, lastHovered;   // discrete label-color state → no per-frame TextStyle rebuild
 
     public Button(String text) { this.label = new Label(text).align(Align.CENTER); }
 
-    public Button variant(Variant v) { this.variant = v; return this; }
+    public Button variant(Variant v) { this.variant = v; this.styleInit = false; return this; }
     public Button onClick(Runnable r) { this.onClick = r; return this; }
 
-    /** Exposed for tests/gallery (no text metrics). */
-    public Variant variantValue() { return variant; }
+    /** Package-private for same-package tests (NOT public §3 API). */
+    Variant variantValue() { return variant; }
 
     @Override protected void activate() { if (onClick != null) onClick.run(); }
 
@@ -38,30 +39,34 @@ public final class Button extends Control {
         return new Size(t.w() + Tokens.spacing().md() * 2f, t.h() + Tokens.spacing().sm() * 2f);
     }
 
-    @Override public void layout(float x, float y, float w, float h) { super.layout(x, y, w, h); } // bounds only
+    @Override public void layout(float x, float y, float w, float h) {
+        super.layout(x, y, w, h);
+        float lh = label.role().lineHeight();          // token lineHeight — no text-measure, no alloc
+        label.layout(x, y + (h - lh) / 2f, w, lh);     // vertical-center; Label.align handles horizontal
+    }
 
     @Override public void render(UiContext ctx) {
         float r = Tokens.radius().sm();
         float now = ctx.time();
         hover.target(hovered ? 1f : 0f, now);
-        float hv = hover.value(now);
+        float hv = hover.value(now);                    // animated via int colors only (alloc-free)
 
         if (variant == Variant.PRIMARY) {
-            int fill = Color.lerp(Tokens.accent().accent(), Tokens.accent().accentHi(), hv);
-            ctx.renderer().roundedRect(x, y, w, h, r, fill);
+            ctx.renderer().roundedRect(x, y, w, h, r, Color.lerp(Tokens.accent().accent(), Tokens.accent().accentHi(), hv));
             if (pressed) WidgetPaint.pressOverlay(ctx, x, y, w, h, r);
-            label.color(Tokens.accent().onAccent());
         } else { // GHOST
             ctx.renderer().border(x, y, w, h, r, Tokens.border().thickness(), Tokens.border().defaultColor());
             WidgetPaint.hoverWash(ctx, x, y, w, h, r, hv);
-            label.color(Color.lerp(Tokens.palette().textHi(), Tokens.accent().accent(), hv));
         }
 
-        // Center the label within bounds (text metrics here, where ctx is ready — never in layout()).
-        float lh = label.measure(w, h).h();
-        label.layout(x, y + (h - lh) / 2f, w, h);
-        label.render(ctx);
-
+        // Discrete label color: Label rebuilds its TextStyle only on a state change, never per-frame (alloc-free).
+        if (!styleInit || hovered != lastHovered) {
+            label.color(variant == Variant.PRIMARY ? Tokens.accent().onAccent()
+                        : (hovered ? Tokens.accent().accent() : Tokens.palette().textHi()));
+            lastHovered = hovered;
+            styleInit = true;
+        }
+        label.render(ctx);                              // bounds set in layout(); no per-frame measure/alloc
         WidgetPaint.focusRing(ctx, this, r);
     }
 }

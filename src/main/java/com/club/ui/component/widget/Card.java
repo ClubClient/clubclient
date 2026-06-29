@@ -4,6 +4,7 @@ import com.club.ui.UiContext;
 import com.club.ui.component.Component;
 import com.club.ui.component.Container;
 import com.club.ui.layout.Column;
+import com.club.ui.layout.CrossAlign;
 import com.club.ui.layout.Insets;
 import com.club.ui.layout.Size;
 import com.club.ui.layout.Sizing;
@@ -46,7 +47,8 @@ public final class Card extends Container {
         if (dirty) {
             column = new Column()
                     .padding(padding)
-                    .gap(Tokens.spacing().sm());
+                    .gap(Tokens.spacing().sm())
+                    .crossAlign(CrossAlign.STRETCH);   // sections span card width (parity with Window)
 
             if (header != null) {
                 column.add(header);

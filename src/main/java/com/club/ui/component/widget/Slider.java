@@ -24,6 +24,7 @@ public final class Slider extends Container {
     private float value;
     private FloatConsumer onChange;
     private boolean showValue = true;
+    private float lastFormatted = Float.NaN;   // cache: reformat valueLabel only when value changes (alloc-free)
 
     private final Track track = new Track();
     private final Label valueLabel = new Label("", Tokens.type().label()).align(Align.RIGHT);
@@ -86,7 +87,10 @@ public final class Slider extends Container {
     }
 
     @Override public void render(UiContext ctx) {
-        if (showValue) valueLabel.text(format(value, step));
+        if (showValue && value != lastFormatted) {         // reformat only on change — no per-frame String alloc
+            valueLabel.text(format(value, step));
+            lastFormatted = value;
+        }
         super.render(ctx);                                 // renders the Row (track + valueLabel)
         WidgetPaint.focusRing(ctx, this, Tokens.radius().sm());
     }

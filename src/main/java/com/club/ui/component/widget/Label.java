@@ -30,11 +30,11 @@ public final class Label extends Component {
     public Label color(int c)            { this.color = c; this.colorSet = true; styleDirty = true; return this; }
     public Label effect(TextEffect e)    { this.effect = e; styleDirty = true; return this; }
 
-    // exposed for tests/gallery (no text metrics involved)
-    public String textValue()       { return text; }
-    public Align alignValue()       { return align; }
-    public int colorValue()         { return colorSet ? color : Tokens.palette().textHi(); }
-    public Typography.Role role()   { return role; }
+    // package-private for same-package tests/widgets (NOT public §3 API)
+    String textValue()       { return text; }
+    Align alignValue()       { return align; }
+    int colorValue()         { return colorSet ? color : Tokens.palette().textHi(); }
+    Typography.Role role()   { return role; }
 
     @Override public Size measure(float availW, float availH) {   // text-width: not headless-testable
         return new Size(Ui.text().width(text, role.weight(), role.size()),
