@@ -56,4 +56,11 @@ class ControlTest {
         assertFalse(b.keyPressed(GLFW_KEY_ENTER, 0, 0));
         assertEquals(0, b.activations);
     }
+
+    @Test void disabledDoesNotCapturePress() {
+        Btn b = new Btn();
+        b.enabled = false;
+        b.layout(0, 0, 80, 24);
+        assertFalse(b.mouseClicked(10, 10, 0));   // disabled control does not consume the press
+    }
 }

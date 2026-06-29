@@ -13,8 +13,8 @@ import static org.lwjgl.glfw.GLFW.*;
 abstract class Control extends Component {
 
     @Override public boolean mouseClicked(double mx, double my, int button) {
-        if (button == 0) { pressed = true; return true; }   // consume → Container captures this as pressedChild
-        return false;
+        if (enabled && button == 0) { pressed = true; return true; }  // consume → Container captures as pressedChild
+        return false;                                                 // enabled-check is defensive (Container also gates)
     }
 
     @Override public boolean mouseReleased(double mx, double my, int button) {
