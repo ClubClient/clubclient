@@ -17,7 +17,7 @@ public final class ClubDark {
             0xFFFFFFFF);
 
         Surface surface = new Surface(p.ink0(), p.ink2(), p.ink4(), p.ink5(), p.ink6());
-        Accent accent   = new Accent(p.accent(), 0xFF93BBFF, p.accent(), p.accent2());
+        Accent accent   = new Accent(p.accent(), 0xFF93BBFF, p.accent(), p.accent2(), p.ink0());
         Border border   = new Border(Color.withAlpha(p.white(), 0x0F), 0xFF1D2536, 0xFF2A3550, 1f);
         Radius radius   = new Radius(4f, 6f, 10f, 14f, 20f);
         Spacing spacing = new Spacing(4f, 8f, 12f, 16f, 24f, 32f);

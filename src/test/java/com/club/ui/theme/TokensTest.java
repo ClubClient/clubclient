@@ -40,6 +40,8 @@ class TokensTest {
     @Test void surfaceReferencesPalette() {
         assertEquals(Tokens.palette().ink2(), Tokens.surface().bg1());   // bg1 == ink2 (#0B111A)
         assertEquals(Tokens.palette().accent(), Tokens.accent().accent());
+        // onAccent (foreground on accent fill) references palette — not a new hex
+        assertEquals(Tokens.palette().ink0(), Tokens.accent().onAccent());
     }
     @Test void typographyAllRoles() {
         Typography ty = Tokens.type();

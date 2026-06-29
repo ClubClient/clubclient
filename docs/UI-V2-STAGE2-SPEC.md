@@ -120,7 +120,7 @@ public record Palette(
 
 ```java
 public record Surface(int bg0, int bg1, int bg2, int surface, int surfaceHi) {}
-public record Accent (int accent, int accentHi, int gradientA, int gradientB) {}
+public record Accent (int accent, int accentHi, int gradientA, int gradientB, int onAccent) {} // onAccent: fg on accent fill
 public record Border (int subtle, int defaultColor, int strong, float thickness) {}
 public record Shadow (Preset sm, Preset md, Preset lg) {
     public record Preset(float dx, float dy, float blur, int color) {}
@@ -192,7 +192,7 @@ public record Motion(Durations durations, Easings easings) {
 | Palette.text | textHi/Muted/Desc/Faint | `#F4F6FA #A6ADBB #767E8E #5A6273` |
 | Palette.state | good/warn/low | `#2ECC71 #E3C66A #E06B6B` |
 | Surface | bg0/bg1/bg2/surface/surfaceHi | `#06090F #0B111A #0F1624 #131B2A #18212F` |
-| Accent | accent/accentHi/gradA/gradB | `#7CABFF` / `#93BBFF`¹ / `#7CABFF` / `#78D7FF` |
+| Accent | accent/accentHi/gradA/gradB/onAccent | `#7CABFF` / `#93BBFF`¹ / `#7CABFF` / `#78D7FF` / `=ink0 #06090F`² |
 | Border | subtle/default/strong/thickness | white@6% / `#1D2536` / `#2A3550`¹ / `1px` |
 | Radius | xs/sm/md/lg/xl | `4 / 6 / 10 / 14¹ / 20¹` |
 | Spacing | xs/sm/md/lg/xl/xxl | `4 / 8 / 12 / 16 / 24 / 32`¹ |
@@ -204,6 +204,8 @@ public record Motion(Durations durations, Easings easings) {
 
 ¹ — **принятый стартовый дефолт темы** (утв. 2026-06-28; в DESIGN.md прямого значения нет). Эволюционирует через
 `Theme`/`DESIGN.md` без изменения API Tokens. Остальное — прямые значения DESIGN.md.
+² — `onAccent` (G4, утв. 2026-06-28): контрастный передний план для контента на accent-заливке (Button PRIMARY).
+Ссылается на `ink0` (без нового hex, в духе G2); эволюционирует темой без изменения API.
 
 ### 3.9 Interaction — state-скаляры (NEW, approved 2026-06-28)
 
@@ -472,6 +474,10 @@ position-passive соблюдён; логика покрыта тестами; d
 > (§3.9, ≤6 значений, ссылается на Palette/Accent); R13 — `mouseScrolled` уважает `disabled` единообразно.
 > Это устраняет внутреннюю несамодостаточность §5.5 (state-машина требовала надёжного release, которого
 > не было). После этой поправки Foundation-API заморожен.
+>
+> **Поправка 2 (2026-06-28, approve при approve M2.2-спеки).** G4 — в `Accent` добавлен `onAccent` (§3.3/§3.8):
+> контрастный передний план для контента на accent-заливке (`Button` PRIMARY); ссылается на `ink0` (без нового hex).
+> Аддитивно к токен-фасаду, рендер-контракты Stage 1 не затронуты. После этой поправки Foundation-API снова заморожен.
 
 ---
 
