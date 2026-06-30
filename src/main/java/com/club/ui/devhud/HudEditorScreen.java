@@ -89,7 +89,7 @@ public final class HudEditorScreen extends Screen {
 
     /** Re-anchor the popover beside the selected element every frame, so it follows when the element is dragged. */
     private void positionPopover() {
-        if (!hasPopover) return;
+        if (!hasPopover || pressOwner == 2) return;   // freeze while a control in the popover is in use → no slider feedback jitter
         HudElement sel = canvas.selected();
         if (sel == null) { hasPopover = false; return; }
         int bx = (int) sel.xLeft(), by = (int) sel.yTop(), bw = (int) sel.width();
@@ -144,7 +144,7 @@ public final class HudEditorScreen extends Screen {
         toolbar.mouseMoved(mx, my); toolbar.render(uiCtx);
 
         // hint
-        uiCtx.text().draw("Drag any element. Click it to edit. Toggle grid-snap in the toolbar.",
+        uiCtx.text().draw("Left-drag to move · Right-click to open settings · Toggle grid-snap in the toolbar.",
                 width / 2f, tbH + 8, stHint);
 
         // popover — compact, and re-anchored each frame so it follows the selected element

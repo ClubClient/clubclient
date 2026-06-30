@@ -54,12 +54,22 @@ class HudCanvasDragTest {
         assertEquals(104, e.x); assertEquals(48, e.y);
     }
 
-    @Test void tapWithoutMoveSelectsElement() {
+    @Test void rightClickSelectsAndTogglesElement() {
         FakeElement e = new FakeElement("t", 10, 10, 1f, 50, 20);
         HudCanvas c = new HudCanvas(true); c.saver(() -> {}); c.add(e); c.setScreen(400, 300);
         e.layout(10, 10, 50, 20);
-        c.mouseClicked(20, 15, 0);
-        c.mouseReleased(20, 15, 0);                   // no drag → select
+        c.mouseClicked(20, 15, 1);                    // RMB → open settings (select)
         assertSame(e, c.selected());
+        c.mouseClicked(20, 15, 1);                    // RMB again → toggle off
+        assertNull(c.selected());
+    }
+
+    @Test void leftTapDoesNotSelect() {
+        FakeElement e = new FakeElement("t", 10, 10, 1f, 50, 20);
+        HudCanvas c = new HudCanvas(true); c.saver(() -> {}); c.add(e); c.setScreen(400, 300);
+        e.layout(10, 10, 50, 20);
+        c.mouseClicked(20, 15, 0);                    // LMB tap = move-gesture start; never selects
+        c.mouseReleased(20, 15, 0);
+        assertNull(c.selected());
     }
 }

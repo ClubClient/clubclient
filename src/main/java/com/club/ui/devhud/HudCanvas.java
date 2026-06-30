@@ -3,6 +3,7 @@ package com.club.ui.devhud;
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
 import com.club.ui.UiContext;
+import com.club.ui.UiRenderer;
 import com.club.ui.component.Container;
 import com.club.ui.layout.Size;
 import com.club.ui.theme.Tokens;
@@ -56,11 +57,18 @@ public final class HudCanvas extends Container {
     }
 
     @Override public boolean mouseClicked(double mx, double my, int button) {
-        if (!editor || button != 0) return false;
-        moved = false;
+        if (!editor) return false;
+        if (button == 1) {                        // RIGHT button → open/close the element's settings
+            HudElement hit = elementAt(mx, my);
+            if (hit != null) { selected = (selected == hit) ? null : hit; onSelectionChanged.run(); return true; }
+            if (selected != null) { selected = null; onSelectionChanged.run(); return true; }   // RMB on empty closes the popover
+            return false;
+        }
+        if (button != 0) return false;
+        moved = false;                            // LEFT button → move only (drag); a tap does nothing
         pressed = elementAt(mx, my);
         if (pressed != null) { grabX = (int) mx - (int) pressed.xLeft(); grabY = (int) my - (int) pressed.yTop(); return true; }
-        return selected != null;   // capture an empty click only to allow deselect-on-release (popover clicks are routed elsewhere)
+        return false;
     }
 
     @Override public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
@@ -85,12 +93,8 @@ public final class HudCanvas extends Container {
     @Override public boolean mouseReleased(double mx, double my, int button) {
         if (!editor || button != 0) return false;
         guideX = guideY = HudSnap.NO_GUIDE;
-        boolean handled = false;
-        if (pressed != null) {
-            if (moved) saver.run();
-            else { selected = (selected == pressed) ? null : pressed; onSelectionChanged.run(); }
-            handled = true;
-        } else if (!moved && selected != null) { selected = null; onSelectionChanged.run(); handled = true; }
+        boolean handled = pressed != null;
+        if (pressed != null && moved) saver.run();   // commit a left-drag move; a tap (no move) does nothing
         pressed = null; moved = false;
         return handled;
     }
@@ -111,18 +115,24 @@ public final class HudCanvas extends Container {
         }
         if (!editor) return;
 
-        // hover affordance: a faint outline hugging the element box (grid-aligned, never overhangs) so it reads as clickable
+        // hover affordance: a faint padded outline (clamped to the screen so it never overhangs) — reads as clickable
         for (HudElement e : elements) {
             if (e == selected || !e.isHovered()) continue;
-            r.border(e.xLeft(), e.yTop(), e.width(), e.height(), Tokens.radius().sm(), 1f, Tokens.border().strong());
+            outline(r, e, 4f, 1f, Tokens.border().strong());
         }
-        // selection border (accent) hugging the element box
-        if (selected != null) {
-            r.border(selected.xLeft(), selected.yTop(), selected.width(), selected.height(), Tokens.radius().sm(), 1.5f, Tokens.accent().accent());
-        }
+        // selection border (accent), padded + clamped to the screen
+        if (selected != null) outline(r, selected, 4f, 1.5f, Tokens.accent().accent());
+
         // alignment guides (1px accent, ~0xAA alpha) — ports legacy guideX/guideY
         int g = Color.withAlpha(Tokens.accent().accent(), 0xAA);
         if (guideX != HudSnap.NO_GUIDE) r.rect(guideX, 0, 1, screenH, g);
         if (guideY != HudSnap.NO_GUIDE) r.rect(0, guideY, screenW, 1, g);
+    }
+
+    /** A padded outline around an element, clamped to the screen so it never overhangs the edge. */
+    private void outline(UiRenderer r, HudElement e, float pad, float thick, int color) {
+        float l = Math.max(0, e.xLeft() - pad), t = Math.max(0, e.yTop() - pad);
+        float rr = Math.min(screenW, e.xLeft() + e.width() + pad), b = Math.min(screenH, e.yTop() + e.height() + pad);
+        r.border(l, t, rr - l, b - t, Tokens.radius().sm(), thick, color);
     }
 }
