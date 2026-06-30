@@ -65,7 +65,7 @@ public final class HudEditorScreen extends Screen {
     }
 
     private void rebuildPopover() {
-        popover.clear(); focus.clear(); hasPopover = canvas.selected() != null;
+        popover.clear(); popLabels.clear(); focus.clear(); hasPopover = canvas.selected() != null;
         if (!hasPopover) return;
         HudElement sel = canvas.selected();
         popW = 210;
