@@ -60,44 +60,51 @@ public final class HudEditorScreen extends Screen {
         toolbar.add(grid); toolbar.add(reset); toolbar.add(done);
     }
 
+    private static final int POP_HEAD = 28, POP_ROW = 26, POP_PAD_B = 8;
+    private final java.util.List<Label> popLabels = new java.util.ArrayList<>();
+
+    /** Build the popover's rows (label + control) for the selected element. Per-frame positioning is in positionPopover(). */
     private void rebuildPopover() {
         popover.clear(); popLabels.clear(); focus.clear(); hasPopover = canvas.selected() != null;
         if (!hasPopover) return;
         HudElement sel = canvas.selected();
-        popW = 210;
-        int rows = sel instanceof EffectsElement ? 3 : sel instanceof TargetElement ? 3 : 2; // enabled,size,+extra
-        popH = 34 + rows * 30 + 10;
-        int[] b = { (int) sel.xLeft(), (int) sel.yTop(), (int) sel.width(), (int) sel.height() };
-        int px = b[0] + b[2] + 14; if (px + popW > width - 8) px = b[0] - popW - 14;
-        popX = Math.max(8, Math.min(px, width - popW - 8));
-        popY = Math.max(8, Math.min(b[1] - 4, height - popH - 8));
-
-        int ix = popX + 14, iw = popW - 28, y = popY + 34;
-        // Enabled
-        Toggle en = new Toggle(sel.cfgEnabled()).onChange(v -> { setEnabled(sel, v); save(); });
-        addRow("Enabled", en, ix, iw, y); y += 30; focus.register(en);
-        // Size
-        Slider size = new Slider(sel.cfgScale(), 0.5f, 2f, 0.05f).onChange(v -> { setScale(sel, v); save(); });
-        addRow("Size", size, ix, iw, y); y += 30; focus.register(size);
-        // per-type extra
+        popW = 178;
+        addRow("Enabled", new Toggle(sel.cfgEnabled()).onChange(v -> { setEnabled(sel, v); save(); }));
+        addRow("Size", new Slider(sel.cfgScale(), 0.5f, 2f, 0.05f).onChange(v -> { setScale(sel, v); save(); }));
         if (sel instanceof EffectsElement) {
-            Dropdown d = new Dropdown(new String[]{"Column", "Row"}, h().potionHorizontal ? 1 : 0)
-                    .onChange(i -> { h().potionHorizontal = (i == 1); save(); });
-            addRow("Layout", d, ix, iw, y); focus.register(d);
+            addRow("Layout", new Dropdown(new String[]{"Column", "Row"}, h().potionHorizontal ? 1 : 0)
+                    .onChange(i -> { h().potionHorizontal = (i == 1); save(); }));
         } else if (sel instanceof TargetElement) {
-            Slider range = new Slider(h().targetDistance, 3f, 32f, 1f)
-                    .onChange(v -> { h().targetDistance = Math.round(v); save(); });
-            addRow("Range", range, ix, iw, y); focus.register(range);
+            addRow("Range", new Slider(h().targetDistance, 3f, 32f, 1f)
+                    .onChange(v -> { h().targetDistance = Math.round(v); save(); }));
         }
+        popH = POP_HEAD + popover.children().size() * POP_ROW + POP_PAD_B;
     }
 
-    private final java.util.List<Label> popLabels = new java.util.ArrayList<>();
-    private void addRow(String name, Component ctrl, int ix, int iw, int y) {
-        Label l = new Label(name, Tokens.type().label()).color(Tokens.palette().textMuted());
-        l.layout(ix, y + 4, iw, 16); popLabels.add(l);
-        float cw = ctrl.measure(iw, 24).w(); if (cw <= 0 || ctrl instanceof Slider) cw = 96;
-        ctrl.layout(ix + iw - cw, y, cw, 24);
+    private void addRow(String name, Component ctrl) {
+        popLabels.add(new Label(name, Tokens.type().label()).color(Tokens.palette().textMuted()));
         popover.add(ctrl);
+        focus.register(ctrl);
+    }
+
+    /** Re-anchor the popover beside the selected element every frame, so it follows when the element is dragged. */
+    private void positionPopover() {
+        if (!hasPopover) return;
+        HudElement sel = canvas.selected();
+        if (sel == null) { hasPopover = false; return; }
+        int bx = (int) sel.xLeft(), by = (int) sel.yTop(), bw = (int) sel.width();
+        int px = bx + bw + 12; if (px + popW > width - 8) px = bx - popW - 12;   // flip to the left when no room on the right
+        popX = Math.max(8, Math.min(px, width - popW - 8));
+        popY = Math.max(8, Math.min(by, height - popH - 8));
+        int ix = popX + 12, iw = popW - 24, y = popY + POP_HEAD;
+        var ctrls = popover.children();
+        for (int i = 0; i < ctrls.size(); i++) {
+            Component ctrl = ctrls.get(i);
+            if (i < popLabels.size()) popLabels.get(i).layout(ix, y + 3, iw, 14);
+            float cw = ctrl instanceof Slider ? 88 : ctrl.measure(iw, 22).w(); if (cw <= 0) cw = 88;
+            ctrl.layout(ix + iw - cw, y, cw, 22);
+            y += POP_ROW;
+        }
     }
 
     private void setEnabled(HudElement e, boolean v) {
@@ -140,12 +147,13 @@ public final class HudEditorScreen extends Screen {
         uiCtx.text().draw("Drag any element. Click it to edit. Toggle grid-snap in the toolbar.",
                 width / 2f, tbH + 8, stHint);
 
-        // popover
+        // popover — compact, and re-anchored each frame so it follows the selected element
+        positionPopover();
         if (hasPopover) {
-            r.roundedRect(popX, popY, popW, popH, Tokens.radius().lg(), Tokens.surface().surface());
-            r.border(popX, popY, popW, popH, Tokens.radius().lg(), 1, Tokens.border().strong());
-            r.roundedRect(popX + 14, popY + 14, 7, 7, 2, Tokens.accent().accent());
-            uiCtx.text().draw(titleOf(canvas.selected()), popX + 27, popY + 12, stPop);
+            r.roundedRect(popX, popY, popW, popH, Tokens.radius().md(), Tokens.surface().bg2());
+            r.border(popX, popY, popW, popH, Tokens.radius().md(), 1, Tokens.border().defaultColor());
+            r.roundedRect(popX + 12, popY + 11, 6, 6, 2, Tokens.accent().accent());
+            uiCtx.text().draw(titleOf(canvas.selected()), popX + 24, popY + 7, stPop);
             for (Label l : popLabels) l.render(uiCtx);
             popover.mouseMoved(mx, my); popover.render(uiCtx);
         }

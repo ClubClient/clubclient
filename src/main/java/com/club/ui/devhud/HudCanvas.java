@@ -69,11 +69,12 @@ public final class HudCanvas extends Container {
         int w = (int) pressed.width(), h = (int) pressed.height();
         int nx = (int) mx - grabX, ny = (int) my - grabY;
 
-        if (gridSnap) { nx = HudSnap.snapToGrid(nx, GRID_STEP); ny = HudSnap.snapToGrid(ny, GRID_STEP); guideX = guideY = HudSnap.NO_GUIDE; }
-        else {
-            HudSnap.Snap sx = HudSnap.snapAxis(nx, w, screenW); nx = sx.pos(); guideX = sx.guide();
-            HudSnap.Snap sy = HudSnap.snapAxis(ny, h, screenH); ny = sy.pos(); guideY = sy.guide();
-        }
+        // Edge/center magnetism first (always shows guide lines); grid is the fallback lattice when grid-snap is on.
+        HudSnap.Snap sx = HudSnap.snapAxis(nx, w, screenW);
+        HudSnap.Snap sy = HudSnap.snapAxis(ny, h, screenH);
+        guideX = sx.guide(); guideY = sy.guide();
+        nx = sx.guide() != HudSnap.NO_GUIDE ? sx.pos() : (gridSnap ? HudSnap.snapToGrid(nx, GRID_STEP) : nx);
+        ny = sy.guide() != HudSnap.NO_GUIDE ? sy.pos() : (gridSnap ? HudSnap.snapToGrid(ny, GRID_STEP) : ny);
         nx = HudSnap.clampAxis(nx, w, screenW);
         ny = HudSnap.clampAxis(ny, h, screenH);
         pressed.cfgX(nx); pressed.cfgY(ny);
@@ -110,14 +111,14 @@ public final class HudCanvas extends Container {
         }
         if (!editor) return;
 
-        // hover affordance: a faint outline on the hovered (non-selected) element so it reads as clickable
+        // hover affordance: a faint outline hugging the element box (grid-aligned, never overhangs) so it reads as clickable
         for (HudElement e : elements) {
             if (e == selected || !e.isHovered()) continue;
-            r.border(e.xLeft() - 4, e.yTop() - 4, e.width() + 8, e.height() + 8, Tokens.radius().sm(), 1f, Tokens.border().strong());
+            r.border(e.xLeft(), e.yTop(), e.width(), e.height(), Tokens.radius().sm(), 1f, Tokens.border().strong());
         }
-        // selection border (accent) over the selected element's box
+        // selection border (accent) hugging the element box
         if (selected != null) {
-            r.border(selected.xLeft() - 4, selected.yTop() - 4, selected.width() + 8, selected.height() + 8, Tokens.radius().sm(), 1.5f, Tokens.accent().accent());
+            r.border(selected.xLeft(), selected.yTop(), selected.width(), selected.height(), Tokens.radius().sm(), 1.5f, Tokens.accent().accent());
         }
         // alignment guides (1px accent, ~0xAA alpha) — ports legacy guideX/guideY
         int g = Color.withAlpha(Tokens.accent().accent(), 0xAA);
