@@ -1,4 +1,4 @@
-package com.club.ui.devhud;
+package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
@@ -109,8 +109,9 @@ public final class HudCanvas extends Container {
             for (int gx = 0; gx <= screenW; gx += GRID_STEP) r.rect(gx, 0, 1, screenH, gc);
             for (int gy = 0; gy <= screenH; gy += GRID_STEP) r.rect(0, gy, screenW, 1, gc);
         }
+        MinecraftClient mc = MinecraftClient.getInstance();
         for (HudElement e : elements) {
-            if (!editor && !e.cfgEnabled()) continue;        // preview/in-world hides disabled; editor shows all
+            if (!editor && (!e.cfgEnabled() || !e.hasContent(mc))) continue;  // in-world hides disabled + empty; editor shows all
             e.render(ctx);
         }
         if (!editor) return;

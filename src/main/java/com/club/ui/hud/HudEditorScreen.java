@@ -1,4 +1,4 @@
-package com.club.ui.devhud;
+package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.Ui;
@@ -23,8 +23,9 @@ import net.minecraft.text.Text;
 import static org.lwjgl.glfw.GLFW.*;
 
 /**
- * [DEV HUD — TEMPORARY] Functional V2 HUD editor: drag elements (edge/center snap + optional grid),
- * scale/toggle/configure via a selection popover, persist to ClubConfig. Legacy HUD is untouched.
+ * Functional V2 HUD editor: drag elements (edge/center snap + optional grid), scale/toggle/configure
+ * via a selection popover, persist to ClubConfig. Opened from the Club menu (Misc → HUD Editor);
+ * returns to its parent screen on close.
  */
 public final class HudEditorScreen extends Screen {
     private final UiContextImpl uiCtx = new UiContextImpl();
@@ -39,8 +40,10 @@ public final class HudEditorScreen extends Screen {
     private boolean hasPopover;
     private TextStyle stTitle, stHint, stPop, stToolLabel;
     private int pressOwner;   // which surface owns the active gesture: 0 none, 1 toolbar, 2 popover, 3 canvas
+    private final Screen parent;
 
-    public HudEditorScreen() { super(Text.literal("HUD Editor")); }
+    public HudEditorScreen() { this(null); }
+    public HudEditorScreen(Screen parent) { super(Text.literal("HUD Editor")); this.parent = parent; }
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
 
     @Override protected void init() {
@@ -209,6 +212,7 @@ public final class HudEditorScreen extends Screen {
         if (k == GLFW_KEY_ESCAPE) { close(); return true; }
         return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
     }
+    @Override public void close() { if (client != null) client.setScreen(parent); }
     @Override public boolean shouldPause() { return false; }
 
     /** Free-form container (children positioned by the screen). */

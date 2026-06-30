@@ -1,4 +1,4 @@
-package com.club.ui.devhud;
+package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.UiContext;
@@ -20,6 +20,11 @@ public final class EffectsElement extends HudElement {
     @Override public void  cfgY(int v) { h().potionY = v; }
     @Override public float cfgScale() { return h().potionScale; }
     @Override public boolean cfgEnabled() { return h().potions; }
+
+    /** In-world: show only when there are real effects (no sample fallback outside the editor). */
+    @Override public boolean hasContent(MinecraftClient mc) {
+        return !live(mc) || !com.club.hud.PotionHud.effects(mc).isEmpty();
+    }
 
     private static final String[][] SAMPLE = {{"Speed II", "1:24"}, {"Strength I", "0:42"}};
 

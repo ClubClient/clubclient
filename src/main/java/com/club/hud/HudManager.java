@@ -2,13 +2,29 @@ package com.club.hud;
 
 import com.club.config.ClubConfig;
 import com.club.modules.screenstretch.ScreenStretchModule;
+import com.club.ui.Ui;
+import com.club.ui.component.UiContextImpl;
+import com.club.ui.hud.EffectsElement;
+import com.club.ui.hud.HudCanvas;
+import com.club.ui.hud.InfoElement;
+import com.club.ui.hud.TargetElement;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 
-/** Registers and dispatches all Club HUD elements. */
+/**
+ * Registers and dispatches the Club HUD: legacy {@link ArmorHud} (kept until V2 gains an armor element)
+ * plus the V2 HUD canvas (Effects / Target / Info) on the frozen UI render stack. The V2 elements read
+ * the same {@link ClubConfig.Hud} positions/scales as the editor and hide when disabled or empty.
+ */
 public final class HudManager {
     private HudManager() {}
+
+    // The in-world V2 HUD: a non-editor canvas (real data, hides disabled/empty elements), built once.
+    private static final HudCanvas CANVAS = new HudCanvas(false)
+            .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement());
+    private static final UiContextImpl UI = new UiContextImpl();
+    private static final long START = System.nanoTime();
 
     public static void init() {
         HudRenderCallback.EVENT.register((ctx, tickCounter) -> {
@@ -17,13 +33,18 @@ public final class HudManager {
             if (mc.currentScreen != null && mc.currentScreen.shouldPause()) return;
 
             ClubConfig cfg = ClubConfig.get();
-            float tickDelta = tickCounter.getTickDelta(false);
 
             drawBlackBars(ctx, mc);
 
-            if (cfg.hud.armor)   ArmorHud.render(ctx);
-            if (cfg.hud.potions) PotionHud.render(ctx);
-            if (cfg.hud.target)  TargetHud.render(ctx, tickDelta);
+            // Legacy armor stays until a V2 armor element exists (owner-approved hybrid).
+            if (cfg.hud.armor) ArmorHud.render(ctx);
+
+            // V2 HUD (Effects / Target / Info) — frozen UI stack; the canvas hides disabled/empty elements.
+            Ui.beginFrame(ctx);
+            UI.setTime((System.nanoTime() - START) / 1_000_000_000f);
+            CANVAS.setScreen(mc.getWindow().getScaledWidth(), mc.getWindow().getScaledHeight());
+            CANVAS.layoutFromConfig(mc);
+            CANVAS.render(UI);
         });
     }
 

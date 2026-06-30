@@ -1,4 +1,4 @@
-package com.club.ui.devhud;
+package com.club.ui.hud;
 
 /**
  * Pure HUD-editor geometry: edge/center magnetism, grid snap, on-screen clamp.

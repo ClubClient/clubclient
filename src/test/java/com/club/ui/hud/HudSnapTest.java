@@ -1,4 +1,4 @@
-package com.club.ui.devhud;
+package com.club.ui.hud;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;

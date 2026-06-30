@@ -1,4 +1,4 @@
-package com.club.ui.devhud;
+package com.club.ui.hud;
 
 import com.club.ui.UiContext;
 import com.club.ui.component.Component;
@@ -57,6 +57,10 @@ public abstract class HudElement extends Component {
 
     /** Live data is used when a player exists; otherwise representative sample data (editor on title screen). */
     protected boolean live(MinecraftClient mc) { return mc != null && mc.player != null; }
+
+    /** In-world (non-editor) visibility: an element with no real data hides instead of falling back to its
+     *  editor sample. The editor always shows all elements (sample) so they stay positionable. Default: shown. */
+    public boolean hasContent(MinecraftClient mc) { return true; }
 
     @Override public Size measure(float availW, float availH) { return new Size(w, h); }
     @Override public void render(UiContext ctx) {

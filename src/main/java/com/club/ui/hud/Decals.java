@@ -1,4 +1,4 @@
-package com.club.ui.devhud;
+package com.club.ui.hud;
 
 import com.club.ui.Color;
 import com.club.ui.Ui;

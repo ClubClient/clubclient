@@ -184,9 +184,9 @@ public class ClubScreen extends Screen {
                     v -> { hs.offsetY = v; ClubConfig.save(); })); y += px(22) + gap;
             addDrawableChild(new SliderWidget(gx, y, gw, px(22), "Offset Z", -1.0f, 1.0f, 0.01f, hs.offsetZ,
                     v -> { hs.offsetZ = v; ClubConfig.save(); }));
-        } else if (activeCat == 3 && sel == 0) { // HUD Editor (action)
+        } else if (activeCat == 3 && sel == 0) { // HUD Editor (action) — opens the V2 editor
             addDrawableChild(new ButtonC(panelX, y, px(150), px(26), "Open Editor",
-                    () -> MinecraftClient.getInstance().setScreen(new HudEditorScreen(this))).primary());
+                    () -> MinecraftClient.getInstance().setScreen(new com.club.ui.hud.HudEditorScreen(this))).primary());
         }
         // simple-toggle modules (No Hurt Cam / Fire / Bobbing / Hide Vanilla Effects) have no extra rows
     }

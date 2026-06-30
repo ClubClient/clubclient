@@ -1,4 +1,4 @@
-package com.club.ui.devhud;
+package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.UiContext;
@@ -22,6 +22,11 @@ public final class TargetElement extends HudElement {
 
     @Override public int autoX(MinecraftClient mc) { return mc != null ? mc.getWindow().getScaledWidth() / 2 + 16 : -1; }
     @Override public int autoY(MinecraftClient mc) { return mc != null ? mc.getWindow().getScaledHeight() / 2 - CONTENT_H / 2 : -1; }
+
+    /** In-world: show only when actually aiming at a living entity (no sample fallback outside the editor). */
+    @Override public boolean hasContent(MinecraftClient mc) {
+        return !live(mc) || mc.world == null || com.club.hud.TargetHud.raycastTarget(mc, 1f) != null;
+    }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) { return new int[]{ CONTENT_W, CONTENT_H }; }
 

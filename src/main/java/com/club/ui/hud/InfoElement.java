@@ -1,4 +1,4 @@
-package com.club.ui.devhud;
+package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.UiContext;
