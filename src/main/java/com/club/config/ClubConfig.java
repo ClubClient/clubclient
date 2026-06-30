@@ -19,7 +19,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 4; // bumped when new fields are added, for migration
+    public int version = 5; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -80,6 +80,11 @@ public class ClubConfig {
         public boolean armorVertical = false;  // armor as a column instead of a row
         public boolean potionHorizontal = false; // potions as a row instead of a column
         public boolean hideVanillaEffects = true; // hide the vanilla status-effect HUD overlay
+        // V2 HUD: coordinates/FPS readout (new in v5)
+        public boolean info = true;
+        public int infoX = 8;
+        public int infoY = 120;
+        public float infoScale = 1.0f;
     }
 
     public static ClubConfig get() {
@@ -171,6 +176,13 @@ public class ClubConfig {
             animations.enabled = true;
             screenStretch.enabled = true;
             version = 4;
+            changed = true;
+        }
+        if (version < 5) {
+            // new V2 Info element defaults (Gson leaves missing primitives at 0 → would pin to corner)
+            hud.info = true;
+            hud.infoX = 8; hud.infoY = 120; hud.infoScale = 1.0f;
+            version = 5;
             changed = true;
         }
         if (changed) save();
