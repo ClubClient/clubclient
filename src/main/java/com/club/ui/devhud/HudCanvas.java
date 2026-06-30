@@ -129,12 +129,19 @@ public final class HudCanvas extends Container {
         if (guideY != HudSnap.NO_GUIDE) r.rect(0, guideY, screenW, 1, g);
     }
 
-    /** A padded outline around an element, clamped to the snap margin so a snapped element's outline lands ON
-     *  the magnet line (at MARGIN) rather than spilling past it toward the screen edge. */
+    /** A padded outline around an element. Padding shows in the interior, but on any side whose element edge
+     *  sits within the snap margin of the screen, the outline hugs the element edge instead — so a snapped
+     *  element's outline lands exactly on the magnet line and never spills past it, while edge/grid elements
+     *  at x/y 0..MARGIN keep their content (text) inside the frame. Always within the screen. */
     private void outline(UiRenderer r, HudElement e, float pad, float thick, int color) {
         int m = HudSnap.MARGIN;
-        float l = Math.max(m, e.xLeft() - pad), t = Math.max(m, e.yTop() - pad);
-        float rr = Math.min(screenW - m, e.xLeft() + e.width() + pad), b = Math.min(screenH - m, e.yTop() + e.height() + pad);
-        r.border(l, t, rr - l, b - t, Tokens.radius().sm(), thick, color);
+        float ex = e.xLeft(), ey = e.yTop(), ew = e.width(), eh = e.height();
+        float l = ex <= m ? ex : ex - pad;
+        float t = ey <= m ? ey : ey - pad;
+        float rt = ex + ew >= screenW - m ? ex + ew : ex + ew + pad;
+        float b = ey + eh >= screenH - m ? ey + eh : ey + eh + pad;
+        l = Math.max(0, l); t = Math.max(0, t);
+        rt = Math.min(screenW, rt); b = Math.min(screenH, b);
+        r.border(l, t, rt - l, b - t, Tokens.radius().sm(), thick, color);
     }
 }
