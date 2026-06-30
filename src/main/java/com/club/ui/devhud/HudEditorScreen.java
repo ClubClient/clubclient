@@ -89,13 +89,16 @@ public final class HudEditorScreen extends Screen {
 
     /** Re-anchor the popover beside the selected element every frame, so it follows when the element is dragged. */
     private void positionPopover() {
-        if (!hasPopover || pressOwner == 2) return;   // freeze while a control in the popover is in use → no slider feedback jitter
+        if (!hasPopover) return;
         HudElement sel = canvas.selected();
         if (sel == null) { hasPopover = false; return; }
-        int bx = (int) sel.xLeft(), by = (int) sel.yTop(), bw = (int) sel.width();
-        int px = bx + bw + 12; if (px + popW > width - 8) px = bx - popW - 12;   // flip to the left when no room on the right
-        popX = Math.max(8, Math.min(px, width - popW - 8));
-        popY = Math.max(8, Math.min(by, height - popH - 8));
+        // Anchor to the element's top-left (invariant under scaling) and place the popover ABOVE the element,
+        // or BELOW when there's no room above. popX never depends on the element's width, so dragging the Size
+        // slider neither shifts the slider (no feedback jitter) nor lets the growing element overlap the popover.
+        int ex = (int) sel.xLeft(), ey = (int) sel.yTop(), eh = (int) sel.height();
+        popX = Math.max(8, Math.min(ex, width - popW - 8));
+        int above = ey - popH - 8;
+        popY = above >= 8 ? above : Math.max(8, Math.min(height - popH - 8, ey + eh + 8));
         int ix = popX + 12, iw = popW - 24, y = popY + POP_HEAD;
         var ctrls = popover.children();
         for (int i = 0; i < ctrls.size(); i++) {
