@@ -9,7 +9,7 @@ import net.minecraft.client.MinecraftClient;
 
 /** Entity under the crosshair: name + "<hp> HP" + a 2px HP-fraction line (the only accent). No avatar/distance (per the approved minimalist design). */
 public final class TargetElement extends HudElement {
-    private static final int CONTENT_W = 150, CONTENT_H = 34;
+    private static final int CONTENT_W = 160, CONTENT_H = 56;
     public TargetElement() { super("target"); }
 
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
@@ -30,11 +30,14 @@ public final class TargetElement extends HudElement {
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         var r = ctx.renderer(); var t = ctx.text(); Typography ty = Tokens.type();
-        int hi = Tokens.palette().textHi(), desc = Tokens.palette().textDesc(),
-            track = Tokens.surface().surfaceHi(), accent = Tokens.accent().accent(), low = Tokens.palette().stateLow();
-        t.draw(name, ox, oy, TextStyle.of(ty.body().weight(), ty.body().size() * s, hi));
-        t.draw(sub, ox, oy + 18 * s, TextStyle.of(ty.caption().weight(), ty.caption().size() * s, desc));
-        float barY = oy + 30 * s, barW = CONTENT_W * s, barH = 2 * s, rr = 1 * s;
+        int hi = Tokens.palette().textHi(), track = Tokens.surface().surfaceHi(),
+            accent = Tokens.accent().accent(), low = Tokens.palette().stateLow();
+        // name — the lead (white, title)
+        t.draw(name, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hi));
+        // HP value — prominent: heading-size white (not a muted caption), clearly separated below the name
+        t.draw(sub, ox, oy + 26 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, hi));
+        // HP-fraction line — the single accent, thicker for emphasis, set apart from the text
+        float barY = oy + 50 * s, barW = CONTENT_W * s, barH = 3 * s, rr = 1.5f * s;
         r.roundedRect(ox, barY, barW, barH, rr, track);
         if (frac > 0) r.roundedRect(ox, barY, barW * frac, barH, rr, frac < 0.30f ? low : accent);
     }

@@ -60,7 +60,7 @@ public final class HudCanvas extends Container {
         moved = false;
         pressed = elementAt(mx, my);
         if (pressed != null) { grabX = (int) mx - (int) pressed.xLeft(); grabY = (int) my - (int) pressed.yTop(); return true; }
-        return false;
+        return selected != null;   // capture an empty click only to allow deselect-on-release (popover clicks are routed elsewhere)
     }
 
     @Override public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
@@ -97,20 +97,31 @@ public final class HudCanvas extends Container {
     @Override public Size measure(float aw, float ah) { return new Size(aw, ah); }
 
     @Override public void render(UiContext ctx) {
+        var r = ctx.renderer();
+        // faint "graph-paper" grid underlay while grid-snap is on (editor only)
+        if (editor && gridSnap) {
+            int gc = Color.withAlpha(Tokens.palette().textFaint(), 0x22);
+            for (int gx = 0; gx <= screenW; gx += GRID_STEP) r.rect(gx, 0, 1, screenH, gc);
+            for (int gy = 0; gy <= screenH; gy += GRID_STEP) r.rect(0, gy, screenW, 1, gc);
+        }
         for (HudElement e : elements) {
             if (!editor && !e.cfgEnabled()) continue;        // preview/in-world hides disabled; editor shows all
             e.render(ctx);
         }
         if (!editor) return;
 
+        // hover affordance: a faint outline on the hovered (non-selected) element so it reads as clickable
+        for (HudElement e : elements) {
+            if (e == selected || !e.isHovered()) continue;
+            r.border(e.xLeft() - 4, e.yTop() - 4, e.width() + 8, e.height() + 8, Tokens.radius().sm(), 1f, Tokens.border().strong());
+        }
         // selection border (accent) over the selected element's box
         if (selected != null) {
-            float bx = selected.xLeft(), by = selected.yTop(), bw = selected.width(), bh = selected.height();
-            ctx.renderer().border(bx - 4, by - 4, bw + 8, bh + 8, Tokens.radius().sm(), 1.5f, Tokens.accent().accent());
+            r.border(selected.xLeft() - 4, selected.yTop() - 4, selected.width() + 8, selected.height() + 8, Tokens.radius().sm(), 1.5f, Tokens.accent().accent());
         }
         // alignment guides (1px accent, ~0xAA alpha) — ports legacy guideX/guideY
         int g = Color.withAlpha(Tokens.accent().accent(), 0xAA);
-        if (guideX != HudSnap.NO_GUIDE) ctx.renderer().rect(guideX, 0, 1, screenH, g);
-        if (guideY != HudSnap.NO_GUIDE) ctx.renderer().rect(0, guideY, screenW, 1, g);
+        if (guideX != HudSnap.NO_GUIDE) r.rect(guideX, 0, 1, screenH, g);
+        if (guideY != HudSnap.NO_GUIDE) r.rect(0, guideY, screenW, 1, g);
     }
 }

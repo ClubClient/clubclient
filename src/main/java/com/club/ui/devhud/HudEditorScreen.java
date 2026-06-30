@@ -11,12 +11,7 @@ import com.club.ui.component.widget.Dropdown;
 import com.club.ui.component.widget.Label;
 import com.club.ui.component.widget.Slider;
 import com.club.ui.component.widget.Toggle;
-import com.club.ui.layout.Column;
-import com.club.ui.layout.CrossAlign;
-import com.club.ui.layout.Insets;
-import com.club.ui.layout.Row;
 import com.club.ui.layout.Size;
-import com.club.ui.layout.Sizing;
 import com.club.ui.text.Align;
 import com.club.ui.text.TextStyle;
 import com.club.ui.theme.Tokens;
@@ -42,7 +37,8 @@ public final class HudEditorScreen extends Screen {
     private final Pane popover = new Pane();
     private int popX, popY, popW, popH;
     private boolean hasPopover;
-    private TextStyle stTitle, stHint, stPop;
+    private TextStyle stTitle, stHint, stPop, stToolLabel;
+    private int pressOwner;   // which surface owns the active gesture: 0 none, 1 toolbar, 2 popover, 3 canvas
 
     public HudEditorScreen() { super(Text.literal("HUD Editor")); }
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
@@ -56,7 +52,7 @@ public final class HudEditorScreen extends Screen {
     private void buildToolbar() {
         toolbar.clear();
         Toggle grid = new Toggle(canvas.gridSnap()).onChange(canvas::setGridSnap);
-        grid.layout(150, 9, 40, 22);
+        grid.layout(226, 9, 40, 22);   // sits right of the "Grid snap" label drawn at x=160
         Button reset = new Button("Reset").variant(Button.Variant.GHOST).onClick(this::resetPositions);
         reset.layout(width - 220, 7, 96, 26);
         Button done = new Button("Done").variant(Button.Variant.PRIMARY).onClick(this::close);
@@ -136,8 +132,8 @@ public final class HudEditorScreen extends Screen {
         float tbH = 40;
         r.rect(0, 0, width, tbH, Tokens.surface().bg2());
         r.rect(0, tbH, width, 1, Tokens.border().defaultColor());
-        uiCtx.text().draw("HUD Editor", 18, (tbH - ty.label().lineHeight()) / 2f, stTitle);
-        uiCtx.text().draw(canvas.gridSnap() ? "Grid 8px" : "Snap edges", 200, (tbH - ty.label().lineHeight()) / 2f, stHint);
+        uiCtx.text().draw("HUD Editor", 18, (tbH - ty.title().lineHeight()) / 2f, stTitle);
+        uiCtx.text().draw("Grid snap", 160, (tbH - ty.label().lineHeight()) / 2f, stToolLabel);
         toolbar.mouseMoved(mx, my); toolbar.render(uiCtx);
 
         // hint
@@ -163,24 +159,40 @@ public final class HudEditorScreen extends Screen {
         stTitle = TextStyle.of(t.title().weight(), t.title().size(), Tokens.palette().textHi());
         stHint  = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textDesc()).align(Align.CENTER);
         stPop   = TextStyle.of(t.body().weight(), t.body().size(), Tokens.palette().textHi());
+        stToolLabel = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textMuted());
     }
 
     @Override public void renderBackground(DrawContext dc, int mx, int my, float d) { }
 
     // input: toolbar + popover widgets first (capture), then canvas drag
+    // Route the whole gesture (press→drag→release) to ONE owner so a popover/toolbar click never reaches
+    // the canvas (which would otherwise deselect and close the popover on every control click).
     @Override public boolean mouseClicked(double mx, double my, int b) {
         focus.clickFocus(mx, my);
-        if (toolbar.mouseClicked(mx, my, b)) return true;
-        if (hasPopover && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH) { popover.mouseClicked(mx, my, b); return true; }
-        return canvas.mouseClicked(mx, my, b) || super.mouseClicked(mx, my, b);
+        if (toolbar.mouseClicked(mx, my, b)) { pressOwner = 1; return true; }
+        if (hasPopover && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH) { popover.mouseClicked(mx, my, b); pressOwner = 2; return true; }
+        if (canvas.mouseClicked(mx, my, b)) { pressOwner = 3; return true; }
+        pressOwner = 0;
+        return super.mouseClicked(mx, my, b);
     }
     @Override public boolean mouseReleased(double mx, double my, int b) {
-        boolean h = toolbar.mouseReleased(mx, my, b) | popover.mouseReleased(mx, my, b) | canvas.mouseReleased(mx, my, b);
+        int owner = pressOwner; pressOwner = 0;
+        boolean h = switch (owner) {
+            case 1 -> toolbar.mouseReleased(mx, my, b);
+            case 2 -> popover.mouseReleased(mx, my, b);
+            case 3 -> canvas.mouseReleased(mx, my, b);
+            default -> false;
+        };
         return h || super.mouseReleased(mx, my, b);
     }
     @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) {
-        return toolbar.mouseDragged(mx, my, b, dx, dy) || popover.mouseDragged(mx, my, b, dx, dy)
-                || canvas.mouseDragged(mx, my, b, dx, dy) || super.mouseDragged(mx, my, b, dx, dy);
+        boolean h = switch (pressOwner) {
+            case 1 -> toolbar.mouseDragged(mx, my, b, dx, dy);
+            case 2 -> popover.mouseDragged(mx, my, b, dx, dy);
+            case 3 -> canvas.mouseDragged(mx, my, b, dx, dy);
+            default -> false;
+        };
+        return h || super.mouseDragged(mx, my, b, dx, dy);
     }
     @Override public boolean keyPressed(int k, int scan, int mods) {
         if (k == GLFW_KEY_ESCAPE) { close(); return true; }

@@ -1,8 +1,6 @@
 package com.club.ui.devhud;
 
 import com.club.config.ClubConfig;
-import com.club.ui.Color;
-import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.text.Align;
 import com.club.ui.text.TextStyle;
@@ -10,9 +8,9 @@ import com.club.ui.theme.Tokens;
 import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
 
-/** Active effects: a column of [chip] Name  Time rows. Pure-vector (no sprite — matches the V2 mock). */
+/** Active effects: a compact column of "Name  Time" rows (no per-effect box). Pure-vector, no sprite. */
 public final class EffectsElement extends HudElement {
-    private static final int ROW = 26, CHIP_H = 22, CHIP_W = 120;
+    private static final int ROW = 18, CONTENT_W = 132;
     public EffectsElement() { super("effects"); }
 
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
@@ -30,21 +28,18 @@ public final class EffectsElement extends HudElement {
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
         int n = rows(mc, live).length;
-        return new int[]{ CHIP_W, Math.max(CHIP_H, (n - 1) * ROW + CHIP_H) };
+        return new int[]{ CONTENT_W, Math.max(ROW, n * ROW) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
-        var r = ctx.renderer(); var t = ctx.text(); Typography ty = Tokens.type();
-        int chip = Color.withAlpha(Tokens.palette().ink0(), 0x8C), sub = Tokens.border().subtle();
+        var t = ctx.text(); Typography ty = Tokens.type();
         int hi = Tokens.palette().textHi(), mut = Tokens.palette().textMuted();
-        float sm = Tokens.radius().sm() * s, cw = CHIP_W * s, ch = CHIP_H * s, lh = ty.label().lineHeight() * s;
+        float w = CONTENT_W * s;
         String[][] rows = rows(mc, live);
         for (int i = 0; i < rows.length; i++) {
-            float py = oy + i * ROW * s;
-            r.roundedRect(ox, py, cw, ch, sm, chip);
-            r.border(ox, py, cw, ch, sm, 1, sub);
-            t.draw(rows[i][0], ox + 9 * s, py + (ch - lh) / 2f, TextStyle.of(ty.label().weight(), ty.label().size() * s, hi));
-            t.draw(rows[i][1], ox + cw - 9 * s, py + (ch - lh) / 2f, TextStyle.of(ty.label().weight(), ty.label().size() * s, mut).align(Align.RIGHT));
+            float ry = oy + i * ROW * s;                       // tight rows: name (white) left, time (muted) right — no box
+            t.draw(rows[i][0], ox, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, hi));
+            t.draw(rows[i][1], ox + w, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, mut).align(Align.RIGHT));
         }
     }
 }
