@@ -129,10 +129,12 @@ public final class HudCanvas extends Container {
         if (guideY != HudSnap.NO_GUIDE) r.rect(0, guideY, screenW, 1, g);
     }
 
-    /** A padded outline around an element, clamped to the screen so it never overhangs the edge. */
+    /** A padded outline around an element, clamped to the snap margin so a snapped element's outline lands ON
+     *  the magnet line (at MARGIN) rather than spilling past it toward the screen edge. */
     private void outline(UiRenderer r, HudElement e, float pad, float thick, int color) {
-        float l = Math.max(0, e.xLeft() - pad), t = Math.max(0, e.yTop() - pad);
-        float rr = Math.min(screenW, e.xLeft() + e.width() + pad), b = Math.min(screenH, e.yTop() + e.height() + pad);
+        int m = HudSnap.MARGIN;
+        float l = Math.max(m, e.xLeft() - pad), t = Math.max(m, e.yTop() - pad);
+        float rr = Math.min(screenW - m, e.xLeft() + e.width() + pad), b = Math.min(screenH - m, e.yTop() + e.height() + pad);
         r.border(l, t, rr - l, b - t, Tokens.radius().sm(), thick, color);
     }
 }
