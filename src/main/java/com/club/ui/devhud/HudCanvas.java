@@ -82,7 +82,7 @@ public final class HudCanvas extends Container {
     }
 
     @Override public boolean mouseReleased(double mx, double my, int button) {
-        if (!editor) return false;
+        if (!editor || button != 0) return false;
         guideX = guideY = HudSnap.NO_GUIDE;
         boolean handled = false;
         if (pressed != null) {
@@ -97,7 +97,6 @@ public final class HudCanvas extends Container {
     @Override public Size measure(float aw, float ah) { return new Size(aw, ah); }
 
     @Override public void render(UiContext ctx) {
-        MinecraftClient mc = MinecraftClient.getInstance();
         for (HudElement e : elements) {
             if (!editor && !e.cfgEnabled()) continue;        // preview/in-world hides disabled; editor shows all
             e.render(ctx);
