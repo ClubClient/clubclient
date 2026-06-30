@@ -20,9 +20,13 @@ public final class InfoElement extends HudElement {
     @Override public float cfgScale() { return h().infoScale; }
     @Override public boolean cfgEnabled() { return h().info; }
 
-    /** {label,value,isXYZ} rows — sample now; Phase 3 fills FPS + player XYZ. */
+    /** Live FPS + player XYZ; representative sample when no player / no world. */
     private String[][] rows(MinecraftClient mc, boolean live) {
-        return new String[][]{{"FPS", "240", "0"}, {"XYZ", "128 / 72 / -340", "1"}};
+        String fps = (live ? mc.getCurrentFps() : 240) + "";
+        String xyz = (live && mc.player != null)
+                ? String.format(java.util.Locale.ROOT, "%.0f / %.0f / %.0f", mc.player.getX(), mc.player.getY(), mc.player.getZ())
+                : "128 / 72 / -340";
+        return new String[][]{{"FPS", fps, "0"}, {"XYZ", xyz, "1"}};
     }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {

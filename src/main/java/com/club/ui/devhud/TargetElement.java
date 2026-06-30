@@ -23,15 +23,25 @@ public final class TargetElement extends HudElement {
     @Override public int autoX(MinecraftClient mc) { return mc != null ? mc.getWindow().getScaledWidth() / 2 + 16 : -1; }
     @Override public int autoY(MinecraftClient mc) { return mc != null ? mc.getWindow().getScaledHeight() / 2 - CONTENT_H / 2 : -1; }
 
-    // {name, hp-subline} — sample now; Phase 3 raycasts via TargetHud.raycastTarget.
-    private String name = "Steve_42", sub = "18.6 HP"; private float frac = 0.62f;
-
     @Override public int[] contentSize(MinecraftClient mc, boolean live) { return new int[]{ CONTENT_W, CONTENT_H }; }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         var r = ctx.renderer(); var t = ctx.text(); Typography ty = Tokens.type();
         int hi = Tokens.palette().textHi(), track = Tokens.surface().surfaceHi(),
             accent = Tokens.accent().accent(), low = Tokens.palette().stateLow();
+        // live raycast target (name + HP fraction) via the legacy raycaster; representative sample when none / no world
+        String name = "Steve_42", sub = "18.6 HP"; float frac = 0.62f;
+        if (live && mc != null && mc.world != null) {
+            var le = com.club.hud.TargetHud.raycastTarget(mc, 1f);
+            if (le != null) {
+                name = le.getName().getString();
+                if (name.length() > 18) name = name.substring(0, 17) + "…";
+                float hp = le.getHealth(), max = le.getMaxHealth();
+                frac = max > 0 ? Math.max(0f, Math.min(1f, hp / max)) : 0f;
+                sub = (Math.abs(hp - Math.round(hp)) < 0.05f ? String.valueOf(Math.round(hp))
+                        : String.format(java.util.Locale.ROOT, "%.1f", hp)) + " HP";
+            }
+        }
         // name — the lead (white, title)
         t.draw(name, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hi));
         // HP value — prominent: heading-size white (not a muted caption), clearly separated below the name

@@ -21,9 +21,19 @@ public final class EffectsElement extends HudElement {
     @Override public float cfgScale() { return h().potionScale; }
     @Override public boolean cfgEnabled() { return h().potions; }
 
-    /** {name,time} rows — sample now; Phase 3 swaps in PotionHud.effects(mc). */
+    private static final String[][] SAMPLE = {{"Speed II", "1:24"}, {"Strength I", "0:42"}};
+
+    /** Live status effects (expiring first) via PotionHud; representative sample when no player / no effects. */
     private String[][] rows(MinecraftClient mc, boolean live) {
-        return new String[][]{{"Speed II", "1:24"}, {"Strength I", "0:42"}};
+        if (!live) return SAMPLE;
+        var fx = com.club.hud.PotionHud.effects(mc);
+        if (fx.isEmpty()) return SAMPLE;
+        String[][] out = new String[fx.size()][2];
+        for (int i = 0; i < fx.size(); i++) {
+            out[i][0] = com.club.hud.PotionHud.title(fx.get(i));
+            out[i][1] = com.club.hud.PotionHud.time(fx.get(i));
+        }
+        return out;
     }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
