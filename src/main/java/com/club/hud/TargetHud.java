@@ -83,7 +83,7 @@ public final class TargetHud {
         return (Math.abs(v - Math.round(v)) < 0.05f) ? String.valueOf(Math.round(v)) : String.format("%.1f", v);
     }
 
-    private static LivingEntity raycastTarget(MinecraftClient mc, float tickDelta) {
+    public static LivingEntity raycastTarget(MinecraftClient mc, float tickDelta) {
         Entity camera = mc.getCameraEntity();
         if (camera == null) return null;
         double reach = Mth.clamp(ClubConfig.get().hud.targetDistance, 3, 64);

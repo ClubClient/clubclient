@@ -24,7 +24,7 @@ public final class PotionHud {
 
     private static final int ICON = 18, GAP = 8, MID = 18, ROW = 22, HGAP = 18;
 
-    private static List<StatusEffectInstance> effects(MinecraftClient mc) {
+    public static List<StatusEffectInstance> effects(MinecraftClient mc) {
         List<StatusEffectInstance> list = new ArrayList<>(mc.player.getStatusEffects());
         list.sort((a, b) -> Integer.compare(a.getDuration(), b.getDuration())); // expiring first
         return list;
@@ -113,13 +113,13 @@ public final class PotionHud {
         renderAt(ctx, ClubConfig.get().hud, sampleEffects());
     }
 
-    private static String title(StatusEffectInstance e) {
+    public static String title(StatusEffectInstance e) {
         String name = e.getEffectType().value().getName().getString();
         int amp = e.getAmplifier();
         return amp > 0 ? name + " " + roman(amp + 1) : name;
     }
 
-    private static String time(StatusEffectInstance e) {
+    public static String time(StatusEffectInstance e) {
         if (e.isInfinite()) return "∞";
         int s = e.getDuration() / 20;
         return (s / 60) + ":" + String.format("%02d", s % 60);
