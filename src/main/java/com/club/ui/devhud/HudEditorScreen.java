@@ -1,0 +1,197 @@
+package com.club.ui.devhud;
+
+import com.club.config.ClubConfig;
+import com.club.ui.Ui;
+import com.club.ui.component.Component;
+import com.club.ui.component.Container;
+import com.club.ui.component.FocusManager;
+import com.club.ui.component.UiContextImpl;
+import com.club.ui.component.widget.Button;
+import com.club.ui.component.widget.Dropdown;
+import com.club.ui.component.widget.Label;
+import com.club.ui.component.widget.Slider;
+import com.club.ui.component.widget.Toggle;
+import com.club.ui.layout.Column;
+import com.club.ui.layout.CrossAlign;
+import com.club.ui.layout.Insets;
+import com.club.ui.layout.Row;
+import com.club.ui.layout.Size;
+import com.club.ui.layout.Sizing;
+import com.club.ui.text.Align;
+import com.club.ui.text.TextStyle;
+import com.club.ui.theme.Tokens;
+import com.club.ui.theme.Typography;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.text.Text;
+import static org.lwjgl.glfw.GLFW.*;
+
+/**
+ * [DEV HUD — TEMPORARY] Functional V2 HUD editor: drag elements (edge/center snap + optional grid),
+ * scale/toggle/configure via a selection popover, persist to ClubConfig. Legacy HUD is untouched.
+ */
+public final class HudEditorScreen extends Screen {
+    private final UiContextImpl uiCtx = new UiContextImpl();
+    private final FocusManager focus = new FocusManager();
+    private final long start = System.nanoTime();
+
+    private final HudCanvas canvas = new HudCanvas(true)
+            .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement());
+    private final Pane toolbar = new Pane();
+    private final Pane popover = new Pane();
+    private int popX, popY, popW, popH;
+    private boolean hasPopover;
+    private TextStyle stTitle, stHint, stPop;
+
+    public HudEditorScreen() { super(Text.literal("HUD Editor")); }
+    private ClubConfig.Hud h() { return ClubConfig.get().hud; }
+
+    @Override protected void init() {
+        canvas.onSelectionChanged = this::rebuildPopover;
+        buildToolbar();
+        rebuildPopover();
+    }
+
+    private void buildToolbar() {
+        toolbar.clear();
+        Toggle grid = new Toggle(canvas.gridSnap()).onChange(canvas::setGridSnap);
+        grid.layout(150, 9, 40, 22);
+        Button reset = new Button("Reset").variant(Button.Variant.GHOST).onClick(this::resetPositions);
+        reset.layout(width - 220, 7, 96, 26);
+        Button done = new Button("Done").variant(Button.Variant.PRIMARY).onClick(this::close);
+        done.layout(width - 116, 7, 96, 26);
+        toolbar.add(grid); toolbar.add(reset); toolbar.add(done);
+    }
+
+    private void rebuildPopover() {
+        popover.clear(); focus.clear(); hasPopover = canvas.selected() != null;
+        if (!hasPopover) return;
+        HudElement sel = canvas.selected();
+        popW = 210;
+        int rows = sel instanceof EffectsElement ? 3 : sel instanceof TargetElement ? 3 : 2; // enabled,size,+extra
+        popH = 34 + rows * 30 + 10;
+        int[] b = { (int) sel.xLeft(), (int) sel.yTop(), (int) sel.width(), (int) sel.height() };
+        int px = b[0] + b[2] + 14; if (px + popW > width - 8) px = b[0] - popW - 14;
+        popX = Math.max(8, Math.min(px, width - popW - 8));
+        popY = Math.max(8, Math.min(b[1] - 4, height - popH - 8));
+
+        int ix = popX + 14, iw = popW - 28, y = popY + 34;
+        // Enabled
+        Toggle en = new Toggle(sel.cfgEnabled()).onChange(v -> { setEnabled(sel, v); save(); });
+        addRow("Enabled", en, ix, iw, y); y += 30; focus.register(en);
+        // Size
+        Slider size = new Slider(sel.cfgScale(), 0.5f, 2f, 0.05f).onChange(v -> { setScale(sel, v); save(); });
+        addRow("Size", size, ix, iw, y); y += 30; focus.register(size);
+        // per-type extra
+        if (sel instanceof EffectsElement) {
+            Dropdown d = new Dropdown(new String[]{"Column", "Row"}, h().potionHorizontal ? 1 : 0)
+                    .onChange(i -> { h().potionHorizontal = (i == 1); save(); });
+            addRow("Layout", d, ix, iw, y); focus.register(d);
+        } else if (sel instanceof TargetElement) {
+            Slider range = new Slider(h().targetDistance, 3f, 32f, 1f)
+                    .onChange(v -> { h().targetDistance = Math.round(v); save(); });
+            addRow("Range", range, ix, iw, y); focus.register(range);
+        }
+    }
+
+    private final java.util.List<Label> popLabels = new java.util.ArrayList<>();
+    private void addRow(String name, Component ctrl, int ix, int iw, int y) {
+        Label l = new Label(name, Tokens.type().label()).color(Tokens.palette().textMuted());
+        l.layout(ix, y + 4, iw, 16); popLabels.add(l);
+        float cw = ctrl.measure(iw, 24).w(); if (cw <= 0 || ctrl instanceof Slider) cw = 96;
+        ctrl.layout(ix + iw - cw, y, cw, 24);
+        popover.add(ctrl);
+    }
+
+    private void setEnabled(HudElement e, boolean v) {
+        if (e instanceof EffectsElement) h().potions = v; else if (e instanceof TargetElement) h().target = v; else h().info = v;
+    }
+    private void setScale(HudElement e, float v) {
+        if (e instanceof EffectsElement) h().potionScale = v; else if (e instanceof TargetElement) h().targetScale = v; else h().infoScale = v;
+    }
+    private void save() { ClubConfig.save(); }
+
+    private void resetPositions() {
+        ClubConfig.Hud c = h();
+        c.potionX = 8; c.potionY = 70; c.targetX = -1; c.targetY = -1; c.infoX = 8; c.infoY = 120;
+        save(); canvas.clearSelection(); rebuildPopover();
+    }
+
+    @Override public void render(DrawContext dc, int mx, int my, float d) {
+        Ui.beginFrame(dc);
+        var r = Ui.renderer(); Typography ty = Tokens.type();
+        if (stTitle == null) initStyles();
+        r.rect(0, 0, width, height, 0xFF0A0E15);
+        uiCtx.setTime((System.nanoTime() - start) / 1_000_000_000f);
+
+        canvas.setScreen(width, height);
+        canvas.layoutFromConfig(MinecraftClient.getInstance());
+        Decals.watermark(uiCtx); Decals.crosshair(uiCtx, width, height);
+
+        canvas.mouseMoved(mx, my);
+        canvas.render(uiCtx);
+
+        // toolbar bar
+        float tbH = 40;
+        r.rect(0, 0, width, tbH, Tokens.surface().bg2());
+        r.rect(0, tbH, width, 1, Tokens.border().defaultColor());
+        uiCtx.text().draw("HUD Editor", 18, (tbH - ty.label().lineHeight()) / 2f, stTitle);
+        uiCtx.text().draw(canvas.gridSnap() ? "Grid 8px" : "Snap edges", 200, (tbH - ty.label().lineHeight()) / 2f, stHint);
+        toolbar.mouseMoved(mx, my); toolbar.render(uiCtx);
+
+        // hint
+        uiCtx.text().draw("Drag any element. Click it to edit. Toggle grid-snap in the toolbar.",
+                width / 2f, tbH + 8, stHint);
+
+        // popover
+        if (hasPopover) {
+            r.roundedRect(popX, popY, popW, popH, Tokens.radius().lg(), Tokens.surface().surface());
+            r.border(popX, popY, popW, popH, Tokens.radius().lg(), 1, Tokens.border().strong());
+            r.roundedRect(popX + 14, popY + 14, 7, 7, 2, Tokens.accent().accent());
+            uiCtx.text().draw(titleOf(canvas.selected()), popX + 27, popY + 12, stPop);
+            for (Label l : popLabels) l.render(uiCtx);
+            popover.mouseMoved(mx, my); popover.render(uiCtx);
+        }
+    }
+
+    private String titleOf(HudElement e) {
+        return e instanceof EffectsElement ? "Effects HUD" : e instanceof TargetElement ? "Target HUD" : "Coordinates HUD";
+    }
+    private void initStyles() {
+        Typography t = Tokens.type();
+        stTitle = TextStyle.of(t.title().weight(), t.title().size(), Tokens.palette().textHi());
+        stHint  = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textDesc()).align(Align.CENTER);
+        stPop   = TextStyle.of(t.body().weight(), t.body().size(), Tokens.palette().textHi());
+    }
+
+    @Override public void renderBackground(DrawContext dc, int mx, int my, float d) { }
+
+    // input: toolbar + popover widgets first (capture), then canvas drag
+    @Override public boolean mouseClicked(double mx, double my, int b) {
+        focus.clickFocus(mx, my);
+        if (toolbar.mouseClicked(mx, my, b)) return true;
+        if (hasPopover && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH) { popover.mouseClicked(mx, my, b); return true; }
+        return canvas.mouseClicked(mx, my, b) || super.mouseClicked(mx, my, b);
+    }
+    @Override public boolean mouseReleased(double mx, double my, int b) {
+        boolean h = toolbar.mouseReleased(mx, my, b) | popover.mouseReleased(mx, my, b) | canvas.mouseReleased(mx, my, b);
+        return h || super.mouseReleased(mx, my, b);
+    }
+    @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) {
+        return toolbar.mouseDragged(mx, my, b, dx, dy) || popover.mouseDragged(mx, my, b, dx, dy)
+                || canvas.mouseDragged(mx, my, b, dx, dy) || super.mouseDragged(mx, my, b, dx, dy);
+    }
+    @Override public boolean keyPressed(int k, int scan, int mods) {
+        if (k == GLFW_KEY_ESCAPE) { close(); return true; }
+        return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
+    }
+    @Override public boolean shouldPause() { return false; }
+
+    /** Free-form container (children positioned by the screen). */
+    private static final class Pane extends Container {
+        void add(Component c) { addChild(c); }
+        void clear() { children.clear(); }
+        @Override public Size measure(float aw, float ah) { return new Size(aw, ah); }
+    }
+}
