@@ -100,7 +100,6 @@ public final class ClubMenuScreen extends Screen {
     // ClubConfig (menuX/menuY, -1 = centred), always clamped fully on-screen.
     private static final float WIN_W = 660f, WIN_H = 380f;   // compact landscape rectangle (smaller in both dims)
     private static final float GRIP_W = 44f, GRIP_H = 5f, GRIP_TOP = 6f;   // grip straddles the top edge (winY - 3)
-    private static final int MENU_BLUR = 5;   // our own background-blur strength — independent of the user's video setting
     private boolean draggingWin;
     private int winGrabX, winGrabY;
 
@@ -426,14 +425,7 @@ public final class ClubMenuScreen extends Screen {
     }
 
     @Override public void renderBackground(DrawContext dc, int mx, int my, float d) {
-        // Our own slight blur — force a fixed strength regardless of the user's "Menu Background Blur" video
-        // setting, then restore it (never persist a change). NO darkening — the world stays visible for live preview.
-        if (client == null || client.world == null) return;
-        var opt = client.options.getMenuBackgroundBlurriness();
-        int prev = opt.getValue();
-        if (prev != MENU_BLUR) opt.setValue(MENU_BLUR);
-        applyBlur(d);
-        if (prev != MENU_BLUR) opt.setValue(prev);
+        // Intentionally empty: no darkening and no blur — the world stays fully visible so settings apply live.
     }
 
     // ---- input ---------------------------------------------------------------
