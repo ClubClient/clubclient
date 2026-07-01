@@ -74,6 +74,8 @@ public final class ClubMenuScreen extends Screen {
     private ScrollArea gridScroll;
     private Transition indicator;
     private Transition[] railText;   // per-category label colour ease (hover / active)
+    private Transition entrance;     // screen open: scrim fades in + window rises a few px (no scale)
+    private float entranceYOff;      // current window rise offset (added to winY in layoutAll)
 
     // settings popover (RMB), anchored to a card
     private Module popModule;
@@ -115,6 +117,7 @@ public final class ClubMenuScreen extends Screen {
         for (int i = 0; i < cats.size(); i++)
             railText[i] = new Transition(i == catIndex ? 1f : 0f,
                     Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
+        entrance = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
     }
 
     private float railY(int i) { return bodyY + 8 + i * RAIL_ROW; }
@@ -270,7 +273,7 @@ public final class ClubMenuScreen extends Screen {
         float m = 24;
         winW = Math.min(1040, width - 2 * m);
         winH = Math.min(600, height - 2 * m);
-        winX = (width - winW) / 2f; winY = (height - winH) / 2f;
+        winX = (width - winW) / 2f; winY = (height - winH) / 2f + entranceYOff;
         bodyY = winY + headH; bodyH = winH - headH - footH;
         contentX = winX + railW; contentW = winW - railW;
 
@@ -294,13 +297,17 @@ public final class ClubMenuScreen extends Screen {
         UiRenderer r = Ui.renderer();
         if (stBrand == null) initStyles();
         uiCtx.setTime(CLOCK_BASE + (System.nanoTime() - startNanos) / 1_000_000_000f);
+        float now = uiCtx.time();
+        float ep = 1f;
+        if (entrance != null) { entrance.target(1f, now); ep = entrance.value(now); }
+        entranceYOff = (1f - ep) * 8f;   // window rises 8px into place as it appears
 
         layoutAll();
         float lg = Tokens.radius().lg();
         Typography ty = Tokens.type();
         float catLh = ty.label().lineHeight();
 
-        r.rect(0, 0, width, height, Color.withAlpha(Tokens.palette().ink0(), 0xD9));   // scrim
+        r.rect(0, 0, width, height, Color.scaleAlpha(Color.withAlpha(Tokens.palette().ink0(), 0xD9), ep));   // scrim fades in
 
         r.roundedRect(winX, winY, winW, winH, lg, Tokens.surface().bg2());
         r.rect(winX, bodyY, railW, bodyH, Tokens.surface().bg1());
@@ -320,7 +327,6 @@ public final class ClubMenuScreen extends Screen {
         uiCtx.text().draw("Profile · Default", winX + 18, fy, stFootMut);
 
         // rail: the active-row highlight pill slides with the accent indicator (drawn once, under the text)
-        float now = uiCtx.time();
         if (indicator != null) indicator.target(railY(catIndex), now);
         float indY = indicator != null ? indicator.value(now) : railY(catIndex);
         r.roundedRect(winX + 8, indY + 3, railW - 16, RAIL_ROW - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
