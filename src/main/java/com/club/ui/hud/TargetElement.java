@@ -2,6 +2,7 @@ package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
+import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.motion.ValueTween;
 import com.club.ui.text.TextStyle;
@@ -11,13 +12,18 @@ import net.minecraft.client.MinecraftClient;
 
 /** Entity under the crosshair: name + "<hp> HP" + a 2px HP-fraction line (the only accent). No avatar/distance (per the approved minimalist design). */
 public final class TargetElement extends HudElement {
-    private static final int CONTENT_W = 160, CONTENT_H = 56;
+    private static final int CONTENT_H = 52;
+    private static final float MIN_W = 80f;
 
-    // HP-bar fraction easing (Stage 9.2/9.3): a short tween so the bar glides on damage/heal but never
-    // trails real HP by more than the fast duration; snaps when the target changes so it re-bases.
+    // HP-bar fraction easing: a short tween so the bar glides on damage/heal but never trails real HP by
+    // more than the fast duration; snaps when the target changes so it re-bases.
     private final ValueTween hpFrac =
             new ValueTween(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
-    private String lastName;
+    // Current shown data — cached so a lost target (raycast null during the fade-out / on death) keeps the
+    // LAST real name/HP instead of leaking the editor sample ("Steve_42"). Sample only ever shows in the editor.
+    private String curName = "Steve_42", curSub = "18.6 HP";
+    private float curFrac = 0.62f;
+    private String tweenName;   // the name the hp tween is based on (snap on change)
 
     public TargetElement() { super("target"); }
 
@@ -37,44 +43,52 @@ public final class TargetElement extends HudElement {
         return !live(mc) || mc.world == null || com.club.hud.TargetHud.raycastTarget(mc, 1f) != null;
     }
 
-    @Override public int[] contentSize(MinecraftClient mc, boolean live) { return new int[]{ CONTENT_W, CONTENT_H }; }
+    @Override public int[] contentSize(MinecraftClient mc, boolean live) {
+        resolve(mc, live);   // refresh cached data once per frame (called before paint via layoutFromConfig)
+        return new int[]{ Math.round(contentW()), CONTENT_H };
+    }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         var r = ctx.renderer(); var t = ctx.text(); Typography ty = Tokens.type();
         float now = ctx.time();
-        int hi = Tokens.palette().textHi(), track = Tokens.surface().surfaceHi(),
-            accent = Tokens.accent().accent(), low = Tokens.palette().stateLow();
-        // live raycast target (name + HP fraction) via the legacy raycaster; representative sample when none / no world
-        String name = "Steve_42", sub = "18.6 HP"; float rawFrac = 0.62f;
-        if (live && mc != null && mc.world != null) {
-            var le = com.club.hud.TargetHud.raycastTarget(mc, 1f);
-            if (le != null) {
-                name = le.getName().getString();
-                if (name.length() > 18) name = name.substring(0, 17) + "…";
-                float hp = le.getHealth(), max = le.getMaxHealth();
-                rawFrac = max > 0 ? Math.max(0f, Math.min(1f, hp / max)) : 0f;
-                sub = (Math.abs(hp - Math.round(hp)) < 0.05f ? String.valueOf(Math.round(hp))
-                        : String.format(java.util.Locale.ROOT, "%.1f", hp)) + " HP";
-            }
-        }
-        // Ease the bar fraction; snap when the subject (name) changes so the bar re-bases instead of sweeping
-        // across from the old target's health. The HP *text* below stays exact — no tween on truth.
-        if (!name.equals(lastName)) hpFrac.snap(rawFrac, now); else hpFrac.set(rawFrac, now);
-        lastName = name;
+        int track = Tokens.surface().surfaceHi(), accent = Tokens.accent().accent(), low = Tokens.palette().stateLow();
+        // cur* was refreshed in contentSize() this frame. Snap the bar when the target changes; else ease it.
+        if (!curName.equals(tweenName)) { hpFrac.snap(curFrac, now); tweenName = curName; } else hpFrac.set(curFrac, now);
         float shownFrac = hpFrac.get(now);
+        int hiA = Color.scaleAlpha(Tokens.palette().textHi(), alpha);   // element appear/disappear fade
 
-        int hiA = Color.scaleAlpha(hi, alpha);   // element appear/disappear fade
-        // name — the lead (white, title)
-        t.draw(name, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hiA));
-        // HP value — prominent: heading-size white (not a muted caption), clearly separated below the name
-        t.draw(sub, ox, oy + 26 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, hiA));
-        // HP-fraction line — the single accent, thicker for emphasis, set apart from the text
-        float barY = oy + 50 * s, barW = CONTENT_W * s, barH = 3 * s, rr = 1.5f * s;
+        t.draw(curName, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hiA));
+        t.draw(curSub, ox, oy + 24 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, hiA));
+        // HP-fraction line — the single accent, spanning the measured content width
+        float barW = contentW() * s, barY = oy + 46 * s, barH = 3 * s, rr = 1.5f * s;
         r.roundedRect(ox, barY, barW, barH, rr, Color.scaleAlpha(track, alpha));
         if (shownFrac > 0) {
-            // Smooth the low->accent transition (was a hard cut at frac 0.30) so a draining bar shifts colour.
-            float ct = Math.max(0f, Math.min(1f, (shownFrac - 0.24f) / 0.12f));
+            float ct = Math.max(0f, Math.min(1f, (shownFrac - 0.24f) / 0.12f));   // smooth low->accent crossing
             r.roundedRect(ox, barY, barW * shownFrac, barH, rr, Color.scaleAlpha(Color.lerp(low, accent, ct), alpha));
         }
+    }
+
+    /** Unscaled content width — hug the wider of name / value, with a minimum so the bar always reads. */
+    private float contentW() {
+        Typography ty = Tokens.type();
+        float nameW = Ui.text().width(curName, ty.title().weight(), ty.title().size());
+        float subW  = Ui.text().width(curSub, ty.heading().weight(), ty.heading().size());
+        return Math.max(MIN_W, Math.max(nameW, subW));
+    }
+
+    /** Refresh the cached target data. A lost target keeps the last real values (so the fade-out / death frame
+     *  shows the real name, not the sample); the "Steve_42" sample is only ever used in the editor (live=false). */
+    private void resolve(MinecraftClient mc, boolean live) {
+        if (!live) { curName = "Steve_42"; curSub = "18.6 HP"; curFrac = 0.62f; return; }
+        if (mc == null || mc.world == null) return;                    // keep last known
+        var le = com.club.hud.TargetHud.raycastTarget(mc, 1f);
+        if (le == null) return;                                        // no target now — keep last, never the sample
+        String n = le.getName().getString();
+        if (n.length() > 18) n = n.substring(0, 17) + "…";
+        float hp = le.getHealth(), max = le.getMaxHealth();
+        curFrac = max > 0 ? Math.max(0f, Math.min(1f, hp / max)) : 0f;
+        curSub = (Math.abs(hp - Math.round(hp)) < 0.05f ? String.valueOf(Math.round(hp))
+                : String.format(java.util.Locale.ROOT, "%.1f", hp)) + " HP";
+        curName = n;
     }
 }

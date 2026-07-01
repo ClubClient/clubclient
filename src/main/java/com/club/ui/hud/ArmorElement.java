@@ -20,7 +20,7 @@ import net.minecraft.item.Items;
  * DrawContext (matrix-scaled to the element's scale); value/dot/panel are pure V2. Empty pieces are skipped.
  */
 public final class ArmorElement extends HudElement {
-    private static final int ICON = 16, GAP = 6, ROW = 20, DOT = 4, DOTGAP = 6;
+    private static final int ICON = 16, GAP = 6, ROW = 18, DOT = 4, DOTGAP = 6;   // value text is body-size (smaller than the 16px icon)
 
     public ArmorElement() { super("armor"); }
 
@@ -63,7 +63,7 @@ public final class ArmorElement extends HudElement {
     private int valueWidth(ItemStack[] ps, boolean percent) {
         int w = 0;
         for (ItemStack s : ps) if (!s.isEmpty())
-            w = Math.max(w, Math.round(Ui.text().width(value(s, percent), Weight.SEMIBOLD, Tokens.type().heading().size())));
+            w = Math.max(w, Math.round(Ui.text().width(value(s, percent), Weight.SEMIBOLD, Tokens.type().body().size())));
         return w;
     }
     /** Durability dot colour — green/amber/red with a smooth crossing at the 0.70 / 0.40 thresholds
@@ -84,7 +84,7 @@ public final class ArmorElement extends HudElement {
         int valW = valueWidth(ps, h().armorPercent);
         if (h().armorVertical) return new int[]{ ICON + GAP + valW + DOTGAP + DOT, (count - 1) * ROW + ICON };
         int cell = Math.max(ICON, valW + DOTGAP + DOT);
-        return new int[]{ count * cell + (count - 1) * GAP, ICON + 2 + Math.round(Tokens.type().heading().lineHeight()) };
+        return new int[]{ count * cell + (count - 1) * GAP, ICON + 2 + Math.round(Tokens.type().body().lineHeight()) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
@@ -92,8 +92,8 @@ public final class ArmorElement extends HudElement {
         ItemStack[] ps = live ? pieces(mc) : sampleStacks();
         boolean percent = h().armorPercent;
         int valW = valueWidth(ps, percent);
-        float lh = ty.heading().lineHeight();
-        TextStyle style = TextStyle.of(Weight.SEMIBOLD, ty.heading().size() * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha));
+        float lh = ty.body().lineHeight();
+        TextStyle style = TextStyle.of(Weight.SEMIBOLD, ty.body().size() * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha));
         DrawContext dc = HudSprites.ctx();
 
         if (h().armorVertical) {
@@ -115,7 +115,7 @@ public final class ArmorElement extends HudElement {
                 float cx = ox + col * (cell + GAP) * s;
                 drawSprite(dc, st, cx + (cell - ICON) * 0.5f * s, oy, s);
                 String v = value(st, percent);
-                int vw = Math.round(Ui.text().width(v, Weight.SEMIBOLD, ty.heading().size()));
+                int vw = Math.round(Ui.text().width(v, Weight.SEMIBOLD, ty.body().size()));
                 float sx = cx + (cell - (vw + DOTGAP + DOT)) * 0.5f * s;
                 t.draw(v, sx, oy + (ICON + 2) * s, style);
                 r.circle(sx + (vw + DOTGAP + DOT * 0.5f) * s, oy + (ICON + 2) * s + lh * 0.5f * s, DOT * 0.5f * s,

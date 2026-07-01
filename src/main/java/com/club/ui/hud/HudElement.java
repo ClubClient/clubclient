@@ -16,7 +16,8 @@ public abstract class HudElement extends Component {
     protected HudElement(String id) { this.id = id; }
 
     // Shared "light structure" panel (Stage 10): every element sits on a padded translucent panel.
-    private static final float PANEL_PAD = 8f, PANEL_RADIUS = 6f;
+    // Tight padding/radius so the panels hug their content and don't read as bulky.
+    private static final float PANEL_PAD = 6f, PANEL_RADIUS = 5f;
     /** Element appear/disappear fade in [0,1] (Stage 10.3); 1 = fully shown. Set by the canvas in-world. */
     protected float alpha = 1f;
 

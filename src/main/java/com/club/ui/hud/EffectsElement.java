@@ -2,6 +2,7 @@ package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
+import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.motion.Reveal;
 import com.club.ui.text.Align;
@@ -12,7 +13,7 @@ import net.minecraft.client.MinecraftClient;
 
 /** Active effects: a compact column of "Name  Time" rows (no per-effect box). Pure-vector, no sprite. */
 public final class EffectsElement extends HudElement {
-    private static final int ROW = 18, CONTENT_W = 132;
+    private static final int ROW = 18, GAP = 16, MIN_W = 56;   // GAP = min space between the name and time columns
 
     // Fade-in per effect (keyed by title): a newly-gained effect eases in instead of popping. Expiring
     // effects still drop instantly — exit-fade is deferred (the expiring-first list reorders as timers tick).
@@ -48,17 +49,28 @@ public final class EffectsElement extends HudElement {
         return out;
     }
 
+    /** Widest row = longest name + gap + longest time (hug the content, no fixed width). Unscaled. */
+    private float measureW(String[][] rows) {
+        Typography.Role r = Tokens.type().label();
+        float nameW = 0, timeW = 0;
+        for (String[] row : rows) {
+            nameW = Math.max(nameW, Ui.text().width(row[0], r.weight(), r.size()));
+            timeW = Math.max(timeW, Ui.text().width(row[1], r.weight(), r.size()));
+        }
+        return Math.max(MIN_W, nameW + GAP + timeW);
+    }
+
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
-        int n = rows(mc, live).length;
-        return new int[]{ CONTENT_W, Math.max(ROW, n * ROW) };
+        String[][] rows = rows(mc, live);
+        return new int[]{ Math.round(measureW(rows)), Math.max(ROW, rows.length * ROW) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         var t = ctx.text(); Typography ty = Tokens.type();
         float now = ctx.time();
         int hi = Tokens.palette().textHi(), mut = Tokens.palette().textMuted();
-        float w = CONTENT_W * s;
         String[][] rows = rows(mc, live);
+        float w = measureW(rows) * s;   // time column right-aligns at the measured content edge
         // Forget fade-ins for effects no longer present, so a re-gained effect fades in fresh.
         enter.keySet().removeIf(title -> !hasRow(rows, title));
         for (int i = 0; i < rows.length; i++) {
