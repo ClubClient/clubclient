@@ -75,6 +75,7 @@ public final class ClubMenuScreen extends Screen {
     // settings popover (RMB), anchored to a card
     private Module popModule;
     private Column popCol;
+    private ScrollArea popScroll;   // wraps popCol so long settings/dropdown lists scroll instead of overflowing
     private int tabIndex;
     private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
     private float popX, popY, popW, popH, popAX, popAY, popAW, popAH;
@@ -150,19 +151,24 @@ public final class ClubMenuScreen extends Screen {
         focus.register(search);
         popCol = buildSettings(popModule);
         popW = Math.min(236f, Math.max(160f, winW - 16f));   // never wider than the window
-        popH = 2 * POP_PAD + popCol.measure(popW - 2 * POP_PAD, 9999).h();
+        float innerW = popW - 2 * POP_PAD;
+        float contentH = popCol.measure(innerW, 99999f).h();
+        float maxPopH = Math.min(winH - 16f, 300f);          // cap height so a long list scrolls instead of covering the grid
+        popH = Math.min(contentH + 2 * POP_PAD, maxPopH);
+        popScroll = new ScrollArea(popCol);
         positionPopover();
     }
 
     private void positionPopover() {
         popX = clamp(popAX, winX + 8, winX + winW - popW - 8);
         float below = popAY + popAH + 8;
-        popY = (below + popH <= winY + winH - 8) ? below : Math.max(winY + 8, popAY - popH - 8);
-        popCol.layout(popX + POP_PAD, popY + POP_PAD, popW - 2 * POP_PAD, popH - 2 * POP_PAD);
+        popY = (below + popH <= winY + winH - 8) ? below : (popAY - popH - 8);
+        popY = clamp(popY, winY + 8, Math.max(winY + 8, winY + winH - 8 - popH));   // keep fully inside the window
+        popScroll.layout(popX + POP_PAD, popY + POP_PAD, popW - 2 * POP_PAD, popH - 2 * POP_PAD);
     }
 
     private void closePopover() {
-        popModule = null; popCol = null; openDrop = null;
+        popModule = null; popCol = null; popScroll = null; openDrop = null;
         focus.clear();
         if (search != null) focus.register(search);
     }
@@ -317,13 +323,13 @@ public final class ClubMenuScreen extends Screen {
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
         // popover on top
-        if (popModule != null && popCol != null) {
+        if (popModule != null && popScroll != null) {
             float pr = Tokens.radius().md();
             r.roundedRect(popX, popY, popW, popH, pr, Tokens.surface().bg2());
             r.border(popX, popY, popW, popH, pr, Tokens.border().thickness(), Tokens.border().strong());
             r.pushClip(popX, popY, popW, popH);
-            popCol.mouseMoved(mouseX, mouseY);
-            popCol.render(uiCtx);
+            popScroll.mouseMoved(mouseX, mouseY);
+            popScroll.render(uiCtx);
             r.popClip();
         }
     }
@@ -353,7 +359,7 @@ public final class ClubMenuScreen extends Screen {
         focus.clickFocus(mx, my);
         if (insidePop(mx, my)) {
             if (b == 1) { closePopover(); return true; }       // RMB inside → close
-            popCol.mouseClicked(mx, my, b); pressOwner = 1; return true;
+            popScroll.mouseClicked(mx, my, b); pressOwner = 1; return true;
         }
         if (b == 0 && mx >= winX && mx <= winX + railW && my >= bodyY + 8 && my < bodyY + 8 + cats.size() * 40) {
             int i = (int) ((my - (bodyY + 8)) / 40);
@@ -365,20 +371,21 @@ public final class ClubMenuScreen extends Screen {
         return super.mouseClicked(mx, my, b);
     }
     @Override public boolean mouseReleased(double mx, double my, int b) {
-        boolean h = (pressOwner == 1) ? (popCol != null && popCol.mouseReleased(mx, my, b)) : root.mouseReleased(mx, my, b);
+        boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseReleased(mx, my, b)) : root.mouseReleased(mx, my, b);
         pressOwner = 0;
         return h || super.mouseReleased(mx, my, b);
     }
     @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) {
-        boolean h = (pressOwner == 1) ? (popCol != null && popCol.mouseDragged(mx, my, b, dx, dy))
+        boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseDragged(mx, my, b, dx, dy))
                                       : root.mouseDragged(mx, my, b, dx, dy);
         return h || super.mouseDragged(mx, my, b, dx, dy);
     }
     @Override public void mouseMoved(double mx, double my) {
         root.mouseMoved(mx, my);
-        if (popCol != null) popCol.mouseMoved(mx, my);
+        if (popScroll != null) popScroll.mouseMoved(mx, my);
     }
     @Override public boolean mouseScrolled(double mx, double my, double hx, double v) {
+        if (insidePop(mx, my) && popScroll != null && popScroll.mouseScrolled(mx, my, v)) return true;
         return root.mouseScrolled(mx, my, v) || super.mouseScrolled(mx, my, hx, v);
     }
     @Override public boolean keyPressed(int k, int scan, int mods) {
