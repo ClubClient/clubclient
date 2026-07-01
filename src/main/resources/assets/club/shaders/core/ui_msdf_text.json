@@ -10,6 +10,7 @@
         { "name": "OutlineWidth", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "OutlineColor", "type": "float", "count": 4, "values": [ 0.0, 0.0, 0.0, 1.0 ] },
         { "name": "GlowRange", "type": "float", "count": 1, "values": [ 0.0 ] },
-        { "name": "GlowColor", "type": "float", "count": 4, "values": [ 0.0, 0.0, 0.0, 0.0 ] }
+        { "name": "GlowColor", "type": "float", "count": 4, "values": [ 0.0, 0.0, 0.0, 0.0 ] },
+        { "name": "WeightBias", "type": "float", "count": 1, "values": [ 0.0 ] }
     ]
 }

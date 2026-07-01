@@ -84,11 +84,21 @@ public abstract class HudElement extends Component {
      *  editor sample. The editor always shows all elements (sample) so they stay positionable. Default: shown. */
     public boolean hasContent(MinecraftClient mc) { return true; }
 
+    /** Transient visual scale around the box centre (e.g. a pop on target change). 1 = none. Render-only:
+     *  does not affect the layout/hit box, so the editor drag target stays full-size while a pop plays. */
+    protected float visualScale(UiContext ctx) { return 1f; }
+
     @Override public Size measure(float availW, float availH) { return new Size(w, h); }
     @Override public void render(UiContext ctx) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        float s = cfgScale(), px = panelPadX() * s, py = panelPadY() * s;
-        drawPanel(ctx, x, y, w, h, panelRadius() * s, alpha);   // backdrop (shared, or a role override)
-        paint(ctx, mc, x + px, y + py, s, live(mc));            // content inset by the panel padding
+        float s = cfgScale(), vs = visualScale(ctx);
+        float bx = x, by = y, bw = w, bh = h;
+        if (vs != 1f) {                                         // scale the whole element about its centre
+            float cx = x + w * 0.5f, cy = y + h * 0.5f;
+            bw = w * vs; bh = h * vs; bx = cx - bw * 0.5f; by = cy - bh * 0.5f;
+        }
+        float px = panelPadX() * s * vs, py = panelPadY() * s * vs;
+        drawPanel(ctx, bx, by, bw, bh, panelRadius() * s * vs, alpha);   // backdrop (shared, or a role override)
+        paint(ctx, mc, bx + px, by + py, s * vs, live(mc));             // content inset by the panel padding
     }
 }

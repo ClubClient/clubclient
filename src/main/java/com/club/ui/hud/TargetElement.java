@@ -28,6 +28,7 @@ public final class TargetElement extends HudElement {
     private static final float BAR_H = 4f;         // #1 bar heavier — health is the heaviest object
     private static final int   BAR_TOP = 27;       // ~10px air below the name band
     private static final int   CONTENT_H = BAR_TOP + (int) BAR_H;
+    private static final float NAME_WEIGHT_BIAS = 0.04f;   // #3 SemiBold a hair thinner (optical) — reads dearer
     private static final float MIN_W = 92f, MAX_W = 172f;   // content-width clamp (long names truncate into MAX_W)
     private static final String UNIT = " HP";
 
@@ -49,6 +50,10 @@ public final class TargetElement extends HudElement {
     private String curName = "Steve_42", curNum = "18";
     private float curFrac = 0.62f;
     private String tweenName;   // the name the hp tween is based on (snap on change)
+    // Scale-pop on target acquire/change: a quick 0.955 → 1.0 ease so a new target "lands" instead of popping in.
+    private static final float POP_FROM = 0.955f;
+    private String popName;     // last name we popped for
+    private float popStart = -1f;
 
     public TargetElement() { super("target"); }
 
@@ -64,6 +69,17 @@ public final class TargetElement extends HudElement {
     @Override protected float panelPadX() { return 15f; }
     @Override protected float panelPadY() { return 13f; }
     @Override protected float panelRadius() { return 10f; }
+
+    /** Quick scale-pop when the target is acquired or changes (per the "feel" pass). Same easing/token family
+     *  as the other HUD motion, so all animations share one speed language. */
+    @Override protected float visualScale(UiContext ctx) {
+        float now = ctx.time();
+        if (!curName.equals(popName)) { popName = curName; popStart = now; }   // acquired / changed → play
+        if (popStart < 0f) return 1f;
+        float t = (now - popStart) / Tokens.motion().durations().fast();
+        if (t >= 1f) return 1f;
+        return POP_FROM + (1f - POP_FROM) * Tokens.motion().easings().decelerate().apply(Math.max(0f, t));
+    }
 
     @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) {
         if (a <= 0f) return;
@@ -106,9 +122,10 @@ public final class TargetElement extends HudElement {
         // baseline-align the smaller HP text to the name's baseline (premium alignment, not top-aligned)
         float hpDy = Ui.text().ascent(Weight.SEMIBOLD, NAME_SIZE) - Ui.text().ascent(Weight.MEDIUM, HP_SIZE);
 
-        // name (primary) — left, truncated into the width left after the HP group
+        // name (primary) — left, truncated into the width left after the HP group; optically a touch thinner
         String name = fitName(curName, cw - GAP - hpW);
-        t.draw(name, ox, oy, TextStyle.of(Weight.SEMIBOLD, NAME_SIZE * s, nameC).effect(HudPaint.textShadow(alpha)));
+        t.draw(name, ox, oy, TextStyle.of(Weight.SEMIBOLD, NAME_SIZE * s, nameC)
+                .effect(HudPaint.textShadow(alpha)).weightBias(NAME_WEIGHT_BIAS));
         // HP two-tone — right-aligned group ending at the content edge
         float numX  = ox + (cw - hpW) * s;
         float unitX = ox + (cw - unitW) * s;

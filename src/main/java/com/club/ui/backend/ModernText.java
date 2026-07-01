@@ -164,11 +164,12 @@ public final class ModernText implements UiText {
             float glowR    = 0f;
             int   glowC    = 0;
 
+            float weightBias = style.weightBias;
             if (style.effect instanceof TextEffect.Shadow sh) {
-                // Shadow pass — offset, shadow color, no outline/glow uniforms.
+                // Shadow pass — offset, shadow color, no outline/glow uniforms. Same weight bias as the glyph.
                 drawRun(text, x + sh.dx(), y + sh.dy(),
                         style.weight, style.size, style.align,
-                        sh.color(), 0f, 0, 0f, 0);
+                        sh.color(), 0f, 0, 0f, 0, weightBias);
             } else if (style.effect instanceof TextEffect.Outline o) {
                 outlineW = o.widthPx();
                 outlineC = o.color();
@@ -179,7 +180,7 @@ public final class ModernText implements UiText {
 
             return drawRun(text, x, y,
                     style.weight, style.size, style.align,
-                    style.color, outlineW, outlineC, glowR, glowC);
+                    style.color, outlineW, outlineC, glowR, glowC, weightBias);
         } catch (Exception e) {
             broken = true;
             System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
@@ -225,7 +226,8 @@ public final class ModernText implements UiText {
                           Weight weight, float size, Align align,
                           int color,
                           float outlineW, int outlineC,
-                          float glowR,   int glowC) {
+                          float glowR,   int glowC,
+                          float weightBias) {
         if (!UiShaders.ready() || ctx == null || text.isEmpty()) return x;
 
         // Lay out into the reusable batch — no per-glyph allocation.
@@ -249,6 +251,7 @@ public final class ModernText implements UiText {
         setUniformColor("OutlineColor", outlineC);
         setUniform1f("GlowRange",    glowR);
         setUniformColor("GlowColor", glowC);
+        setUniform1f("WeightBias",   weightBias);
 
         // Emit all batch quads into ONE BufferBuilder.
         Matrix4f mat = ctx.getMatrices().peek().getPositionMatrix();

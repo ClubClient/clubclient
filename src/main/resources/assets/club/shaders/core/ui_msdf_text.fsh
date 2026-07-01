@@ -6,6 +6,7 @@ uniform float OutlineWidth;   // px, 0 = none
 uniform vec4 OutlineColor;
 uniform float GlowRange;       // px, 0 = none
 uniform vec4 GlowColor;
+uniform float WeightBias;      // >0 = thinner glyph (shifts the 50%-coverage contour inward), <0 = heavier
 in vec2 texCoord0;
 in vec4 vertexColor;
 out vec4 fragColor;
@@ -19,7 +20,7 @@ void main() {
     float spr = max(0.5 * dot(unitRange, screenTexSize), 1.0);
     float d = spr * (sd - 0.5);
 
-    float fillA = clamp(d + 0.5, 0.0, 1.0);
+    float fillA = clamp(d + 0.5 - WeightBias, 0.0, 1.0);
     vec4 col = vertexColor * ColorModulator;
     vec4 outc = vec4(col.rgb, col.a * fillA);
 
