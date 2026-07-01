@@ -463,6 +463,10 @@ public final class ClubMenuScreen extends Screen {
         private final String placeholder;
         private String text = "";
         private Consumer<String> onChange;
+        private final Transition focusT =
+                new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
+        private final Transition hoverT =
+                new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
 
         SearchField(String placeholder) { this.placeholder = placeholder; }
         SearchField onChange(Consumer<String> cb) { this.onChange = cb; return this; }
@@ -488,26 +492,34 @@ public final class ClubMenuScreen extends Screen {
         @Override public void render(UiContext ctx) {
             UiRenderer r = ctx.renderer();
             Typography ty = Tokens.type();
+            float now = ctx.time();
             float rad = Tokens.radius().md();
             float pad = Tokens.spacing().md();
             boolean foc = isFocused();
             boolean empty = text.isEmpty();
+            focusT.target(foc ? 1f : 0f, now);
+            hoverT.target(isHovered() ? 1f : 0f, now);
+            float fv = focusT.value(now), hv = hoverT.value(now);
+
             r.roundedRect(x, y, w, h, rad, Tokens.surface().bg1());
-            int bcol = foc ? Tokens.accent().accent()
-                    : isHovered() ? Color.withAlpha(Tokens.accent().accent(), 0x99)
-                                  : Tokens.border().defaultColor();
-            r.border(x, y, w, h, rad, Tokens.border().thickness(), bcol);
+            // border eases default -> accent@0x99 (hover) -> accent (focus)
+            int hoverBorder = Color.lerp(Tokens.border().defaultColor(), Color.withAlpha(Tokens.accent().accent(), 0x99), hv);
+            r.border(x, y, w, h, rad, Tokens.border().thickness(), Color.lerp(hoverBorder, Tokens.accent().accent(), fv));
 
             float ty0 = y + (h - ty.body().lineHeight()) / 2f;
             r.pushClip(x + pad, y, w - 2 * pad, h);
             if (!empty) ctx.text().draw(text, x + pad, ty0, TextStyle.of(ty.body().weight(), ty.body().size(), Tokens.palette().textHi()));
-            else if (!foc) ctx.text().draw(placeholder, x + pad, ty0, TextStyle.of(ty.body().weight(), ty.body().size(),
-                    Color.lerp(Tokens.palette().textFaint(), Tokens.palette().textMuted(), 0.4f)));   // slightly lighter placeholder
+            else {   // placeholder dissolves as focus grows (instead of snapping off on first focus/keypress)
+                float pa = 1f - fv;
+                if (pa > 0.001f) ctx.text().draw(placeholder, x + pad, ty0, TextStyle.of(ty.body().weight(), ty.body().size(),
+                        Color.scaleAlpha(Color.lerp(Tokens.palette().textFaint(), Tokens.palette().textMuted(), 0.4f), pa)));
+            }
             r.popClip();
 
-            if (foc && ((long) (ctx.time() * 2)) % 2 == 0) {   // ~2 Hz blink
+            if (fv > 0.001f) {   // caret: smooth ~1 Hz sine pulse (not a hard blink), scaled by focus
+                float blink = 0.15f + 0.85f * (0.5f + 0.5f * (float) Math.sin(now * 2f * (float) Math.PI));
                 float tw = empty ? 0f : ctx.text().width(text, ty.body().weight(), ty.body().size());
-                r.rect(x + pad + tw + 1f, ty0, 1f, ty.body().lineHeight(), Tokens.accent().accent());
+                r.rect(x + pad + tw + 1f, ty0, 1f, ty.body().lineHeight(), Color.scaleAlpha(Tokens.accent().accent(), fv * blink));
             }
         }
     }
@@ -520,16 +532,22 @@ public final class ClubMenuScreen extends Screen {
         private final String text;
         private final boolean selected;
         private final Runnable onClick;
+        private final Transition hoverT =
+                new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
         OptionRow(String text, boolean selected, Runnable onClick) { this.text = text; this.selected = selected; this.onClick = onClick; }
 
         @Override public Size measure(float aw, float ah) { return new Size(aw, OPT_H); }
         @Override public void render(UiContext ctx) {
             UiRenderer r = ctx.renderer();
             Typography ty = Tokens.type();
+            float now = ctx.time();
             float rad = Tokens.radius().sm();
-            if (selected) r.roundedRect(x, y, w, h, rad, Color.withAlpha(Tokens.accent().accent(), 0x24));
-            else if (isHovered()) r.roundedRect(x, y, w, h, rad, Tokens.surface().surfaceHi());
-            int col = selected ? Tokens.accent().accent() : (isHovered() ? Tokens.palette().textHi() : Tokens.palette().textMuted());
+            hoverT.target(isHovered() ? 1f : 0f, now);
+            float hv = hoverT.value(now);
+            if (selected) r.roundedRect(x, y, w, h, rad, Color.withAlpha(Tokens.accent().accent(), 0x24));   // selected tint (baked)
+            else if (hv > 0.001f) r.roundedRect(x, y, w, h, rad, Color.scaleAlpha(Tokens.surface().surfaceHi(), hv));  // hover wash eases in
+            int col = selected ? Tokens.accent().accent()
+                               : Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), hv);
             float lh = ty.body().lineHeight();
             ctx.text().draw(text, x + Tokens.spacing().sm(), y + (OPT_H - lh) / 2f, TextStyle.of(ty.body().weight(), ty.body().size(), col));
         }
