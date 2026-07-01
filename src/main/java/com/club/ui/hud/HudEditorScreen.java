@@ -35,7 +35,7 @@ public final class HudEditorScreen extends Screen {
     private final long start = System.nanoTime();
 
     private final HudCanvas canvas = new HudCanvas(true)
-            .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement());
+            .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement()).add(new ArmorElement());
     private final Pane toolbar = new Pane();
     private final Pane popover = new Pane();
     private int popX, popY, popW, popH;
@@ -86,6 +86,11 @@ public final class HudEditorScreen extends Screen {
         } else if (sel instanceof TargetElement) {
             addRow("Range", new Slider(h().targetDistance, 3f, 32f, 1f)
                     .onChange(v -> { h().targetDistance = Math.round(v); save(); }));
+        } else if (sel instanceof ArmorElement) {
+            addRow("Layout", new Dropdown(new String[]{"Vertical", "Row"}, h().armorVertical ? 0 : 1)
+                    .onChange(i -> { h().armorVertical = (i == 0); save(); }));
+            addRow("Value", new Dropdown(new String[]{"Percent", "Count"}, h().armorPercent ? 0 : 1)
+                    .onChange(i -> { h().armorPercent = (i == 0); save(); }));
         }
         popH = POP_HEAD + popover.children().size() * POP_ROW + POP_PAD_B;
         popReveal = null;   // replay the grow-in for this (new) selection
@@ -121,21 +126,28 @@ public final class HudEditorScreen extends Screen {
     }
 
     private void setEnabled(HudElement e, boolean v) {
-        if (e instanceof EffectsElement) h().potions = v; else if (e instanceof TargetElement) h().target = v; else h().info = v;
+        if (e instanceof EffectsElement) h().potions = v;
+        else if (e instanceof TargetElement) h().target = v;
+        else if (e instanceof ArmorElement) h().armor = v;
+        else h().info = v;
     }
     private void setScale(HudElement e, float v) {
-        if (e instanceof EffectsElement) h().potionScale = v; else if (e instanceof TargetElement) h().targetScale = v; else h().infoScale = v;
+        if (e instanceof EffectsElement) h().potionScale = v;
+        else if (e instanceof TargetElement) h().targetScale = v;
+        else if (e instanceof ArmorElement) h().armorScale = v;
+        else h().infoScale = v;
     }
     private void save() { ClubConfig.save(); }
 
     private void resetPositions() {
         ClubConfig.Hud c = h();
-        c.potionX = 8; c.potionY = 70; c.targetX = -1; c.targetY = -1; c.infoX = 8; c.infoY = 120;
+        c.potionX = 8; c.potionY = 70; c.targetX = -1; c.targetY = -1; c.infoX = 8; c.infoY = 120; c.armorX = 8; c.armorY = 8;
         save(); canvas.clearSelection(); rebuildPopover();
     }
 
     @Override public void render(DrawContext dc, int mx, int my, float d) {
         Ui.beginFrame(dc);
+        HudSprites.set(dc);   // Armor draws vanilla sprites through this DrawContext
         var r = Ui.renderer(); Typography ty = Tokens.type();
         if (stTitle == null) initStyles();
         r.rect(0, 0, width, height, 0xFF0A0E15);
@@ -179,7 +191,10 @@ public final class HudEditorScreen extends Screen {
     }
 
     private String titleOf(HudElement e) {
-        return e instanceof EffectsElement ? "Effects HUD" : e instanceof TargetElement ? "Target HUD" : "Coordinates HUD";
+        if (e instanceof EffectsElement) return "Effects HUD";
+        if (e instanceof TargetElement) return "Target HUD";
+        if (e instanceof ArmorElement) return "Armor HUD";
+        return "Coordinates HUD";
     }
     private void initStyles() {
         Typography t = Tokens.type();
