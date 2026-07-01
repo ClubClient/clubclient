@@ -56,6 +56,7 @@ public final class ClubMenuScreen extends Screen {
 
     private static final float CLOCK_BASE = 1000f;   // keep past any transition so fresh widgets read settled
     private static final int VIOLET = 0xFF9B7CFF;    // for the enabled edge: accent mixed toward violet
+    private static final float RAIL_ROW = 36f;       // category row height (tighter than the old 40 — less dead air)
 
     private final UiContextImpl uiCtx = new UiContextImpl();
     private final FocusManager focus = new FocusManager();
@@ -103,7 +104,7 @@ public final class ClubMenuScreen extends Screen {
         indicator = new Transition(railY(catIndex), Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
     }
 
-    private float railY(int i) { return bodyY + 8 + i * 40; }
+    private float railY(int i) { return bodyY + 8 + i * RAIL_ROW; }
 
     // ---- state ---------------------------------------------------------------
 
@@ -300,10 +301,10 @@ public final class ClubMenuScreen extends Screen {
         for (int i = 0; i < cats.size(); i++) {
             float yy = railY(i);
             boolean active = i == catIndex;
-            boolean hov = mouseX >= winX && mouseX <= winX + railW && mouseY >= yy && mouseY < yy + 40;
-            if (active) r.roundedRect(winX + 8, yy + 4, railW - 16, 32, Tokens.radius().sm(), Tokens.surface().surfaceHi());
-            r.pushClip(winX + 20, yy, railW - 32, 40);
-            uiCtx.text().draw(cats.get(i).name(), winX + 20, yy + (40 - catLh) / 2f, (active || hov) ? stCatOn : stCat);
+            boolean hov = mouseX >= winX && mouseX <= winX + railW && mouseY >= yy && mouseY < yy + RAIL_ROW;
+            if (active) r.roundedRect(winX + 8, yy + 3, railW - 16, RAIL_ROW - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
+            r.pushClip(winX + 20, yy, railW - 32, RAIL_ROW);
+            uiCtx.text().draw(cats.get(i).name(), winX + 20, yy + (RAIL_ROW - catLh) / 2f, (active || hov) ? stCatOn : stCat);
             r.popClip();
         }
 
@@ -313,7 +314,7 @@ public final class ClubMenuScreen extends Screen {
 
         if (indicator != null) {
             indicator.target(railY(catIndex), uiCtx.time());
-            r.rect(winX, indicator.value(uiCtx.time()) + 8, 3, 24, Tokens.accent().accent());
+            r.rect(winX, indicator.value(uiCtx.time()) + 4, 4, RAIL_ROW - 8, Tokens.accent().accent());   // beefier active indicator
         }
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
@@ -333,7 +334,8 @@ public final class ClubMenuScreen extends Screen {
     private void initStyles() {
         Typography t = Tokens.type();
         stBrand     = TextStyle.of(t.display().weight(), t.display().size(), Tokens.palette().textHi());
-        stFootMut   = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textMuted());
+        stFootMut   = TextStyle.of(t.label().weight(), t.label().size(),
+                Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), 0.35f));   // a touch more contrast
         stName      = TextStyle.of(t.heading().weight(), t.heading().size(), Tokens.palette().textHi());
         stNameOff   = TextStyle.of(t.heading().weight(), t.heading().size(), Tokens.palette().textMuted());
         stCat       = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textMuted());
@@ -354,8 +356,8 @@ public final class ClubMenuScreen extends Screen {
             if (b == 1) { closePopover(); return true; }       // RMB inside → close
             popScroll.mouseClicked(mx, my, b); pressOwner = 1; return true;
         }
-        if (b == 0 && mx >= winX && mx <= winX + railW && my >= bodyY + 8 && my < bodyY + 8 + cats.size() * 40) {
-            int i = (int) ((my - (bodyY + 8)) / 40);
+        if (b == 0 && mx >= winX && mx <= winX + railW && my >= bodyY + 8 && my < bodyY + 8 + cats.size() * RAIL_ROW) {
+            int i = (int) ((my - (bodyY + 8)) / RAIL_ROW);
             if (i >= 0 && i < cats.size()) { if (i != catIndex) setCategory(i); return true; }
         }
         if (root.mouseClicked(mx, my, b)) { pressOwner = 2; return true; }
@@ -472,7 +474,8 @@ public final class ClubMenuScreen extends Screen {
             float ty0 = y + (h - ty.body().lineHeight()) / 2f;
             r.pushClip(x + pad, y, w - 2 * pad, h);
             if (!empty) ctx.text().draw(text, x + pad, ty0, TextStyle.of(ty.body().weight(), ty.body().size(), Tokens.palette().textHi()));
-            else if (!foc) ctx.text().draw(placeholder, x + pad, ty0, TextStyle.of(ty.body().weight(), ty.body().size(), Tokens.palette().textFaint()));
+            else if (!foc) ctx.text().draw(placeholder, x + pad, ty0, TextStyle.of(ty.body().weight(), ty.body().size(),
+                    Color.lerp(Tokens.palette().textFaint(), Tokens.palette().textMuted(), 0.4f)));   // slightly lighter placeholder
             r.popClip();
 
             if (foc && ((long) (ctx.time() * 2)) % 2 == 0) {   // ~2 Hz blink
