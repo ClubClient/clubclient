@@ -46,7 +46,7 @@ public final class HudEditorScreen extends Screen {
     private Reveal popReveal;
     private final ValueTween popHTween =
             new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
-    private TextStyle stTitle, stHint, stPop, stToolLabel;
+    private TextStyle stHint, stPop, stToolLabel;
     private int pressOwner;   // which surface owns the active gesture: 0 none, 1 toolbar, 2 popover, 3 canvas
     private final Screen parent;
 
@@ -162,7 +162,7 @@ public final class HudEditorScreen extends Screen {
         Ui.beginFrame(dc);
         HudSprites.set(dc);   // Armor draws vanilla sprites through this DrawContext
         var r = Ui.renderer(); Typography ty = Tokens.type();
-        if (stTitle == null) initStyles();
+        if (stHint == null) initStyles();
         r.rect(0, 0, width, height, 0xFF0A0E15);
         uiCtx.setTime((System.nanoTime() - start) / 1_000_000_000f);
 
@@ -209,7 +209,6 @@ public final class HudEditorScreen extends Screen {
     }
     private void initStyles() {
         Typography t = Tokens.type();
-        stTitle = TextStyle.of(t.title().weight(), t.title().size(), Tokens.palette().textHi());
         stHint  = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textDesc()).align(Align.CENTER);
         stPop   = TextStyle.of(t.body().weight(), t.body().size(), Tokens.palette().textHi());
         stToolLabel = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textMuted());
