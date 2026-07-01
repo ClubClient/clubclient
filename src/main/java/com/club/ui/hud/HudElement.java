@@ -15,10 +15,18 @@ public abstract class HudElement extends Component {
     public final String id;
     protected HudElement(String id) { this.id = id; }
 
-    // Shared "light structure" geometry (Stage 10): every element sits on the same padded flat ground with the
-    // same corner, and stacked rows share one row height — so the four elements read as one product, not a set
-    // of boxes. Tight padding + a soft corner so the panels hug their content and don't read as bulky.
-    private static final float PANEL_PAD = 6f, PANEL_RADIUS = 6f;
+    // Shared "light structure" geometry (Stage 10). Elements inherit the same padded flat ground + soft corner
+    // by default, but a role may override the panel treatment (e.g. TargetElement's recessive "Hero" panel).
+    /** Horizontal inner padding (unscaled). Override per role. */
+    protected float panelPadX() { return 6f; }
+    /** Vertical inner padding (unscaled). Override per role. */
+    protected float panelPadY() { return 6f; }
+    /** Panel corner radius (unscaled). Override per role. */
+    protected float panelRadius() { return 6f; }
+    /** Draw the element's backdrop (already scaled/positioned). Default = shared light-structure panel. */
+    protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) {
+        HudPaint.panel(ctx, x, y, w, h, radius, a);
+    }
     /** One row height for every stacked HUD list (Effects, Armor) — a single vertical grid across the HUD. */
     public static final int LIST_ROW = 18;
     /** Element appear/disappear fade in [0,1] (Stage 10.3); 1 = fully shown. Set by the canvas in-world. */
@@ -57,8 +65,9 @@ public abstract class HudElement extends Component {
         boolean live = live(mc);
         int[] cs = contentSize(mc, live);
         int[] b = scaledBox(resolveX(mc), resolveY(mc), cs[0], cs[1], cfgScale());
-        int pad = Math.round(PANEL_PAD * cfgScale());
-        b[2] += 2 * pad; b[3] += 2 * pad;
+        int padX = Math.round(panelPadX() * cfgScale());
+        int padY = Math.round(panelPadY() * cfgScale());
+        b[2] += 2 * padX; b[3] += 2 * padY;
         return b;
     }
 
@@ -78,8 +87,8 @@ public abstract class HudElement extends Component {
     @Override public Size measure(float availW, float availH) { return new Size(w, h); }
     @Override public void render(UiContext ctx) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        float s = cfgScale(), pad = PANEL_PAD * s;
-        HudPaint.panel(ctx, x, y, w, h, PANEL_RADIUS * s, alpha);   // shared "light structure" backdrop
-        paint(ctx, mc, x + pad, y + pad, s, live(mc));               // content inset by the panel padding
+        float s = cfgScale(), px = panelPadX() * s, py = panelPadY() * s;
+        drawPanel(ctx, x, y, w, h, panelRadius() * s, alpha);   // backdrop (shared, or a role override)
+        paint(ctx, mc, x + px, y + py, s, live(mc));            // content inset by the panel padding
     }
 }
