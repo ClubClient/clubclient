@@ -1,9 +1,11 @@
 package com.club.ui.component.widget;
 
+import com.club.ui.Color;
 import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.component.Component;
 import com.club.ui.layout.Size;
+import com.club.ui.motion.Transition;
 import com.club.ui.text.Align;
 import com.club.ui.text.TextEffect;
 import com.club.ui.text.TextStyle;
@@ -20,6 +22,10 @@ public final class Label extends Component {
     private TextEffect effect = TextEffect.NONE;
     private TextStyle style;        // cached; rebuilt only on change (alloc-free in render)
     private boolean styleDirty = true;
+    // Disabled dimming (Stage 9.8): eases the text alpha toward Interaction.disabledAlpha on enabled=false.
+    // Text can't use pushOpacity (the backend ignores it for glyphs), so we scale the colour alpha directly.
+    private final Transition enableT =
+            new Transition(1f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
 
     public Label(String text) { this(text, Tokens.type().body()); }
     public Label(String text, Typography.Role role) { this.text = text; this.role = role; }
@@ -42,11 +48,21 @@ public final class Label extends Component {
     }
 
     @Override public void render(UiContext ctx) {
-        if (styleDirty) {
-            style = TextStyle.of(role.weight(), role.size(), colorValue()).align(align).effect(effect);
-            styleDirty = false;
+        enableT.target(enabled ? 1f : 0f, ctx.time());
+        float e = enableT.value(ctx.time());
+        TextStyle s;
+        if (e >= 0.999f) {   // fully enabled: use the cached style (alloc-free common path)
+            if (styleDirty) {
+                style = TextStyle.of(role.weight(), role.size(), colorValue()).align(align).effect(effect);
+                styleDirty = false;
+            }
+            s = style;
+        } else {             // disabled / animating: scale alpha toward disabledAlpha (per-frame style)
+            float da = Tokens.interaction().disabledAlpha();
+            s = TextStyle.of(role.weight(), role.size(), Color.scaleAlpha(colorValue(), da + (1f - da) * e))
+                    .align(align).effect(effect);
         }
         float tx = switch (align) { case LEFT -> x; case CENTER -> x + w / 2f; case RIGHT -> x + w; };
-        ctx.text().draw(text, tx, y, style);
+        ctx.text().draw(text, tx, y, s);
     }
 }
