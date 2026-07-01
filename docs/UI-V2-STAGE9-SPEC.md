@@ -123,6 +123,24 @@ the menu grid, every popover, and future screens depend on, so downstream stages
 complexity → 9.8 base dimming → 9.9 icons last (decided after everything is "alive", when it's clear where an
 icon reads richer than text).
 
+## 7b. Delivered (2026-07-01) — all substages complete
+
+All of 9.1–9.9 are implemented, compiled, tested (`./gradlew build` green), and committed on
+`feat/ui-v2-m2.2-core` (commits `450f087`…`99d4331`). Notable, deliberate deviations from the draft plan:
+
+- **Key backend finding:** `ModernText` ignores the renderer opacity stack and `LegacyBackend.pushOpacity`
+  is a no-op — **text cannot be alpha-faded via `pushOpacity`**. This shaped several stages: popovers animate
+  via a **height/clip reveal** (not opacity); the menu entrance is a **scrim-fade + window-rise** (positions,
+  not text alpha); `Label` dimming and effect-row fades use **`Color.scaleAlpha` on the resolved colour**.
+- **9.1:** `WidgetPaint` `t`-overloads were **not** added — the hand-drawn screens (menu/hud) can't call
+  package-private `WidgetPaint` and the 4 shipped widgets are frozen, so they'd be dead code. Screens apply
+  `MotionState`/`Reveal`/`ValueTween` progress via public `Color` helpers inline.
+- **9.3:** `EffectsElement` = **enter-fade only** (exit deferred — the expiring-first list reorders as timers
+  tick, risking overlap). `InfoElement` left instant on purpose (FPS/XYZ read truthful/immediate).
+- **9.6:** `HudEditorScreen` popover grows in on selection + eases resize; **close stays instant** (its content
+  is cleared on deselect). `ClubMenuScreen` popover has the full open/close/resize + scroll-preserve treatment.
+- **9.7:** grid-retile crossfade **deferred** (text-fade limitation + would flicker on every search keystroke).
+
 ## 8. Global acceptance criteria
 - Every listed instant swap becomes an eased transition using **existing** duration/easing tokens.
 - No change to layout, spacing, sizes, colours, tokens, config, or widget behaviour/API.
