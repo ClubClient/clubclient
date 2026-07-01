@@ -12,8 +12,8 @@ import net.minecraft.client.MinecraftClient;
 
 /** Entity under the crosshair: name + "<hp> HP" + a 2px HP-fraction line (the only accent). No avatar/distance (per the approved minimalist design). */
 public final class TargetElement extends HudElement {
-    private static final int CONTENT_H = 52;
-    private static final float MIN_W = 80f;
+    private static final int CONTENT_H = 40;
+    private static final float MIN_W = 82f;
 
     // HP-bar fraction easing: a short tween so the bar glides on damage/heal but never trails real HP by
     // more than the fast duration; snaps when the target changes so it re-bases.
@@ -55,12 +55,13 @@ public final class TargetElement extends HudElement {
         // cur* was refreshed in contentSize() this frame. Snap the bar when the target changes; else ease it.
         if (!curName.equals(tweenName)) { hpFrac.snap(curFrac, now); tweenName = curName; } else hpFrac.set(curFrac, now);
         float shownFrac = hpFrac.get(now);
-        int hiA = Color.scaleAlpha(Tokens.palette().textHi(), alpha);   // element appear/disappear fade
+        int hiA  = Color.scaleAlpha(Tokens.palette().textHi(), alpha);      // name — white (primary)
+        int subA = Color.scaleAlpha(Tokens.palette().textMuted(), alpha);   // "<hp> HP" — muted (secondary)
 
         t.draw(curName, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hiA).effect(HudPaint.textShadow(alpha)));
-        t.draw(curSub, ox, oy + 24 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, hiA).effect(HudPaint.textShadow(alpha)));
+        t.draw(curSub, ox, oy + 19 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, subA).effect(HudPaint.textShadow(alpha)));
         // HP-fraction line — the single accent, spanning the measured content width
-        float barW = contentW() * s, barY = oy + 46 * s, barH = 3 * s, rr = 1.5f * s;
+        float barW = contentW() * s, barY = oy + 35 * s, barH = 3 * s, rr = 1.5f * s;
         r.roundedRect(ox, barY, barW, barH, rr, Color.scaleAlpha(track, alpha));
         if (shownFrac > 0) {
             float ct = Math.max(0f, Math.min(1f, (shownFrac - 0.24f) / 0.12f));   // smooth low->accent crossing

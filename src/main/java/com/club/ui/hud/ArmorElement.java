@@ -4,6 +4,7 @@ import com.club.config.ClubConfig;
 import com.club.ui.Color;
 import com.club.ui.Ui;
 import com.club.ui.UiContext;
+import com.club.ui.text.Align;
 import com.club.ui.text.TextStyle;
 import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
@@ -98,12 +99,15 @@ public final class ArmorElement extends HudElement {
         DrawContext dc = HudSprites.ctx();
 
         if (h().armorVertical) {
+            // right-align the value against the value column so digits (407/407, 92%) line up cleanly,
+            // and the durability dots form one straight column at the tile's right edge.
+            TextStyle rstyle = style.align(Align.RIGHT);
             int row = 0;
             for (ItemStack st : ps) {
                 if (st.isEmpty()) continue;
                 float ry = oy + row * ROW * s;
                 drawSprite(dc, st, ox, ry, s);
-                t.draw(value(st, percent), ox + (ICON + GAP) * s, ry + (ICON - lh) * 0.5f * s, style);
+                t.draw(value(st, percent), ox + (ICON + GAP + valW) * s, ry + (ICON - lh) * 0.5f * s, rstyle);
                 float dcx = ox + (ICON + GAP + valW + DOTGAP + DOT * 0.5f) * s;
                 r.circle(dcx, ry + ICON * 0.5f * s, DOT * 0.5f * s, Color.scaleAlpha(stateColor(frac(st)), alpha));
                 row++;
