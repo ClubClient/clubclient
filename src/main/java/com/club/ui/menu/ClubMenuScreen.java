@@ -254,11 +254,14 @@ public final class ClubMenuScreen extends Screen {
         root.layout(0, 0, width, height);
 
         float searchW = 200, searchH = 32;
-        search.layout(contentX + contentW - 16 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);   // in the header row, next to CLUB
+        search.layout(contentX + contentW - 16 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);   // header row, top-right
 
-        float gridW = contentW - 32;
+        // cards fill the content from the very top; the top-right is reserved for the search so they never overlap
+        float gridX = contentX + 16;
+        float gridY = winY + 8;
+        float gridW = contentW - 32 - (searchW + 16);
         grid.cols(Math.max(2, (int) (gridW / 172)));
-        if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 8, gridW, bodyH - 8 - 12);
+        if (gridScroll != null) gridScroll.layout(gridX, gridY, gridW, (winY + winH - footH) - gridY - 12);
 
         if (popModule != null) positionPopover();
     }
@@ -286,9 +289,11 @@ public final class ClubMenuScreen extends Screen {
         r.rect(winX, bodyY, railW, 1, dv);                 // under CLUB — gives the category list a top edge
         r.rect(winX, winY + winH - footH, winW, 1, dv);    // above footer
 
-        // header — CLUB wordmark + brand accent mark (identity, not a glyph icon)
-        r.roundedRect(winX + 18, winY + headH / 2f - 4, 8, 8, 2, Tokens.accent().accent());
-        uiCtx.text().draw("CLUB", winX + 34, winY + (headH - ty.display().lineHeight()) / 2f, stBrand);
+        // header — CLUB wordmark centred in the rail cell (dot + text as one group)
+        float clubTextW = uiCtx.text().width("CLUB", ty.display().weight(), ty.display().size());
+        float clubX = winX + (railW - (16 + clubTextW)) / 2f;
+        r.roundedRect(clubX, winY + headH / 2f - 4, 8, 8, 2, Tokens.accent().accent());
+        uiCtx.text().draw("CLUB", clubX + 16, winY + (headH - ty.display().lineHeight()) / 2f, stBrand);
 
         float fy = winY + winH - footH + (footH - ty.label().lineHeight()) / 2f;
         uiCtx.text().draw("Profile · Default", winX + 18, fy, stFootMut);
