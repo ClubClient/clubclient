@@ -93,7 +93,8 @@ public final class ArmorElement extends HudElement {
         boolean percent = h().armorPercent;
         int valW = valueWidth(ps, percent);
         float lh = ty.body().lineHeight();
-        TextStyle style = TextStyle.of(Weight.SEMIBOLD, ty.body().size() * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha));
+        TextStyle style = TextStyle.of(Weight.SEMIBOLD, ty.body().size() * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
+                .effect(HudPaint.textShadow(alpha));
         DrawContext dc = HudSprites.ctx();
 
         if (h().armorVertical) {

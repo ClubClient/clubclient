@@ -57,8 +57,8 @@ public final class TargetElement extends HudElement {
         float shownFrac = hpFrac.get(now);
         int hiA = Color.scaleAlpha(Tokens.palette().textHi(), alpha);   // element appear/disappear fade
 
-        t.draw(curName, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hiA));
-        t.draw(curSub, ox, oy + 24 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, hiA));
+        t.draw(curName, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hiA).effect(HudPaint.textShadow(alpha)));
+        t.draw(curSub, ox, oy + 24 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, hiA).effect(HudPaint.textShadow(alpha)));
         // HP-fraction line — the single accent, spanning the measured content width
         float barW = contentW() * s, barY = oy + 46 * s, barH = 3 * s, rr = 1.5f * s;
         r.roundedRect(ox, barY, barW, barH, rr, Color.scaleAlpha(track, alpha));

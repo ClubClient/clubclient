@@ -36,7 +36,7 @@ public final class InfoElement extends HudElement {
         int desc = Color.scaleAlpha(Tokens.palette().textDesc(), alpha);
         int acc  = Color.scaleAlpha(Tokens.accent().accent(), alpha);
         float labelW = Ui.text().width("FPS", r.weight(), r.size());
-        t.draw("FPS", ox, oy, TextStyle.of(r.weight(), r.size() * s, desc));
-        t.draw(fps(mc, live), ox + (labelW + GAP) * s, oy, TextStyle.of(r.weight(), r.size() * s, acc));
+        t.draw("FPS", ox, oy, TextStyle.of(r.weight(), r.size() * s, desc).effect(HudPaint.textShadow(alpha)));
+        t.draw(fps(mc, live), ox + (labelW + GAP) * s, oy, TextStyle.of(r.weight(), r.size() * s, acc).effect(HudPaint.textShadow(alpha)));
     }
 }

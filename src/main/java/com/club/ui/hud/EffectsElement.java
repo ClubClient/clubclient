@@ -78,8 +78,8 @@ public final class EffectsElement extends HudElement {
                     k -> new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate(), now));
             float a = rev.progress(now) * alpha;               // row entrance × element appear/disappear fade
             float ry = oy + i * ROW * s;                       // tight rows: name (white) left, time (muted) right — no box
-            t.draw(rows[i][0], ox, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(hi, a)));
-            t.draw(rows[i][1], ox + w, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(mut, a)).align(Align.RIGHT));
+            t.draw(rows[i][0], ox, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(hi, a)).effect(HudPaint.textShadow(a)));
+            t.draw(rows[i][1], ox + w, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(mut, a)).align(Align.RIGHT).effect(HudPaint.textShadow(a)));
         }
     }
 
