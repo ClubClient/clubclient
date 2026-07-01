@@ -66,10 +66,15 @@ public final class ArmorElement extends HudElement {
             w = Math.max(w, Math.round(Ui.text().width(value(s, percent), Weight.SEMIBOLD, Tokens.type().heading().size())));
         return w;
     }
-    private static int stateColor(float frac) {
-        if (frac >= 0.70f) return Tokens.palette().stateGood();
-        if (frac >= 0.40f) return Tokens.palette().stateWarn();
-        return Tokens.palette().stateLow();
+    /** Durability dot colour — green/amber/red with a smooth crossing at the 0.70 / 0.40 thresholds
+     *  (a narrow lerp band each side) so a draining piece shifts colour instead of snapping. */
+    private static int stateColor(float f) {
+        int good = Tokens.palette().stateGood(), warn = Tokens.palette().stateWarn(), low = Tokens.palette().stateLow();
+        if (f >= 0.73f) return good;
+        if (f >= 0.67f) return Color.lerp(warn, good, (f - 0.67f) / 0.06f);
+        if (f >= 0.43f) return warn;
+        if (f >= 0.37f) return Color.lerp(low, warn, (f - 0.37f) / 0.06f);
+        return low;
     }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {

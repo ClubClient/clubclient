@@ -97,6 +97,12 @@ final class WidgetPaint {
         ctx.renderer().roundedRect(x, y, w, h, radius, Tokens.interaction().pressOverlay());
     }
 
+    /** Press overlay scaled by progress t∈[0,1] — for controls that ease their press (e.g. Dropdown). */
+    static void pressOverlay(UiContext ctx, float x, float y, float w, float h, float radius, float t) {
+        if (t <= 0f) return;
+        ctx.renderer().roundedRect(x, y, w, h, radius, Color.scaleAlpha(Tokens.interaction().pressOverlay(), t));
+    }
+
     /**
      * Clip a rounded region and render {@code content} inside it (pushRoundedClip → render → popClip).
      * The shared rounded-clip-of-content pattern used by Panel/Card/Window. Alloc-free (Component param,

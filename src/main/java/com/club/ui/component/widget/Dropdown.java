@@ -3,6 +3,7 @@ package com.club.ui.component.widget;
 import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.layout.Size;
+import com.club.ui.motion.MotionState;
 import com.club.ui.text.TextStyle;
 import com.club.ui.theme.Tokens;
 import com.club.ui.theme.Typography;
@@ -18,6 +19,7 @@ public final class Dropdown extends Control {
     private int index;
     private IntConsumer onChange;
     private TextStyle style;
+    private final MotionState motion = new MotionState();   // eased hover / press (matches Toggle/Slider/Button)
 
     public Dropdown(String[] options, int index) {
         this.options = options;
@@ -41,9 +43,12 @@ public final class Dropdown extends Control {
     }
 
     @Override public void render(UiContext ctx) {
+        float now = ctx.time();
+        motion.update(hovered, pressed, isFocused(), enabled, now);
         float rad = Tokens.radius().sm();
         WidgetPaint.surface(ctx, x, y, w, h, rad, Tokens.surface().surfaceHi(), Tokens.border().defaultColor());
-        if (pressed) WidgetPaint.pressOverlay(ctx, x, y, w, h, rad);
+        WidgetPaint.hoverWash(ctx, x, y, w, h, rad, motion.hover(now));       // eased hover
+        WidgetPaint.pressOverlay(ctx, x, y, w, h, rad, motion.press(now));    // eased press
         Typography.Role r = Tokens.type().body();
         if (style == null) style = TextStyle.of(r.weight(), r.size(), Tokens.palette().textHi());
         float ty = y + (h - r.lineHeight()) / 2f;
