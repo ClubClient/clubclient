@@ -120,7 +120,7 @@ public final class PotionHud {
     }
 
     public static String time(StatusEffectInstance e) {
-        if (e.isInfinite()) return "∞";
+        if (e.isInfinite()) return "—";   // Onest has no ∞ glyph; em dash reads as "no countdown / permanent"
         int s = e.getDuration() / 20;
         return (s / 60) + ":" + String.format("%02d", s % 60);
     }
