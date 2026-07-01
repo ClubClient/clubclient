@@ -6,11 +6,14 @@ import com.club.ui.UiContext;
 import com.club.ui.UiRenderer;
 import com.club.ui.component.Container;
 import com.club.ui.layout.Size;
+import com.club.ui.motion.Transition;
 import com.club.ui.theme.Tokens;
 import net.minecraft.client.MinecraftClient;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Hosts HUD elements and, in editor mode, owns selection + grab-offset drag + snap + guides + persistence
@@ -31,6 +34,18 @@ public final class HudCanvas extends Container {
     private int grabX, grabY;
     private boolean moved;
     private int guideX = HudSnap.NO_GUIDE, guideY = HudSnap.NO_GUIDE;
+
+    // Editor affordance easing (Stage 9.3, render-only — drag/snap logic is untouched). Outlines and guides
+    // fade in/out instead of popping; last-position fields let a deselect/release play its fade-out.
+    private final Map<HudElement, Transition> hoverAnim = new HashMap<>();
+    private final Transition selAnim =
+            new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
+    private final Transition guideXAnim =
+            new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
+    private final Transition guideYAnim =
+            new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
+    private HudElement lastSelected;
+    private int lastGuideX = HudSnap.NO_GUIDE, lastGuideY = HudSnap.NO_GUIDE;
 
     public HudCanvas(boolean editor) { this.editor = editor; }
 
@@ -115,19 +130,33 @@ public final class HudCanvas extends Container {
             e.render(ctx);
         }
         if (!editor) return;
+        float now = ctx.time();
 
-        // hover affordance: a faint padded outline (clamped to the screen so it never overhangs) — reads as clickable
+        // hover affordance: a faint padded outline (clamped to the screen) that fades in/out — reads as clickable
         for (HudElement e : elements) {
-            if (e == selected || !e.isHovered()) continue;
-            outline(r, e, 4f, 1f, Tokens.border().strong());
+            boolean hov = e != selected && e.isHovered();
+            Transition ha = hoverAnim.computeIfAbsent(e,
+                    k -> new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard()));
+            ha.target(hov ? 1f : 0f, now);
+            float a = ha.value(now);
+            if (a > 0.001f) outline(r, e, 4f, 1f, Color.scaleAlpha(Tokens.border().strong(), a));
         }
-        // selection border (accent), padded + clamped to the screen
-        if (selected != null) outline(r, selected, 4f, 1.5f, Tokens.accent().accent());
+        // selection border (accent) — fades in on select, out on deselect (drawn around the last selection while fading)
+        if (selected != null) lastSelected = selected;
+        selAnim.target(selected != null ? 1f : 0f, now);
+        float sa = selAnim.value(now);
+        if (lastSelected != null && sa > 0.001f)
+            outline(r, lastSelected, 4f, 1.5f, Color.scaleAlpha(Tokens.accent().accent(), sa));
 
-        // alignment guides (1px accent, ~0xAA alpha) — ports legacy guideX/guideY
+        // alignment guides (1px accent, ~0xAA alpha) — fade in while snapping, fade out on release
+        if (guideX != HudSnap.NO_GUIDE) lastGuideX = guideX;
+        if (guideY != HudSnap.NO_GUIDE) lastGuideY = guideY;
+        guideXAnim.target(guideX != HudSnap.NO_GUIDE ? 1f : 0f, now);
+        guideYAnim.target(guideY != HudSnap.NO_GUIDE ? 1f : 0f, now);
         int g = Color.withAlpha(Tokens.accent().accent(), 0xAA);
-        if (guideX != HudSnap.NO_GUIDE) r.rect(guideX, 0, 1, screenH, g);
-        if (guideY != HudSnap.NO_GUIDE) r.rect(0, guideY, screenW, 1, g);
+        float gxa = guideXAnim.value(now), gya = guideYAnim.value(now);
+        if (gxa > 0.001f && lastGuideX != HudSnap.NO_GUIDE) r.rect(lastGuideX, 0, 1, screenH, Color.scaleAlpha(g, gxa));
+        if (gya > 0.001f && lastGuideY != HudSnap.NO_GUIDE) r.rect(0, lastGuideY, screenW, 1, Color.scaleAlpha(g, gya));
     }
 
     /** A padded outline around an element. Padding shows in the interior, but on any side whose element edge
