@@ -6,49 +6,48 @@ import com.club.ui.text.TextStyle;
 import com.club.ui.text.Weight;
 
 /**
- * Tabular (fixed-width) numeric text for HUD stats. The atlas font is proportional — a "1" is narrower than a
- * "5" — so equal-length numbers ("481/481" vs "592/592") don't share a width and their columns/dots drift. This
- * renders every <b>digit</b> in a cell of the widest digit's advance, with the glyph <b>centered</b> in that cell,
- * so equal-length numbers become pixel-identical and every column (value edge, dot) lines up regardless of which
- * digits appear — exactly what premium HUDs get from a font's tabular-figures feature, done here in layout since
- * the atlas is proportional. Non-digits (<code>/ % . :</code> space, letters) keep their natural width.
+ * Numeric text for HUD stats with the one problem digit fixed. The atlas font is Inter, whose proportional
+ * <b>'1'</b> is an unusually tight <code>0.381</code>em (vs <code>~0.62</code>em for most digits) — so values
+ * with 1s ("481/481") come out visibly narrower than others ("592/592") and the stat columns/dots drift.
  *
- * <p>Centering (not left/right cell-alignment) is what makes it read as balanced monospaced numerals rather than
- * numbers with a stray gap. Metrics come from the shared {@link Ui#text()}; render-only.
+ * <p>Rather than force every digit to one width (monospaced — which leaves air around all the narrow glyphs),
+ * this widens <b>only the '1'</b> to a near-normal digit advance and centres the glyph in it, leaving every
+ * other digit natural. The numbers even out and the '1' just reads as a '1' with normal sidebearing. A pixel-
+ * perfect fix would be a tabular-figures atlas (font-level: freeze Inter's {@code tnum}), which needs font
+ * tooling not available here. Metrics come from the shared {@link Ui#text()}; render-only.
  */
 final class HudText {
     private HudText() {}
 
-    /** Widest digit advance (unscaled) at this weight/size — the tabular cell width. */
-    private static float digitCell(Weight w, float size) {
-        float c = 0;
-        for (char d = '0'; d <= '9'; d++) c = Math.max(c, Ui.text().width(String.valueOf(d), w, size));
-        return c;
-    }
+    /** Widened advance (em) for '1' — near a normal digit so 1-heavy values stop reading narrow, without
+     *  going monospaced. Inter's natural '1' is 0.381em; most digits are ~0.62em. */
+    private static final float ONE_EM = 0.56f;
 
-    /** Unscaled width of {@code s} rendered with tabular digits. */
+    private static boolean isOne(char c) { return c == '1'; }
+
+    /** Unscaled width of {@code s} with the '1' widened. */
     static float width(String s, Weight w, float size) {
-        float cell = digitCell(w, size), out = 0;
+        float out = 0;
         for (int i = 0; i < s.length(); i++) {
             char ch = s.charAt(i);
-            out += Character.isDigit(ch) ? cell : Ui.text().width(String.valueOf(ch), w, size);
+            out += isOne(ch) ? ONE_EM * size : Ui.text().width(String.valueOf(ch), w, size);
         }
         return out;
     }
 
-    /** Draw {@code s} with tabular digits; top-left at (x,y). {@code style} supplies weight/size/colour/effect
-     *  (its size is {@code baseSize*scale}); {@code baseSize} + {@code scale} drive the (unscaled) metrics and
-     *  the baked geometry. Each digit is centred in the shared cell; non-digits advance naturally. */
+    /** Draw {@code s} with the '1' widened; top-left at (x,y). {@code style} supplies weight/size/colour/effect
+     *  (its size is {@code baseSize*scale}); {@code baseSize} + {@code scale} drive the (unscaled) metrics and the
+     *  baked geometry. Every digit but '1' advances naturally; the '1' is centred in its widened advance. */
     static void draw(UiContext ctx, String s, float x, float y, TextStyle style, float baseSize, float scale) {
-        float cell = digitCell(style.weight, baseSize);
         var t = ctx.text();
         float penX = x;
         for (int i = 0; i < s.length(); i++) {
-            String ch = String.valueOf(s.charAt(i));
-            if (Character.isDigit(s.charAt(i))) {
-                float gw = Ui.text().width(ch, style.weight, baseSize);
-                t.draw(ch, penX + (cell - gw) * 0.5f * scale, y, style);   // centre the digit in its cell
-                penX += cell * scale;
+            char c = s.charAt(i);
+            String ch = String.valueOf(c);
+            if (isOne(c)) {
+                float adv = ONE_EM * baseSize, gw = Ui.text().width(ch, style.weight, baseSize);
+                t.draw(ch, penX + (adv - gw) * 0.5f * scale, y, style);   // centre the tight '1' in its widened advance
+                penX += adv * scale;
             } else {
                 t.draw(ch, penX, y, style);
                 penX += Ui.text().width(ch, style.weight, baseSize) * scale;
