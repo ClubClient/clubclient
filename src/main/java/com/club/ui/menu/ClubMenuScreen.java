@@ -116,8 +116,6 @@ public final class ClubMenuScreen extends Screen {
         layoutAll();
     }
 
-    private void updateCounts() { /* rail counts are read live in render() */ }
-
     private void rebuildGrid() {
         grid.clear();
         String q = query.toLowerCase(Locale.ROOT);
@@ -130,7 +128,7 @@ public final class ClubMenuScreen extends Screen {
     }
 
     private void activate(Module m) {
-        if (m.hasToggle()) { m.setEnabled(!m.enabled()); updateCounts(); }
+        if (m.hasToggle()) m.setEnabled(!m.enabled());   // rail counts are read live in render()
         else for (Setting s : m.settings()) if (s instanceof ActionSetting a) { a.action().run(); return; }
     }
 
@@ -151,7 +149,7 @@ public final class ClubMenuScreen extends Screen {
         focus.clear();
         focus.register(search);
         popCol = buildSettings(popModule);
-        popW = 236;
+        popW = Math.min(236f, Math.max(160f, winW - 16f));   // never wider than the window
         popH = 2 * POP_PAD + popCol.measure(popW - 2 * POP_PAD, 9999).h();
         positionPopover();
     }
@@ -300,7 +298,9 @@ public final class ClubMenuScreen extends Screen {
             boolean active = i == catIndex;
             boolean hov = mouseX >= winX && mouseX <= winX + railW && mouseY >= yy && mouseY < yy + 40;
             if (active) r.roundedRect(winX + 8, yy + 4, railW - 16, 32, Tokens.radius().sm(), Tokens.surface().surfaceHi());
+            r.pushClip(winX + 20, yy, railW - 50, 40);   // keep a long name off the count
             uiCtx.text().draw(cats.get(i).name(), winX + 20, yy + (40 - catLh) / 2f, (active || hov) ? stCatOn : stCat);
+            r.popClip();
             int cnt = cats.get(i).enabledCount();
             if (cnt > 0) uiCtx.text().draw(String.valueOf(cnt), winX + railW - 16, yy + (40 - catLh) / 2f, stCatNum);
         }
@@ -408,7 +408,7 @@ public final class ClubMenuScreen extends Screen {
             boolean on = m.enabled();
             boolean bright = on || !m.hasToggle();   // action-only cards (HUD Editor) read as available, not "off"
             int base = Tokens.surface().surface();
-            int fill = on ? Color.lerp(base, Tokens.accent().accent(), hovered ? 0.16f : 0.10f)
+            int fill = on ? Color.lerp(base, Tokens.accent().accent(), hovered ? 0.20f : 0.14f)
                           : (hovered ? Tokens.surface().surfaceHi() : base);
             int edge = on ? Color.withAlpha(Color.lerp(Tokens.accent().accent(), VIOLET, 0.62f), 0xB0)
                           : Tokens.border().defaultColor();
