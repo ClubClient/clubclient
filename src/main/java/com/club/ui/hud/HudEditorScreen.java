@@ -1,6 +1,7 @@
 package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
+import com.club.ui.Color;
 import com.club.ui.Ui;
 import com.club.ui.component.Component;
 import com.club.ui.component.Container;
@@ -37,6 +38,7 @@ public final class HudEditorScreen extends Screen {
     private final HudCanvas canvas = new HudCanvas(true)
             .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement()).add(new ArmorElement());
     private final Pane toolbar = new Pane();
+    private float tbX, tbY, tbW, tbH;   // compact floating toolbar (top-centre overlay)
     private final Pane popover = new Pane();
     private int popX, popY, popW, popH;
     private boolean hasPopover;
@@ -58,14 +60,25 @@ public final class HudEditorScreen extends Screen {
         rebuildPopover();
     }
 
+    // Compact floating toolbar centred at the top: "Grid snap" [toggle]  [Reset]  [Done].
+    // A tight overlay so the whole screen underneath stays usable for positioning HUD elements.
+    private static final float TB_TOGGLE_W = 40, TB_TOGGLE_H = 22, TB_BTN_W = 92, TB_BTN_H = 26,
+                              TB_GAP = 12, TB_PAD = 14, TB_LABEL_W = 66;
+
     private void buildToolbar() {
         toolbar.clear();
+        tbH = 40;
+        tbW = TB_PAD + TB_LABEL_W + 8 + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP + TB_BTN_W + TB_PAD;
+        tbX = (width - tbW) / 2f;
+        tbY = 8;
+        float toggleX = tbX + TB_PAD + TB_LABEL_W + 8;
+        float btnY = tbY + (tbH - TB_BTN_H) / 2f;
         Toggle grid = new Toggle(canvas.gridSnap()).onChange(canvas::setGridSnap);
-        grid.layout(226, 9, 40, 22);   // sits right of the "Grid snap" label drawn at x=160
+        grid.layout(toggleX, tbY + (tbH - TB_TOGGLE_H) / 2f, TB_TOGGLE_W, TB_TOGGLE_H);
         Button reset = new Button("Reset").variant(Button.Variant.GHOST).onClick(this::resetPositions);
-        reset.layout(width - 220, 7, 96, 26);
+        reset.layout(toggleX + TB_TOGGLE_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
         Button done = new Button("Done").variant(Button.Variant.PRIMARY).onClick(this::close);
-        done.layout(width - 116, 7, 96, 26);
+        done.layout(toggleX + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
         toolbar.add(grid); toolbar.add(reset); toolbar.add(done);
     }
 
@@ -160,17 +173,15 @@ public final class HudEditorScreen extends Screen {
         canvas.mouseMoved(mx, my);
         canvas.render(uiCtx);
 
-        // toolbar bar
-        float tbH = 40;
-        r.rect(0, 0, width, tbH, Tokens.surface().bg2());
-        r.rect(0, tbH, width, 1, Tokens.border().defaultColor());
-        uiCtx.text().draw("HUD Editor", 18, (tbH - ty.title().lineHeight()) / 2f, stTitle);
-        uiCtx.text().draw("Grid snap", 160, (tbH - ty.label().lineHeight()) / 2f, stToolLabel);
+        // compact floating toolbar — a top-centre overlay so the whole canvas underneath stays usable
+        float tbR = Tokens.radius().md();
+        r.roundedRect(tbX, tbY, tbW, tbH, tbR, Color.withAlpha(Tokens.surface().bg2(), 0xE6));
+        r.border(tbX, tbY, tbW, tbH, tbR, Tokens.border().thickness(), Tokens.border().strong());
+        uiCtx.text().draw("Grid snap", tbX + TB_PAD, tbY + (tbH - ty.label().lineHeight()) / 2f, stToolLabel);
         toolbar.mouseMoved(mx, my); toolbar.render(uiCtx);
 
-        // hint
-        uiCtx.text().draw("Left-drag to move · Right-click to open settings · Toggle grid-snap in the toolbar.",
-                width / 2f, tbH + 8, stHint);
+        // hint, tucked at the very bottom (out of the way of element positioning)
+        uiCtx.text().draw("Left-drag to move · Right-click for settings", width / 2f, height - 18, stHint);
 
         // popover — compact, re-anchored each frame; grows in on selection, content clipped to the eased height
         positionPopover();
