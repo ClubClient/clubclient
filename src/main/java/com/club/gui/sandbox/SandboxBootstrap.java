@@ -1,6 +1,6 @@
 package com.club.gui.sandbox;
 
-import com.club.gui.ClubScreen;
+import com.club.ui.menu.ClubMenuScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.TitleScreen;
@@ -31,7 +31,7 @@ public final class SandboxBootstrap {
             case 0 -> { // wait for the title screen, then open the real menu
                 total++;
                 if (mc.getOverlay() == null && (mc.currentScreen instanceof TitleScreen || total > 400)) {
-                    mc.setScreen(new ClubScreen());
+                    mc.setScreen(new ClubMenuScreen());
                     timer = 0; phase = 1;
                 }
             }
