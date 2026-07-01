@@ -15,6 +15,11 @@ public abstract class HudElement extends Component {
     public final String id;
     protected HudElement(String id) { this.id = id; }
 
+    // Shared "light structure" panel (Stage 10): every element sits on a padded translucent panel.
+    private static final float PANEL_PAD = 8f, PANEL_RADIUS = 6f;
+    /** Element appear/disappear fade in [0,1] (Stage 10.3); 1 = fully shown. Set by the canvas in-world. */
+    protected float alpha = 1f;
+
     // --- config binding (each concrete element wires these to ClubConfig.Hud) ---
     public abstract int   cfgX();
     public abstract int   cfgY();
@@ -42,11 +47,15 @@ public abstract class HudElement extends Component {
     public int resolveX(MinecraftClient mc) { int x = cfgX(); if (x >= 0) return x; int a = autoX(mc); return a >= 0 ? a : 0; }
     public int resolveY(MinecraftClient mc) { int y = cfgY(); if (y >= 0) return y; int a = autoY(mc); return a >= 0 ? a : 0; }
 
-    /** Scaled box at the resolved position, sized from the data mode that will actually be shown. */
+    /** Scaled box at the resolved position, sized from the data mode that will actually be shown.
+     *  Includes the shared panel padding on every side so the drag/selection box frames the panel. */
     public int[] box(MinecraftClient mc) {
         boolean live = live(mc);
         int[] cs = contentSize(mc, live);
-        return scaledBox(resolveX(mc), resolveY(mc), cs[0], cs[1], cfgScale());
+        int[] b = scaledBox(resolveX(mc), resolveY(mc), cs[0], cs[1], cfgScale());
+        int pad = Math.round(PANEL_PAD * cfgScale());
+        b[2] += 2 * pad; b[3] += 2 * pad;
+        return b;
     }
 
     /** Assign Component bounds from the current config (called by the canvas each frame). */
@@ -65,6 +74,8 @@ public abstract class HudElement extends Component {
     @Override public Size measure(float availW, float availH) { return new Size(w, h); }
     @Override public void render(UiContext ctx) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        paint(ctx, mc, x, y, cfgScale(), live(mc));
+        float s = cfgScale(), pad = PANEL_PAD * s;
+        HudPaint.panel(ctx, x, y, w, h, PANEL_RADIUS * s, alpha);   // shared "light structure" backdrop
+        paint(ctx, mc, x + pad, y + pad, s, live(mc));               // content inset by the panel padding
     }
 }
