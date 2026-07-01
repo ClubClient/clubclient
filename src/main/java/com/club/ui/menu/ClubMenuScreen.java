@@ -32,7 +32,6 @@ import com.club.ui.menu.MenuContent.SliderSetting;
 import com.club.ui.menu.MenuContent.Tab;
 import com.club.ui.menu.MenuContent.ToggleSetting;
 import com.club.ui.motion.Transition;
-import com.club.ui.text.Align;
 import com.club.ui.text.TextStyle;
 import com.club.ui.theme.Tokens;
 import com.club.ui.theme.Typography;
@@ -83,7 +82,7 @@ public final class ClubMenuScreen extends Screen {
 
     private float winX, winY, winW, winH, bodyY, bodyH, contentX, contentW, railW, headH, footH;
 
-    private TextStyle stBrand, stTitle, stFootMut, stName, stNameOff, stCat, stCatOn, stCatNum;
+    private TextStyle stBrand, stFootMut, stName, stNameOff, stCat, stCatOn;
 
     public ClubMenuScreen() { super(Text.literal("Club")); }
 
@@ -259,7 +258,7 @@ public final class ClubMenuScreen extends Screen {
 
         float gridW = contentW - 32;
         grid.cols(Math.max(2, (int) (gridW / 172)));
-        if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 34, gridW, bodyH - 34 - 12);
+        if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 8, gridW, bodyH - 8 - 12);
 
         if (popModule != null) positionPopover();
     }
@@ -283,13 +282,13 @@ public final class ClubMenuScreen extends Screen {
         r.rect(winX, bodyY, railW, bodyH, Tokens.surface().bg1());
 
         int dv = Tokens.border().defaultColor();
-        r.rect(winX + railW, bodyY, 1, bodyH, dv);         // rail | content
+        r.rect(winX + railW, winY, 1, winH - footH, dv);   // CLUB/rail | content — full height
+        r.rect(winX, bodyY, railW, 1, dv);                 // under CLUB — gives the category list a top edge
         r.rect(winX, winY + winH - footH, winW, 1, dv);    // above footer
 
-        // header — CLUB wordmark + brand accent mark (identity, not a glyph icon); no full-width divider
+        // header — CLUB wordmark + brand accent mark (identity, not a glyph icon)
         r.roundedRect(winX + 18, winY + headH / 2f - 4, 8, 8, 2, Tokens.accent().accent());
         uiCtx.text().draw("CLUB", winX + 34, winY + (headH - ty.display().lineHeight()) / 2f, stBrand);
-        uiCtx.text().draw(cats.get(catIndex).name(), contentX + 16, bodyY + 8, stTitle);
 
         float fy = winY + winH - footH + (footH - ty.label().lineHeight()) / 2f;
         uiCtx.text().draw("Profile · Default", winX + 18, fy, stFootMut);
@@ -300,11 +299,9 @@ public final class ClubMenuScreen extends Screen {
             boolean active = i == catIndex;
             boolean hov = mouseX >= winX && mouseX <= winX + railW && mouseY >= yy && mouseY < yy + 40;
             if (active) r.roundedRect(winX + 8, yy + 4, railW - 16, 32, Tokens.radius().sm(), Tokens.surface().surfaceHi());
-            r.pushClip(winX + 20, yy, railW - 50, 40);   // keep a long name off the count
+            r.pushClip(winX + 20, yy, railW - 32, 40);
             uiCtx.text().draw(cats.get(i).name(), winX + 20, yy + (40 - catLh) / 2f, (active || hov) ? stCatOn : stCat);
             r.popClip();
-            int cnt = cats.get(i).enabledCount();
-            if (cnt > 0) uiCtx.text().draw(String.valueOf(cnt), winX + railW - 16, yy + (40 - catLh) / 2f, stCatNum);
         }
 
         // cards + search
@@ -333,13 +330,11 @@ public final class ClubMenuScreen extends Screen {
     private void initStyles() {
         Typography t = Tokens.type();
         stBrand     = TextStyle.of(t.display().weight(), t.display().size(), Tokens.palette().textHi());
-        stTitle     = TextStyle.of(t.title().weight(), t.title().size(), Tokens.palette().textHi());
         stFootMut   = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textMuted());
         stName      = TextStyle.of(t.heading().weight(), t.heading().size(), Tokens.palette().textHi());
         stNameOff   = TextStyle.of(t.heading().weight(), t.heading().size(), Tokens.palette().textMuted());
         stCat       = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textMuted());
         stCatOn     = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textHi());
-        stCatNum    = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textFaint()).align(Align.RIGHT);
     }
 
     @Override public void renderBackground(DrawContext dc, int mx, int my, float d) { /* scrim drawn in render() */ }
