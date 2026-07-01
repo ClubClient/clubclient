@@ -21,7 +21,7 @@ import net.minecraft.item.Items;
  * DrawContext (matrix-scaled to the element's scale); value/dot/panel are pure V2. Empty pieces are skipped.
  */
 public final class ArmorElement extends HudElement {
-    private static final int ICON = 16, GAP = 6, ROW = 18, DOT = 4, DOTGAP = 6;   // value text is body-size (smaller than the 16px icon)
+    private static final int ICON = 16, GAP = 6, DOT = 4, DOTGAP = 6;   // value text is body-size (smaller than the 16px icon); row height = shared LIST_ROW
 
     public ArmorElement() { super("armor"); }
 
@@ -83,7 +83,7 @@ public final class ArmorElement extends HudElement {
         int count = count(ps);
         if (count == 0) return new int[]{0, 0};
         int valW = valueWidth(ps, h().armorPercent);
-        if (h().armorVertical) return new int[]{ ICON + GAP + valW + DOTGAP + DOT, (count - 1) * ROW + ICON };
+        if (h().armorVertical) return new int[]{ ICON + GAP + valW + DOTGAP + DOT, (count - 1) * LIST_ROW + ICON };
         int cell = Math.max(ICON, valW + DOTGAP + DOT);
         return new int[]{ count * cell + (count - 1) * GAP, ICON + 2 + Math.round(Tokens.type().body().lineHeight()) };
     }
@@ -105,7 +105,7 @@ public final class ArmorElement extends HudElement {
             int row = 0;
             for (ItemStack st : ps) {
                 if (st.isEmpty()) continue;
-                float ry = oy + row * ROW * s;
+                float ry = oy + row * LIST_ROW * s;
                 drawSprite(dc, st, ox, ry, s);
                 t.draw(value(st, percent), ox + (ICON + GAP + valW) * s, ry + (ICON - lh) * 0.5f * s, rstyle);
                 float dcx = ox + (ICON + GAP + valW + DOTGAP + DOT * 0.5f) * s;

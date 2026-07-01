@@ -14,7 +14,7 @@ import net.minecraft.client.MinecraftClient;
 
 /** Active effects: a compact column of "Name  Time" rows (no per-effect box). Pure-vector, no sprite. */
 public final class EffectsElement extends HudElement {
-    private static final int ROW = 18, GAP = 16, MIN_W = 56;   // GAP = min space between the name and time columns
+    private static final int GAP = 16, MIN_W = 56;   // GAP = min space between the name and time columns; row height = shared LIST_ROW
 
     // Fade-in per effect (keyed by title): a newly-gained effect eases in instead of popping. Expiring
     // effects still drop instantly — exit-fade is deferred (the expiring-first list reorders as timers tick).
@@ -63,7 +63,7 @@ public final class EffectsElement extends HudElement {
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
         String[][] rows = rows(mc, live);
-        return new int[]{ Math.round(measureW(rows)), Math.max(ROW, rows.length * ROW) };
+        return new int[]{ Math.round(measureW(rows)), Math.max(LIST_ROW, rows.length * LIST_ROW) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
@@ -72,13 +72,14 @@ public final class EffectsElement extends HudElement {
         int hi = Tokens.palette().textHi(), mut = Tokens.palette().textMuted();
         String[][] rows = rows(mc, live);
         float w = measureW(rows) * s;   // time column right-aligns at the measured content edge
+        float rowInset = (LIST_ROW - ty.label().lineHeight()) * 0.5f;   // vertical-center each row in the shared grid
         // Forget fade-ins for effects no longer present, so a re-gained effect fades in fresh.
         enter.keySet().removeIf(title -> !hasRow(rows, title));
         for (int i = 0; i < rows.length; i++) {
             Reveal rev = enter.computeIfAbsent(rows[i][0],
                     k -> new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate(), now));
             float a = rev.progress(now) * alpha;               // row entrance × element appear/disappear fade
-            float ry = oy + i * ROW * s;                       // tight rows: name (white SemiBold) left, time (muted) right — no box
+            float ry = oy + (i * LIST_ROW + rowInset) * s;     // tight rows: name (white SemiBold) left, time (muted) right — no box
             t.draw(rows[i][0], ox, ry, TextStyle.of(Weight.SEMIBOLD, ty.label().size() * s, Color.scaleAlpha(hi, a)).effect(HudPaint.textShadow(a)));
             t.draw(rows[i][1], ox + w, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(mut, a)).align(Align.RIGHT).effect(HudPaint.textShadow(a)));
         }

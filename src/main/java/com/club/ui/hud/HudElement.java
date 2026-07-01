@@ -15,9 +15,12 @@ public abstract class HudElement extends Component {
     public final String id;
     protected HudElement(String id) { this.id = id; }
 
-    // Shared "milled tile" panel (Stage 10, premium pass): every element sits on a padded crafted surface.
-    // Slightly generous padding + a soft corner reads as an intentional tile, not a tight sticker or a slab.
-    private static final float PANEL_PAD = 7f, PANEL_RADIUS = 6f;
+    // Shared "light structure" geometry (Stage 10): every element sits on the same padded flat ground with the
+    // same corner, and stacked rows share one row height — so the four elements read as one product, not a set
+    // of boxes. Tight padding + a soft corner so the panels hug their content and don't read as bulky.
+    private static final float PANEL_PAD = 6f, PANEL_RADIUS = 6f;
+    /** One row height for every stacked HUD list (Effects, Armor) — a single vertical grid across the HUD. */
+    public static final int LIST_ROW = 18;
     /** Element appear/disappear fade in [0,1] (Stage 10.3); 1 = fully shown. Set by the canvas in-world. */
     protected float alpha = 1f;
 

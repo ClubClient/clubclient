@@ -33,10 +33,10 @@ public final class InfoElement extends HudElement {
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         var t = ctx.text(); Typography.Role r = Tokens.type().label();
-        int desc = Color.scaleAlpha(Tokens.palette().textDesc(), alpha);
-        int acc  = Color.scaleAlpha(Tokens.accent().accent(), alpha);
+        int mut = Color.scaleAlpha(Tokens.palette().textMuted(), alpha);   // label — same muted secondary as the other elements
+        int acc = Color.scaleAlpha(Tokens.accent().accent(), alpha);
         float labelW = Ui.text().width("FPS", r.weight(), r.size());
-        t.draw("FPS", ox, oy, TextStyle.of(r.weight(), r.size() * s, desc).effect(HudPaint.textShadow(alpha)));
+        t.draw("FPS", ox, oy, TextStyle.of(r.weight(), r.size() * s, mut).effect(HudPaint.textShadow(alpha)));
         t.draw(fps(mc, live), ox + (labelW + GAP) * s, oy, TextStyle.of(r.weight(), r.size() * s, acc).effect(HudPaint.textShadow(alpha)));
     }
 }

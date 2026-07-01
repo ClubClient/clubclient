@@ -12,7 +12,7 @@ import net.minecraft.client.MinecraftClient;
 
 /** Entity under the crosshair: name + "<hp> HP" + a 2px HP-fraction line (the only accent). No avatar/distance (per the approved minimalist design). */
 public final class TargetElement extends HudElement {
-    private static final int CONTENT_H = 40;
+    private static final int CONTENT_H = 43;   // name(0) · hp(+20) · bar(+40, 3px) — one clean vertical rhythm
     private static final float MIN_W = 82f;
 
     // HP-bar fraction easing: a short tween so the bar glides on damage/heal but never trails real HP by
@@ -59,9 +59,9 @@ public final class TargetElement extends HudElement {
         int subA = Color.scaleAlpha(Tokens.palette().textMuted(), alpha);   // "<hp> HP" — muted (secondary)
 
         t.draw(curName, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hiA).effect(HudPaint.textShadow(alpha)));
-        t.draw(curSub, ox, oy + 19 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, subA).effect(HudPaint.textShadow(alpha)));
-        // HP-fraction line — the single accent, spanning the measured content width
-        float barW = contentW() * s, barY = oy + 35 * s, barH = 3 * s, rr = 1.5f * s;
+        t.draw(curSub, ox, oy + 20 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, subA).effect(HudPaint.textShadow(alpha)));
+        // HP-fraction line — the single accent, a clean pill spanning the measured content width; clear gap below the HP text
+        float barW = contentW() * s, barY = oy + 40 * s, barH = 3 * s, rr = barH * 0.5f;
         r.roundedRect(ox, barY, barW, barH, rr, Color.scaleAlpha(track, alpha));
         if (shownFrac > 0) {
             float ct = Math.max(0f, Math.min(1f, (shownFrac - 0.24f) / 0.12f));   // smooth low->accent crossing
