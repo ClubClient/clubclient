@@ -105,6 +105,21 @@ Content/hierarchy is unchanged from today except where noted; each now sits on t
 **Ordering:** panel first (defines the look) → Armor V2 (biggest structural piece, needs the panel) → appear/exit
 motion → small polish.
 
+## 7b. Delivered (2026-07-01)
+
+All of 10.1–10.4 implemented, `./gradlew build` green, committed `fbb21bb`…`b070861` on
+`feat/ui-v2-m2.2-core` (owner authorised autonomous run). Notes:
+- **10.1** `HudPaint.panel` + `HudElement` draws it (padded bounds, `alpha` field for the fade).
+- **10.2** `ArmorElement` on V2; `HudSprites` DrawContext seam (set by `HudManager` + editor); wired into both
+  canvases + editor settings (Layout/Value) + type branches; legacy `hud/ArmorHud` deleted.
+- **10.3** `HudCanvas` fades elements in/out with content (per-element `alpha` Transition); all V2 paints scale
+  colours by `alpha`.
+- **10.4** armor dot smooth threshold crossing; `Dropdown` eased hover/press (`MotionState` + new
+  `WidgetPaint.pressOverlay(...,t)`).
+- **Runtime to verify in-game:** armor sprites draw via `DrawContext` interleaved with the V2 pass — confirm
+  z-order/state; panel alpha (~50%) legibility over bright backgrounds; content-position shift from the new
+  padding.
+
 ## 8. Acceptance criteria
 
 - All four HUD elements share one panel (same radius/padding/fill/hairline), scale correctly, and read clearly over
