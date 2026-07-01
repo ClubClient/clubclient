@@ -22,6 +22,7 @@ public final class ArmorElement extends HudElement {
     private static final int ICON = 16, GAP = 6, DOT = 4, DOTGAP = 6;   // value text is body-size (smaller than the 16px icon); row height = shared LIST_ROW
 
     public ArmorElement() { super("armor"); }
+    @Override public String displayName() { return "Armor"; }
 
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
     @Override public int   cfgX() { return h().armorX; }

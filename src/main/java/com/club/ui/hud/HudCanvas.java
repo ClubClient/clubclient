@@ -50,7 +50,7 @@ public final class HudCanvas extends Container {
 
     public HudCanvas(boolean editor) { this.editor = editor; }
 
-    public HudCanvas add(HudElement e) { elements.add(e); addChild(e); return this; }
+    public HudCanvas add(HudElement e) { if (editor) e.setForceSample(true); elements.add(e); addChild(e); return this; }
     public void setScreen(int w, int h) { this.screenW = w; this.screenH = h; }
     public void setGridSnap(boolean on) { this.gridSnap = on; }
     public boolean gridSnap() { return gridSnap; }
@@ -128,7 +128,7 @@ public final class HudCanvas extends Container {
         MinecraftClient mc = MinecraftClient.getInstance();
         float now = ctx.time();
         for (HudElement e : elements) {
-            if (editor) { e.render(ctx); continue; }   // editor shows all elements solid (no fade)
+            if (editor) { e.renderPlaceholder(ctx); continue; }   // editor = clean layout map: area + name, no content
             // in-world: fade the element in when it gains content, out when it loses it (panel + text)
             boolean show = e.cfgEnabled() && e.hasContent(mc);
             Transition a = alphaAnim.computeIfAbsent(e, k -> new Transition(show ? 1f : 0f,
@@ -137,6 +137,11 @@ public final class HudCanvas extends Container {
             float av = a.value(now);
             if (av <= 0.001f) continue;   // fully hidden (or never shown) → skip render
             e.alpha = av;
+            // keep the element fully on-screen even if its live content is wider than at edit time (fixes values
+            // spilling off the edge when the panel was positioned under a narrower editor sample)
+            int cx = HudSnap.clampAxis((int) e.xLeft(), (int) e.width(), screenW);
+            int cy = HudSnap.clampAxis((int) e.yTop(),  (int) e.height(), screenH);
+            if (cx != (int) e.xLeft() || cy != (int) e.yTop()) e.layout(cx, cy, e.width(), e.height());
             e.render(ctx);
         }
         if (!editor) return;

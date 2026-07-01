@@ -201,12 +201,7 @@ public final class HudEditorScreen extends Screen {
         }
     }
 
-    private String titleOf(HudElement e) {
-        if (e instanceof EffectsElement) return "Effects HUD";
-        if (e instanceof TargetElement) return "Target HUD";
-        if (e instanceof ArmorElement) return "Armor HUD";
-        return "Coordinates HUD";
-    }
+    private String titleOf(HudElement e) { return e.displayName() + " HUD"; }
     private void initStyles() {
         Typography t = Tokens.type();
         stHint  = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textDesc()).align(Align.CENTER);

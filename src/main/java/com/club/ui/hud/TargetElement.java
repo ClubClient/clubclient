@@ -29,7 +29,7 @@ public final class TargetElement extends HudElement {
     private static final int   BAR_TOP = 27;       // ~10px air below the name band
     private static final int   CONTENT_H = BAR_TOP + (int) BAR_H;
     private static final float NAME_WEIGHT_BIAS = 0.04f;   // #3 SemiBold a hair thinner (optical) — reads dearer
-    private static final float MIN_W = 92f, MAX_W = 172f;   // content-width clamp (long names truncate into MAX_W)
+    private static final float MIN_W = 92f, MAX_W = 148f;   // firm width cap — long names truncate ("…") instead of stretching
     private static final String UNIT = " HP";
 
     // HP tone C: number a touch brighter than the name-support tone, the "HP" unit dimmer — a micro-hierarchy
@@ -56,6 +56,7 @@ public final class TargetElement extends HudElement {
     private float popStart = -1f;
 
     public TargetElement() { super("target"); }
+    @Override public String displayName() { return "Target"; }
 
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
     @Override public int   cfgX() { return h().targetX; }

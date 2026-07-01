@@ -1,8 +1,14 @@
 package com.club.ui.hud;
 
+import com.club.ui.Color;
+import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.component.Component;
 import com.club.ui.layout.Size;
+import com.club.ui.text.Align;
+import com.club.ui.text.TextStyle;
+import com.club.ui.theme.Tokens;
+import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
 
 /**
@@ -31,6 +37,13 @@ public abstract class HudElement extends Component {
     public static final int LIST_ROW = 18;
     /** Element appear/disappear fade in [0,1] (Stage 10.3); 1 = fully shown. Set by the canvas in-world. */
     protected float alpha = 1f;
+    /** Editor forces representative sample data so every element always has an area (e.g. Armor with no armor
+     *  worn still shows its placeholder). Set by the editor canvas; never set in-world. */
+    private boolean forceSample;
+    public void setForceSample(boolean v) { this.forceSample = v; }
+
+    /** Short human name shown as the editor placeholder label (e.g. "Target", "Armor"). */
+    public abstract String displayName();
 
     // --- config binding (each concrete element wires these to ClubConfig.Hud) ---
     public abstract int   cfgX();
@@ -77,8 +90,21 @@ public abstract class HudElement extends Component {
         super.layout(b[0], b[1], b[2], b[3]);
     }
 
-    /** Live data is used when a player exists; otherwise representative sample data (editor on title screen). */
-    protected boolean live(MinecraftClient mc) { return mc != null && mc.player != null; }
+    /** Live data is used when a player exists AND we're not forcing sample (editor); otherwise sample data. */
+    protected boolean live(MinecraftClient mc) { return !forceSample && mc != null && mc.player != null; }
+
+    /** Editor placeholder: a uniform labeled box showing just the element's area + name — no sample content,
+     *  so the editor reads as a clean layout map and every element is always visible/positionable. */
+    public void renderPlaceholder(UiContext ctx) {
+        var r = ctx.renderer();
+        float rad = Tokens.radius().sm();
+        r.roundedRect(x, y, w, h, rad, Color.withAlpha(Tokens.surface().bg2(), 0xCC));
+        r.border(x, y, w, h, rad, Tokens.border().thickness(), Tokens.border().defaultColor());
+        Typography.Role role = Tokens.type().body();
+        float ty = y + (h - role.lineHeight()) * 0.5f;
+        ctx.text().draw(displayName(), x + w * 0.5f, ty,
+                TextStyle.of(role.weight(), role.size(), Tokens.palette().textMuted()).align(Align.CENTER));
+    }
 
     /** In-world (non-editor) visibility: an element with no real data hides instead of falling back to its
      *  editor sample. The editor always shows all elements (sample) so they stay positionable. Default: shown. */

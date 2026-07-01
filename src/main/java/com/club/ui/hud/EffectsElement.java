@@ -21,6 +21,7 @@ public final class EffectsElement extends HudElement {
     private final java.util.HashMap<String, Reveal> enter = new java.util.HashMap<>();
 
     public EffectsElement() { super("effects"); }
+    @Override public String displayName() { return "Effects"; }
 
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
     @Override public int   cfgX() { return h().potionX; }

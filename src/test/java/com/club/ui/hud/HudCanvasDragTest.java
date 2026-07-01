@@ -15,6 +15,7 @@ class HudCanvasDragTest {
         @Override public void cfgY(int v) { y = v; }
         @Override public float cfgScale() { return scale; }
         @Override public boolean cfgEnabled() { return true; }
+        @Override public String displayName() { return id; }
         @Override public int[] contentSize(net.minecraft.client.MinecraftClient mc, boolean live) { return new int[]{cw, ch}; }
         @Override public void paint(UiContext c, net.minecraft.client.MinecraftClient mc, float ox, float oy, float s, boolean live) {}
         @Override protected boolean live(net.minecraft.client.MinecraftClient mc) { return false; } // sample sizing, no MC

@@ -14,6 +14,7 @@ public final class InfoElement extends HudElement {
     private static final int GAP = 6;
 
     public InfoElement() { super("info"); }
+    @Override public String displayName() { return "FPS"; }
 
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
     @Override public int   cfgX() { return h().infoX; }
