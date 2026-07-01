@@ -71,6 +71,7 @@ public final class ClubMenuScreen extends Screen {
     private SearchField search;
     private ScrollArea gridScroll;
     private Transition indicator;
+    private Transition[] railText;   // per-category label colour ease (hover / active)
 
     // settings popover (RMB), anchored to a card
     private Module popModule;
@@ -102,6 +103,10 @@ public final class ClubMenuScreen extends Screen {
         rebuildGrid();
         layoutAll();
         indicator = new Transition(railY(catIndex), Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+        railText = new Transition[cats.size()];
+        for (int i = 0; i < cats.size(); i++)
+            railText[i] = new Transition(i == catIndex ? 1f : 0f,
+                    Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
     }
 
     private float railY(int i) { return bodyY + 8 + i * RAIL_ROW; }
@@ -297,14 +302,22 @@ public final class ClubMenuScreen extends Screen {
         float fy = winY + winH - footH + (footH - ty.label().lineHeight()) / 2f;
         uiCtx.text().draw("Profile · Default", winX + 18, fy, stFootMut);
 
-        // rail categories (text only, no icons)
+        // rail: the active-row highlight pill slides with the accent indicator (drawn once, under the text)
+        float now = uiCtx.time();
+        if (indicator != null) indicator.target(railY(catIndex), now);
+        float indY = indicator != null ? indicator.value(now) : railY(catIndex);
+        r.roundedRect(winX + 8, indY + 3, railW - 16, RAIL_ROW - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
+
+        // rail categories (text only, no icons) — label colour eases on hover / active
         for (int i = 0; i < cats.size(); i++) {
             float yy = railY(i);
             boolean active = i == catIndex;
             boolean hov = mouseX >= winX && mouseX <= winX + railW && mouseY >= yy && mouseY < yy + RAIL_ROW;
-            if (active) r.roundedRect(winX + 8, yy + 3, railW - 16, RAIL_ROW - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
+            railText[i].target((active || hov) ? 1f : 0f, now);
+            int col = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), railText[i].value(now));
             r.pushClip(winX + 20, yy, railW - 32, RAIL_ROW);
-            uiCtx.text().draw(cats.get(i).name(), winX + 20, yy + (RAIL_ROW - catLh) / 2f, (active || hov) ? stCatOn : stCat);
+            uiCtx.text().draw(cats.get(i).name(), winX + 20, yy + (RAIL_ROW - catLh) / 2f,
+                    TextStyle.of(ty.label().weight(), ty.label().size(), col));
             r.popClip();
         }
 
@@ -312,10 +325,8 @@ public final class ClubMenuScreen extends Screen {
         root.mouseMoved(mouseX, mouseY);
         root.render(uiCtx);
 
-        if (indicator != null) {
-            indicator.target(railY(catIndex), uiCtx.time());
-            r.rect(winX, indicator.value(uiCtx.time()) + 4, 4, RAIL_ROW - 8, Tokens.accent().accent());   // beefier active indicator
-        }
+        if (indicator != null)
+            r.rect(winX, indY + 4, 4, RAIL_ROW - 8, Tokens.accent().accent());   // beefier active indicator (slid Y from above)
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
@@ -400,26 +411,42 @@ public final class ClubMenuScreen extends Screen {
     /** Compact module card (name only). LMB = enable/disable (or run the action); RMB = settings popover. */
     private final class ModuleTile extends Component {
         private final Module m;
-        ModuleTile(Module m) { this.m = m; }
+        private final Transition onT;    // enabled → accent tint (fill/edge/name), eased
+        private final Transition hoverT = // hover → tone lift, eased
+                new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
+        ModuleTile(Module m) {
+            this.m = m;
+            this.onT = new Transition(m.enabled() ? 1f : 0f,
+                    Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+        }
 
         @Override public Size measure(float availW, float availH) { return new Size(150f, TILE_H); }
 
         @Override public void render(UiContext ctx) {
             UiRenderer r = ctx.renderer();
+            float now = ctx.time();
             float rad = Tokens.radius().md();
-            boolean on = m.enabled();
-            boolean bright = on || !m.hasToggle();   // action-only cards (HUD Editor) read as available, not "off"
+            onT.target(m.enabled() ? 1f : 0f, now);
+            hoverT.target(hovered ? 1f : 0f, now);
+            float onv = onT.value(now), hv = hoverT.value(now);
+
+            // Fill/edge/name all ride one 0->1 "enabled" factor (onv) + a hover factor (hv) — no instant swap.
             int base = Tokens.surface().surface();
-            int fill = on ? Color.lerp(base, Tokens.accent().accent(), hovered ? 0.20f : 0.14f)
-                          : (hovered ? Tokens.surface().surfaceHi() : base);
-            int edge = on ? Color.withAlpha(Color.lerp(Tokens.accent().accent(), VIOLET, 0.62f), 0xB0)
-                          : Tokens.border().defaultColor();
+            int offFill = Color.lerp(base, Tokens.surface().surfaceHi(), hv);                // off: neutral, hover lifts
+            int onFill  = Color.lerp(base, Tokens.accent().accent(), 0.14f + 0.06f * hv);    // on: accent tint, deeper on hover
+            int fill = Color.lerp(offFill, onFill, onv);
+            int onEdge = Color.withAlpha(Color.lerp(Tokens.accent().accent(), VIOLET, 0.62f), 0xB0);
+            int edge = Color.lerp(Tokens.border().defaultColor(), onEdge, onv);
             r.roundedRect(x, y, w, h, rad, fill);
             r.border(x, y, w, h, rad, Tokens.border().thickness(), edge);
 
+            // action-only cards (HUD Editor) read as available (bright), never "off"
+            float brightv = m.hasToggle() ? onv : 1f;
+            int nameCol = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), brightv);
             float nameLh = Tokens.type().heading().lineHeight();
             r.pushClip(x + TILE_PAD, y, w - 2 * TILE_PAD, TILE_H);
-            ctx.text().draw(m.name(), x + TILE_PAD, y + (TILE_H - nameLh) / 2f, bright ? stName : stNameOff);
+            ctx.text().draw(m.name(), x + TILE_PAD, y + (TILE_H - nameLh) / 2f,
+                    TextStyle.of(Tokens.type().heading().weight(), Tokens.type().heading().size(), nameCol));
             r.popClip();
         }
 
