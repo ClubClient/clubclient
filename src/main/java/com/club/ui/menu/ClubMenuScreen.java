@@ -1,6 +1,7 @@
 package com.club.ui.menu;
 
 import com.club.ui.Color;
+import com.club.ui.Icon;
 import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.UiRenderer;
@@ -338,8 +339,12 @@ public final class ClubMenuScreen extends Screen {
             boolean hov = mouseX >= winX && mouseX <= winX + railW && mouseY >= yy && mouseY < yy + RAIL_ROW;
             railText[i].target((active || hov) ? 1f : 0f, now);
             int col = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), railText[i].value(now));
-            r.pushClip(winX + 20, yy, railW - 32, RAIL_ROW);
-            uiCtx.text().draw(cats.get(i).name(), winX + 20, yy + (RAIL_ROW - catLh) / 2f,
+            // leading category icon (procedural, diagonal-free) — colour eases with the label
+            float isz = 15f, iconX = winX + 16f;
+            cats.get(i).icon().draw(r, iconX, yy + (RAIL_ROW - isz) / 2f, isz, col, 1.5f);
+            float textX = iconX + isz + 8f, clipR = winX + railW - 14f;
+            r.pushClip(textX, yy, clipR - textX, RAIL_ROW);
+            uiCtx.text().draw(cats.get(i).name(), textX, yy + (RAIL_ROW - catLh) / 2f,
                     TextStyle.of(ty.label().weight(), ty.label().size(), col));
             r.popClip();
         }
@@ -540,12 +545,18 @@ public final class ClubMenuScreen extends Screen {
             int hoverBorder = Color.lerp(Tokens.border().defaultColor(), Color.withAlpha(Tokens.accent().accent(), 0x99), hv);
             r.border(x, y, w, h, rad, Tokens.border().thickness(), Color.lerp(hoverBorder, Tokens.accent().accent(), fv));
 
+            // leading magnifier glyph (diagonal-free) — tints toward accent on focus, matching the border
+            float isz = 13f;
+            Icon.SEARCH.draw(r, x + pad, y + (h - isz) / 2f, isz,
+                    Color.lerp(Tokens.palette().textMuted(), Tokens.accent().accent(), fv), 1.4f);
+            float textX = x + pad + isz + 6f;
+
             float ty0 = y + (h - ty.body().lineHeight()) / 2f;
-            r.pushClip(x + pad, y, w - 2 * pad, h);
-            if (!empty) ctx.text().draw(text, x + pad, ty0, TextStyle.of(ty.body().weight(), ty.body().size(), Tokens.palette().textHi()));
+            r.pushClip(textX, y, x + w - pad - textX, h);
+            if (!empty) ctx.text().draw(text, textX, ty0, TextStyle.of(ty.body().weight(), ty.body().size(), Tokens.palette().textHi()));
             else {   // placeholder dissolves as focus grows (instead of snapping off on first focus/keypress)
                 float pa = 1f - fv;
-                if (pa > 0.001f) ctx.text().draw(placeholder, x + pad, ty0, TextStyle.of(ty.body().weight(), ty.body().size(),
+                if (pa > 0.001f) ctx.text().draw(placeholder, textX, ty0, TextStyle.of(ty.body().weight(), ty.body().size(),
                         Color.scaleAlpha(Color.lerp(Tokens.palette().textFaint(), Tokens.palette().textMuted(), 0.4f), pa)));
             }
             r.popClip();
@@ -553,7 +564,7 @@ public final class ClubMenuScreen extends Screen {
             if (fv > 0.001f) {   // caret: smooth ~1 Hz sine pulse (not a hard blink), scaled by focus
                 float blink = 0.15f + 0.85f * (0.5f + 0.5f * (float) Math.sin(now * 2f * (float) Math.PI));
                 float tw = empty ? 0f : ctx.text().width(text, ty.body().weight(), ty.body().size());
-                r.rect(x + pad + tw + 1f, ty0, 1f, ty.body().lineHeight(), Color.scaleAlpha(Tokens.accent().accent(), fv * blink));
+                r.rect(textX + tw + 1f, ty0, 1f, ty.body().lineHeight(), Color.scaleAlpha(Tokens.accent().accent(), fv * blink));
             }
         }
     }
