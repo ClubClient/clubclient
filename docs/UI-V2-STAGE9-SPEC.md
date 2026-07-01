@@ -22,7 +22,7 @@ carve-out the freeze permits — additive `WidgetPaint` overloads.
 | D1 | Spring/overshoot easing | **No.** Stay within existing curves (`STANDARD` / `DECELERATE` / `ACCELERATE` / `LINEAR`). No element ever moves past its final position. |
 | D2 | Refactor the 4 already-animated widgets (Button/Toggle/Slider/Checkbox) onto MotionState | **No.** They keep their hand-tuned timings untouched. `MotionState` is for the hand-drawn screens + future widgets only. |
 | D3 | Icons | **Yes, procedural only.** Add rail **category** icons + a **search** glyph (existing `Icon` enum values). Cards stay text-only. No SVG/MSDF pack (backend frozen). |
-| D4 | First polish target after infra | **HUD in-world first** (headline "HUD polish" mandate). |
+| D4 | Order after infra | `ScrollArea` (base component, used everywhere) is perfected **first** at 9.2, then the headline **HUD** polish at 9.3. *(Refined 2026-07-01: finish the shared base component before its consumers rely on it; icons stay last — decided once the UI is "alive".)* |
 
 ## 2. Motion infrastructure — what exists & the gaps
 
@@ -108,8 +108,8 @@ Backend renders diagonals as bounding boxes → stay procedural. Extend the enum
 | Stage | Scope | Files | Risk |
 |-------|-------|-------|------|
 | **9.1** | Motion infra only — `MotionState`, `Reveal`, `ValueTween`, `WidgetPaint` `t`-overloads. Nothing wired → no visible change. | `motion/MotionState.java`, `motion/Reveal.java`, `motion/ValueTween.java` (new), `component/widget/WidgetPaint.java` (+overloads), optional `Component.java` accessors | low |
-| **9.2** | HUD in-world: HP bar tween + threshold colour lerp (text instant), effect-row enter/exit + smoothed box height, canvas hover/selection/guide fades. | `hud/TargetElement.java`, `hud/EffectsElement.java`, `hud/HudCanvas.java`, opt. `hud/InfoElement.java` | med |
-| **9.3** | ScrollArea thumb hover/drag colour + optional smoothed wheel; preserve offset on rebuild. | `component/widget/ScrollArea.java` | low–med |
+| **9.2** | ScrollArea thumb hover/drag colour + optional smoothed wheel; preserve offset on rebuild. Base component used by the menu grid, every popover, and future screens — finished before its consumers. | `component/widget/ScrollArea.java` | low–med |
+| **9.3** | HUD in-world: HP bar tween + threshold colour lerp (text instant), effect-row enter/exit + smoothed box height, canvas hover/selection/guide fades. | `hud/TargetElement.java`, `hud/EffectsElement.java`, `hud/HudCanvas.java`, opt. `hud/InfoElement.java` | med |
 | **9.4** | Menu tiles + rail: per-tile `enabled`(fast) + `hover`(fast) lerps for fill/edge/name; rail pill crossfade reusing `indicator`; rail-row text lerp. | `menu/ClubMenuScreen.java` | med |
 | **9.5** | Menu inputs: SearchField border lerp + placeholder/text crossfade + caret alpha-fade; OptionRow selected/hover Transitions. | `menu/ClubMenuScreen.java` | low–med |
 | **9.6** | Popovers & reveals: open/close (alpha + few-px Y, reverse-before-clear) + animate `popH/popY`; dropdown pick-list `Reveal`; both screens. | `menu/ClubMenuScreen.java`, `hud/HudEditorScreen.java` | med |
@@ -117,9 +117,11 @@ Backend renders diagonals as bounding boxes → stay procedural. Extend the enum
 | **9.8** | Base disabled-dimming via `enabled` channel → `pushOpacity`/`scaleAlpha` toward `disabledAlpha`; `Label.colorValue()` honours `enabled`. | `component/widget/Label.java`, consumers | low |
 | **9.9** | Icons (D3): rail category icons + search glyph. | `menu/ClubMenuScreen.java` (+`Icon.java` only if a new diagonal-free constant is actually consumed) | low |
 
-**Ordering rationale:** 9.1 lands the invisible foundation → 9.2 delivers the headline HUD mandate first (D4) →
-9.3 fixes the biggest missed gap → 9.4–9.7 tackle the two hand-drawn screens in rising lifecycle complexity →
-9.8 base dimming → 9.9 icons last.
+**Ordering rationale:** 9.1 lands the invisible foundation → 9.2 perfects `ScrollArea` first — a base component
+the menu grid, every popover, and future screens depend on, so downstream stages build on finished infra →
+9.3 delivers the headline HUD mandate → 9.4–9.7 tackle the two hand-drawn screens in rising lifecycle
+complexity → 9.8 base dimming → 9.9 icons last (decided after everything is "alive", when it's clear where an
+icon reads richer than text).
 
 ## 8. Global acceptance criteria
 - Every listed instant swap becomes an eased transition using **existing** duration/easing tokens.
