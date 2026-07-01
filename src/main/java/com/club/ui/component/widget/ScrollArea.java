@@ -1,15 +1,22 @@
 package com.club.ui.component.widget;
 
+import com.club.ui.Color;
 import com.club.ui.UiContext;
 import com.club.ui.component.Component;
 import com.club.ui.component.Container;
 import com.club.ui.layout.Size;
+import com.club.ui.motion.Transition;
+import com.club.ui.motion.ValueTween;
 import com.club.ui.theme.Tokens;
 
 /**
  * Scrollable viewport: vertical wheel + thumb-drag (pointer-capture).
  * The content child is measured at full height and clipped to the viewport.
  * Scrollbar (track + thumb) is shown only when overflowing.
+ *
+ * <p>Motion (Stage 9.2): the wheel eases the visual position ({@code displayOffset}) toward the logical
+ * {@code offset} so scrolling glides instead of jumping; a thumb drag stays 1:1 with the cursor (no ease).
+ * The thumb brightens on hover and while dragging. All neutral — accent is reserved for actions/selection.
  *
  * <p>R13: the parent Container already gates {@code mouseScrolled} on {@code enabled} —
  * this class does NOT add a redundant {@code !enabled} guard here (frozen §3.6 / §F).
@@ -21,14 +28,24 @@ public final class ScrollArea extends Container {
 
     private final Component content;
 
-    /** Current vertical scroll position in pixels (clamped). */
+    /** Logical (target) vertical scroll position in pixels (clamped). Input updates this instantly. */
     private float offset;
+    /** Eased visual scroll position — what the content is actually drawn at (smooth wheel). */
+    private float displayOffset;
+    /** After a 1:1 thumb drag, re-base the ease from the exact offset (one alloc, on drag-end). */
+    private boolean needResync;
 
     /** Set during layout; used in input handling and render. */
     private float contentH, viewportH;
 
-    // Thumb-drag state (pointer-capture model)
-    private boolean draggingThumb;
+    // Thumb-drag state (pointer-capture model) + hover, for the thumb affordance.
+    private boolean draggingThumb, thumbHovered;
+
+    // Smooth-scroll + thumb-highlight animators (Stage 9.2).
+    private final ValueTween scroll =
+            new ValueTween(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
+    private final Transition thumbHi =
+            new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
 
     public ScrollArea(Component content) {
         this.content = content;
@@ -62,7 +79,8 @@ public final class ScrollArea extends Container {
         contentH = content.measure(w, h).h();
         offset = clampOffset(offset, contentH, viewportH);
         // Virtualization seam (frozen §11): lay out all children at their natural height.
-        content.layout(x, y - offset, w, contentH);
+        // Drawn position uses the eased displayOffset; render() re-lays each frame as it advances.
+        content.layout(x, y - displayOffset, w, contentH);
     }
 
     // -------------------------------------------------------------------------
@@ -70,18 +88,15 @@ public final class ScrollArea extends Container {
     // -------------------------------------------------------------------------
 
     /**
-     * Handles wheel scroll. No {@code !enabled} guard here — the parent Container already
-     * gates on {@code enabled} before dispatching (R13, committed {@code 23ff2c3}).
+     * Handles wheel scroll. Updates the logical {@code offset}; the visual position eases toward it in
+     * render(). No {@code !enabled} guard here — the parent Container already gates on {@code enabled}
+     * before dispatching (R13, committed {@code 23ff2c3}).
      */
     @Override public boolean mouseScrolled(double mx, double my, double amount) {
         float before = offset;
         float step = Tokens.spacing().xl();
         offset = clampOffset(offset - (float) amount * step, contentH, viewportH);
-        if (offset != before) {
-            content.layout(x, y - offset, w, contentH);
-            return true;
-        }
-        return false;
+        return offset != before;   // content re-lays in render() as displayOffset eases; caller consumes if moved
     }
 
     // -------------------------------------------------------------------------
@@ -103,8 +118,7 @@ public final class ScrollArea extends Container {
             float trackRange = Math.max(1f, viewportH - thumbHeight());
             float ratio = (contentH - viewportH) / trackRange;
             offset = clampOffset(offset + (float) dy * ratio, contentH, viewportH);
-            content.layout(x, y - offset, w, contentH);
-            return true;
+            return true;   // stays 1:1: render() pins displayOffset to offset while dragging
         }
         return super.mouseDragged(mx, my, button, dx, dy);
     }
@@ -115,6 +129,11 @@ public final class ScrollArea extends Container {
             return true;
         }
         return super.mouseReleased(mx, my, button);
+    }
+
+    @Override public void mouseMoved(double mx, double my) {
+        super.mouseMoved(mx, my);
+        thumbHovered = overflowing() && inThumb(mx, my);
     }
 
     // -------------------------------------------------------------------------
@@ -128,11 +147,11 @@ public final class ScrollArea extends Container {
         return Math.max(Tokens.spacing().lg(), viewportH * viewportH / Math.max(1f, contentH));
     }
 
-    /** Y coordinate of the thumb's top edge. */
+    /** Y coordinate of the thumb's top edge — tracks the eased visual position. */
     private float thumbY() {
         float travel = viewportH - thumbHeight();
         float scrollRange = Math.max(1f, contentH - viewportH);
-        return y + travel * (offset / scrollRange);
+        return y + travel * (displayOffset / scrollRange);
     }
 
     /** Width of the scrollbar track/thumb. */
@@ -150,6 +169,19 @@ public final class ScrollArea extends Container {
     // -------------------------------------------------------------------------
 
     @Override public void render(UiContext ctx) {
+        float now = ctx.time();
+
+        // Advance the smooth-scroll: 1:1 while dragging the thumb, eased for the wheel.
+        if (draggingThumb) {
+            displayOffset = offset;
+            needResync = true;                       // ease must re-base from the exact offset when the drag ends
+        } else {
+            if (needResync) { scroll.snap(offset, now); needResync = false; }
+            scroll.set(offset, now);
+            displayOffset = clampOffset(scroll.get(now), contentH, viewportH);
+        }
+        content.layout(x, y - displayOffset, w, contentH);
+
         // Clip content to the viewport rectangle (flat clip — not rounded, different from Panel/Card).
         ctx.renderer().pushClip(x, y, w, viewportH);
         content.render(ctx);
@@ -161,8 +193,10 @@ public final class ScrollArea extends Container {
             float r  = barW() / 2f;
             // Track
             ctx.renderer().roundedRect(bx, y, barW(), viewportH, r, Tokens.border().subtle());
-            // Thumb — neutral (accent is reserved for actions/selection, never chrome)
-            ctx.renderer().roundedRect(bx, thumbY(), barW(), thumbHeight(), r, Tokens.palette().textFaint());
+            // Thumb — neutral (accent is reserved for actions/selection, never chrome); brightens on hover/drag.
+            thumbHi.target(draggingThumb ? 1f : (thumbHovered ? 0.55f : 0f), now);
+            int thumbColor = Color.lerp(Tokens.palette().textFaint(), Tokens.palette().textMuted(), thumbHi.value(now));
+            ctx.renderer().roundedRect(bx, thumbY(), barW(), thumbHeight(), r, thumbColor);
         }
     }
 }
