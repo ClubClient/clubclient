@@ -12,6 +12,8 @@ import com.club.ui.component.widget.Label;
 import com.club.ui.component.widget.Slider;
 import com.club.ui.component.widget.Toggle;
 import com.club.ui.layout.Size;
+import com.club.ui.motion.Reveal;
+import com.club.ui.motion.ValueTween;
 import com.club.ui.text.Align;
 import com.club.ui.text.TextStyle;
 import com.club.ui.theme.Tokens;
@@ -38,6 +40,10 @@ public final class HudEditorScreen extends Screen {
     private final Pane popover = new Pane();
     private int popX, popY, popW, popH;
     private boolean hasPopover;
+    // Popover grow-in on (re)selection + eased resize; content clipped to the eased height.
+    private Reveal popReveal;
+    private final ValueTween popHTween =
+            new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
     private TextStyle stTitle, stHint, stPop, stToolLabel;
     private int pressOwner;   // which surface owns the active gesture: 0 none, 1 toolbar, 2 popover, 3 canvas
     private final Screen parent;
@@ -82,6 +88,7 @@ public final class HudEditorScreen extends Screen {
                     .onChange(v -> { h().targetDistance = Math.round(v); save(); }));
         }
         popH = POP_HEAD + popover.children().size() * POP_ROW + POP_PAD_B;
+        popReveal = null;   // replay the grow-in for this (new) selection
     }
 
     private void addRow(String name, Component ctrl) {
@@ -153,15 +160,21 @@ public final class HudEditorScreen extends Screen {
         uiCtx.text().draw("Left-drag to move · Right-click to open settings · Toggle grid-snap in the toolbar.",
                 width / 2f, tbH + 8, stHint);
 
-        // popover — compact, and re-anchored each frame so it follows the selected element
+        // popover — compact, re-anchored each frame; grows in on selection, content clipped to the eased height
         positionPopover();
         if (hasPopover) {
-            r.roundedRect(popX, popY, popW, popH, Tokens.radius().md(), Tokens.surface().bg2());
-            r.border(popX, popY, popW, popH, Tokens.radius().md(), 1, Tokens.border().defaultColor());
+            float now = uiCtx.time();
+            if (popReveal == null) { popReveal = new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate(), now); popHTween.snap(popH, now); }
+            popHTween.set(popH, now);
+            float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
+            r.roundedRect(popX, popY, popW, drawnH, Tokens.radius().md(), Tokens.surface().bg2());
+            r.border(popX, popY, popW, drawnH, Tokens.radius().md(), 1, Tokens.border().defaultColor());
+            r.pushClip(popX, popY, popW, drawnH);
             r.roundedRect(popX + 12, popY + 11, 6, 6, 2, Tokens.accent().accent());
             uiCtx.text().draw(titleOf(canvas.selected()), popX + 24, popY + 7, stPop);
             for (Label l : popLabels) l.render(uiCtx);
             popover.mouseMoved(mx, my); popover.render(uiCtx);
+            r.popClip();
         }
     }
 

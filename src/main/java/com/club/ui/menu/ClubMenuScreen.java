@@ -31,7 +31,9 @@ import com.club.ui.menu.MenuContent.Setting;
 import com.club.ui.menu.MenuContent.SliderSetting;
 import com.club.ui.menu.MenuContent.Tab;
 import com.club.ui.menu.MenuContent.ToggleSetting;
+import com.club.ui.motion.Reveal;
 import com.club.ui.motion.Transition;
+import com.club.ui.motion.ValueTween;
 import com.club.ui.text.TextStyle;
 import com.club.ui.theme.Tokens;
 import com.club.ui.theme.Typography;
@@ -81,6 +83,12 @@ public final class ClubMenuScreen extends Screen {
     private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
     private float popX, popY, popW, popH, popAX, popAY, popAW, popAH;
     private int pressOwner;
+    // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
+    // (dropdown expand, tab switch). Content is clipped to the eased height so any resize reveals smoothly.
+    private Reveal popReveal;
+    private boolean popClosing;
+    private final ValueTween popHTween =
+            new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
 
     private float winX, winY, winW, winH, bodyY, bodyH, contentX, contentW, railW, headH, footH;
 
@@ -148,10 +156,12 @@ public final class ClubMenuScreen extends Screen {
 
     private void openPopover(Module m, float ax, float ay, float aw, float ah) {
         popModule = m; popAX = ax; popAY = ay; popAW = aw; popAH = ah; tabIndex = 0; openDrop = null;
+        popClosing = false; popReveal = null;   // render() plays the grow-in on the first frame
         rebuildPopover();
     }
 
     private void rebuildPopover() {
+        float prevOffset = (popScroll != null) ? popScroll.scrollOffset() : 0f;   // survive dropdown-expand / tab-switch rebuild
         focus.clear();
         focus.register(search);
         popCol = buildSettings(popModule);
@@ -162,6 +172,7 @@ public final class ClubMenuScreen extends Screen {
         popH = Math.min(contentH + 2 * POP_PAD, maxPopH);
         popScroll = new ScrollArea(popCol);
         positionPopover();
+        popScroll.scrollOffset(prevOffset);                  // restore scroll after layout has set the clamp bounds
     }
 
     private void positionPopover() {
@@ -172,8 +183,14 @@ public final class ClubMenuScreen extends Screen {
         popScroll.layout(popX + POP_PAD, popY + POP_PAD, popW - 2 * POP_PAD, popH - 2 * POP_PAD);
     }
 
+    /** Deferred close: begins the shrink-out; render() calls {@link #reallyClosePopover} once it has fully collapsed. */
     private void closePopover() {
+        if (popModule != null) popClosing = true;
+    }
+
+    private void reallyClosePopover() {
         popModule = null; popCol = null; popScroll = null; openDrop = null;
+        popReveal = null; popClosing = false;
         focus.clear();
         if (search != null) focus.register(search);
     }
@@ -330,15 +347,26 @@ public final class ClubMenuScreen extends Screen {
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
-        // popover on top
+        // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
         if (popModule != null && popScroll != null) {
-            float pr = Tokens.radius().md();
-            r.roundedRect(popX, popY, popW, popH, pr, Tokens.surface().bg2());
-            r.border(popX, popY, popW, popH, pr, Tokens.border().thickness(), Tokens.border().strong());
-            r.pushClip(popX, popY, popW, popH);
-            popScroll.mouseMoved(mouseX, mouseY);
-            popScroll.render(uiCtx);
-            r.popClip();
+            if (popReveal == null) {
+                popReveal = new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate(), now);
+                popHTween.snap(popH, now);
+            }
+            if (popClosing) popReveal.close(now);
+            popHTween.set(popH, now);
+            if (popClosing && popReveal.gone(now)) {
+                reallyClosePopover();
+            } else {
+                float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
+                float pr = Tokens.radius().md();
+                r.roundedRect(popX, popY, popW, drawnH, pr, Tokens.surface().bg2());
+                r.border(popX, popY, popW, drawnH, pr, Tokens.border().thickness(), Tokens.border().strong());
+                r.pushClip(popX, popY, popW, drawnH);
+                popScroll.mouseMoved(mouseX, mouseY);
+                popScroll.render(uiCtx);
+                r.popClip();
+            }
         }
     }
 
@@ -358,7 +386,7 @@ public final class ClubMenuScreen extends Screen {
     // ---- input ---------------------------------------------------------------
 
     private boolean insidePop(double mx, double my) {
-        return popModule != null && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH;
+        return popModule != null && !popClosing && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH;
     }
 
     @Override public boolean mouseClicked(double mx, double my, int b) {
@@ -453,7 +481,7 @@ public final class ClubMenuScreen extends Screen {
         @Override public boolean mouseClicked(double mx, double my, int b) {
             if (!contains(mx, my)) return false;
             if (b == 0) { activate(m); return true; }
-            if (b == 1) { if (hasConfigurable(m)) { if (popModule == m) closePopover(); else openPopover(m, x, y, w, h); } return true; }
+            if (b == 1) { if (hasConfigurable(m)) { if (popModule == m && !popClosing) closePopover(); else openPopover(m, x, y, w, h); } return true; }
             return false;
         }
     }

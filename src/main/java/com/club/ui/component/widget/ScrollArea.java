@@ -55,6 +55,10 @@ public final class ScrollArea extends Container {
     /** Package-private accessor for tests. */
     float offset() { return offset; }
 
+    /** Public scroll-position access so a screen can preserve it across a content rebuild (clamped on set). */
+    public float scrollOffset() { return offset; }
+    public void scrollOffset(float v) { offset = clampOffset(v, contentH, viewportH); }
+
     /**
      * Clamps {@code off} into {@code [0, max(0, contentH - viewportH)]}.
      * Package-private to allow unit testing without any GL/Minecraft context.
