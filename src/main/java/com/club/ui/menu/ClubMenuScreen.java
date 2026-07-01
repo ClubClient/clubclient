@@ -98,8 +98,8 @@ public final class ClubMenuScreen extends Screen {
 
     // Draggable window: a compact centred rectangle, moved only via the small top grip, position saved to
     // ClubConfig (menuX/menuY, -1 = centred), always clamped fully on-screen.
-    private static final float WIN_W = 760f, WIN_H = 496f;
-    private static final float GRIP_W = 30f, GRIP_H = 4f, GRIP_GAP = 3f, GRIP_TOP = 10f;   // grip sits just above winY
+    private static final float WIN_W = 660f, WIN_H = 380f;   // compact landscape rectangle (smaller in both dims)
+    private static final float GRIP_W = 44f, GRIP_H = 5f, GRIP_TOP = 6f;   // grip straddles the top edge (winY - 3)
     private boolean draggingWin;
     private int winGrabX, winGrabY;
 
@@ -110,7 +110,7 @@ public final class ClubMenuScreen extends Screen {
     private void openHudEditor() { MinecraftClient.getInstance().setScreen(new HudEditorScreen(this)); }
 
     @Override protected void init() {
-        railW = 178; headH = 40; footH = 40;
+        railW = 178; headH = 48; footH = 40;   // taller header so the search bar isn't glued to the top edge
         query = ""; popModule = null; popCol = null; openDrop = null; pressOwner = 0;
         search = new SearchField("Search modules").onChange(q -> { query = q; rebuildGrid(); layoutAll(); });
         gridScroll = new ScrollArea(grid);
@@ -378,11 +378,13 @@ public final class ClubMenuScreen extends Screen {
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
-        // drag grip — a small pill just above the top edge; the ONLY handle for moving the window (brightens on hover/drag)
-        float gx = winX + (winW - GRIP_W) / 2f, gy = winY - GRIP_H - GRIP_GAP;
+        // drag grip — a clearly visible pill straddling the top edge; the ONLY handle for moving the window.
+        // Dark halo underneath keeps it visible on any background; brightens to accent on hover/drag.
+        float gx = winX + (winW - GRIP_W) / 2f, gy = winY - 3f;
         boolean gripHov = draggingWin
                 || (mouseX >= gx - 6 && mouseX <= gx + GRIP_W + 6 && mouseY >= gy - 6 && mouseY <= gy + GRIP_H + 6);
-        int gripCol = gripHov ? Tokens.accent().accent() : Color.withAlpha(Tokens.palette().textMuted(), 0x99);
+        int gripCol = gripHov ? Tokens.accent().accent() : Color.withAlpha(Tokens.palette().textHi(), 0xC8);
+        r.roundedRect(gx - 1, gy - 1, GRIP_W + 2, GRIP_H + 2, (GRIP_H + 2) / 2f, Color.scaleAlpha(Color.withAlpha(0xFF000000, 0x66), ep));
         r.roundedRect(gx, gy, GRIP_W, GRIP_H, GRIP_H / 2f, Color.scaleAlpha(gripCol, ep));
 
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
@@ -419,7 +421,10 @@ public final class ClubMenuScreen extends Screen {
         stCatOn     = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textHi());
     }
 
-    @Override public void renderBackground(DrawContext dc, int mx, int my, float d) { /* scrim drawn in render() */ }
+    @Override public void renderBackground(DrawContext dc, int mx, int my, float d) {
+        // A little blur for beauty, but NO darkening — the world stays visible so settings apply live.
+        if (client != null && client.world != null) applyBlur(d);
+    }
 
     // ---- input ---------------------------------------------------------------
 
@@ -429,7 +434,7 @@ public final class ClubMenuScreen extends Screen {
 
     /** The small top grip is the only place the window can be grabbed (generous hit padding). */
     private boolean overGrip(double mx, double my) {
-        float gx = winX + (winW - GRIP_W) / 2f, gy = winY - GRIP_H - GRIP_GAP;
+        float gx = winX + (winW - GRIP_W) / 2f, gy = winY - 3f;
         return mx >= gx - 6 && mx <= gx + GRIP_W + 6 && my >= gy - 6 && my <= gy + GRIP_H + 6;
     }
 
