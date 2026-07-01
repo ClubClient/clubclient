@@ -30,6 +30,10 @@ public class ClubConfig {
     public boolean noBobbing = true;
     public Hud hud = new Hud();
 
+    // Club menu (Right-Shift) saved top-left position; -1 = centered. Dragged via the top grip, clamped on-screen.
+    public int menuX = -1;
+    public int menuY = -1;
+
     /** Position/scale for one visual hand side. */
     public static class HandSide {
         public float scale = 1.0f;

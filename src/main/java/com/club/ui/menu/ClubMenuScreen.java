@@ -1,5 +1,6 @@
 package com.club.ui.menu;
 
+import com.club.config.ClubConfig;
 import com.club.ui.Color;
 import com.club.ui.Icon;
 import com.club.ui.Ui;
@@ -94,6 +95,13 @@ public final class ClubMenuScreen extends Screen {
             new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
 
     private float winX, winY, winW, winH, bodyY, bodyH, contentX, contentW, railW, headH, footH;
+
+    // Draggable window: a compact centred rectangle, moved only via the small top grip, position saved to
+    // ClubConfig (menuX/menuY, -1 = centred), always clamped fully on-screen.
+    private static final float WIN_W = 760f, WIN_H = 496f;
+    private static final float GRIP_W = 30f, GRIP_H = 4f, GRIP_GAP = 3f, GRIP_TOP = 10f;   // grip sits just above winY
+    private boolean draggingWin;
+    private int winGrabX, winGrabY;
 
     private TextStyle stBrand, stFootMut, stName, stNameOff, stCat, stCatOn;
 
@@ -275,9 +283,14 @@ public final class ClubMenuScreen extends Screen {
 
     private void layoutAll() {
         float m = 24;
-        winW = Math.min(1040, width - 2 * m);
-        winH = Math.min(600, height - 2 * m);
-        winX = (width - winW) / 2f; winY = (height - winH) / 2f + entranceYOff;
+        winW = Math.min(WIN_W, width - 2 * m);
+        winH = Math.min(WIN_H, height - 2 * m);
+        // saved top-left (or centred default), always clamped fully on-screen (keep room above for the grip)
+        ClubConfig cfg = ClubConfig.get();
+        float cx = cfg.menuX >= 0 ? cfg.menuX : (width - winW) / 2f;
+        float cy = cfg.menuY >= 0 ? cfg.menuY : (height - winH) / 2f;
+        winX = clamp(cx, 0, Math.max(0, width - winW));
+        winY = clamp(cy, GRIP_TOP, Math.max(GRIP_TOP, height - winH)) + entranceYOff;
         bodyY = winY + headH; bodyH = winH - headH - footH;
         contentX = winX + railW; contentW = winW - railW;
 
@@ -311,7 +324,8 @@ public final class ClubMenuScreen extends Screen {
         Typography ty = Tokens.type();
         float catLh = ty.label().lineHeight();
 
-        r.rect(0, 0, width, height, Color.scaleAlpha(Color.withAlpha(Tokens.palette().ink0(), 0xD9), ep));   // scrim fades in
+        // No background scrim: the world stays fully visible so settings apply live (e.g. adjust a hand slider
+        // and watch the hand move behind/around the window). Move the window aside via the top grip to see more.
 
         // three-tone depth: header/frame lightest (surface) > rail medium (bg2) > content darkest (bg1)
         r.roundedRect(winX, winY, winW, winH, lg, Tokens.surface().surface());   // top layer — header/footer/frame (lightest)
@@ -364,6 +378,13 @@ public final class ClubMenuScreen extends Screen {
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
+        // drag grip — a small pill just above the top edge; the ONLY handle for moving the window (brightens on hover/drag)
+        float gx = winX + (winW - GRIP_W) / 2f, gy = winY - GRIP_H - GRIP_GAP;
+        boolean gripHov = draggingWin
+                || (mouseX >= gx - 6 && mouseX <= gx + GRIP_W + 6 && mouseY >= gy - 6 && mouseY <= gy + GRIP_H + 6);
+        int gripCol = gripHov ? Tokens.accent().accent() : Color.withAlpha(Tokens.palette().textMuted(), 0x99);
+        r.roundedRect(gx, gy, GRIP_W, GRIP_H, GRIP_H / 2f, Color.scaleAlpha(gripCol, ep));
+
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
         if (popModule != null && popScroll != null) {
             if (popReveal == null) {
@@ -406,8 +427,18 @@ public final class ClubMenuScreen extends Screen {
         return popModule != null && !popClosing && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH;
     }
 
+    /** The small top grip is the only place the window can be grabbed (generous hit padding). */
+    private boolean overGrip(double mx, double my) {
+        float gx = winX + (winW - GRIP_W) / 2f, gy = winY - GRIP_H - GRIP_GAP;
+        return mx >= gx - 6 && mx <= gx + GRIP_W + 6 && my >= gy - 6 && my <= gy + GRIP_H + 6;
+    }
+
     @Override public boolean mouseClicked(double mx, double my, int b) {
         focus.clickFocus(mx, my);
+        if (b == 0 && overGrip(mx, my)) {   // start moving the window (grip only)
+            draggingWin = true; winGrabX = (int) mx - (int) winX; winGrabY = (int) my - (int) winY;
+            closePopover(); return true;
+        }
         if (insidePop(mx, my)) {
             popScroll.mouseClicked(mx, my, 0); pressOwner = 1; return true;   // RMB behaves as LMB inside; never closes
         }
@@ -421,12 +452,19 @@ public final class ClubMenuScreen extends Screen {
         return super.mouseClicked(mx, my, b);
     }
     @Override public boolean mouseReleased(double mx, double my, int b) {
+        if (draggingWin) { draggingWin = false; ClubConfig.save(); return true; }   // persist the new position
         // inside the popover the gesture is routed as left-button (RMB acts as LMB there)
         boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseReleased(mx, my, 0)) : root.mouseReleased(mx, my, b);
         pressOwner = 0;
         return h || super.mouseReleased(mx, my, b);
     }
     @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) {
+        if (draggingWin) {   // move the window (grip drag), clamped fully on-screen; layoutAll picks it up next frame
+            ClubConfig cfg = ClubConfig.get();
+            cfg.menuX = (int) clamp((float) mx - winGrabX, 0, Math.max(0, width - winW));
+            cfg.menuY = (int) clamp((float) my - winGrabY, GRIP_TOP, Math.max(GRIP_TOP, height - winH));
+            return true;
+        }
         boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseDragged(mx, my, 0, dx, dy))
                                       : root.mouseDragged(mx, my, b, dx, dy);
         return h || super.mouseDragged(mx, my, b, dx, dy);
