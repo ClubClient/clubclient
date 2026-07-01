@@ -89,7 +89,7 @@ public final class ClubMenuScreen extends Screen {
     private void openHudEditor() { MinecraftClient.getInstance().setScreen(new HudEditorScreen(this)); }
 
     @Override protected void init() {
-        railW = 178; headH = 44; footH = 40;
+        railW = 178; headH = 40; footH = 40;
         query = ""; popModule = null; popCol = null; openDrop = null; pressOwner = 0;
         search = new SearchField("Search modules").onChange(q -> { query = q; rebuildGrid(); layoutAll(); });
         gridScroll = new ScrollArea(grid);
@@ -256,12 +256,10 @@ public final class ClubMenuScreen extends Screen {
         float searchW = 200, searchH = 32;
         search.layout(contentX + contentW - 16 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);   // header row, top-right
 
-        // cards fill the content from the very top; the top-right is reserved for the search so they never overlap
-        float gridX = contentX + 16;
-        float gridY = winY + 8;
-        float gridW = contentW - 32 - (searchW + 16);
+        // cards at full width (not stretched), just under the search bar so they never overlap it
+        float gridW = contentW - 32;
         grid.cols(Math.max(2, (int) (gridW / 172)));
-        if (gridScroll != null) gridScroll.layout(gridX, gridY, gridW, (winY + winH - footH) - gridY - 12);
+        if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 6, gridW, bodyH - 6 - 12);
 
         if (popModule != null) positionPopover();
     }
