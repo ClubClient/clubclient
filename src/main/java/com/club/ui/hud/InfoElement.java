@@ -1,6 +1,7 @@
 package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
+import com.club.ui.Color;
 import com.club.ui.UiContext;
 import com.club.ui.text.TextStyle;
 import com.club.ui.theme.Tokens;
@@ -39,8 +40,8 @@ public final class InfoElement extends HudElement {
         String[][] rows = rows(mc, live);
         for (int i = 0; i < rows.length; i++) {
             float ry = oy + i * ROW * s; boolean xyz = rows[i][2].equals("1");
-            t.draw(rows[i][0], ox, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, desc));
-            t.draw(rows[i][1], ox + 38 * s, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, xyz ? hi : accent));
+            t.draw(rows[i][0], ox, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(desc, alpha)));
+            t.draw(rows[i][1], ox + 38 * s, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(xyz ? hi : accent, alpha)));
         }
     }
 }

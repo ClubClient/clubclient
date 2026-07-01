@@ -63,17 +63,18 @@ public final class TargetElement extends HudElement {
         lastName = name;
         float shownFrac = hpFrac.get(now);
 
+        int hiA = Color.scaleAlpha(hi, alpha);   // element appear/disappear fade
         // name — the lead (white, title)
-        t.draw(name, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hi));
+        t.draw(name, ox, oy, TextStyle.of(ty.title().weight(), ty.title().size() * s, hiA));
         // HP value — prominent: heading-size white (not a muted caption), clearly separated below the name
-        t.draw(sub, ox, oy + 26 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, hi));
+        t.draw(sub, ox, oy + 26 * s, TextStyle.of(ty.heading().weight(), ty.heading().size() * s, hiA));
         // HP-fraction line — the single accent, thicker for emphasis, set apart from the text
         float barY = oy + 50 * s, barW = CONTENT_W * s, barH = 3 * s, rr = 1.5f * s;
-        r.roundedRect(ox, barY, barW, barH, rr, track);
+        r.roundedRect(ox, barY, barW, barH, rr, Color.scaleAlpha(track, alpha));
         if (shownFrac > 0) {
             // Smooth the low->accent transition (was a hard cut at frac 0.30) so a draining bar shifts colour.
             float ct = Math.max(0f, Math.min(1f, (shownFrac - 0.24f) / 0.12f));
-            r.roundedRect(ox, barY, barW * shownFrac, barH, rr, Color.lerp(low, accent, ct));
+            r.roundedRect(ox, barY, barW * shownFrac, barH, rr, Color.scaleAlpha(Color.lerp(low, accent, ct), alpha));
         }
     }
 }

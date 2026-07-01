@@ -38,6 +38,7 @@ public final class HudCanvas extends Container {
     // Editor affordance easing (Stage 9.3, render-only — drag/snap logic is untouched). Outlines and guides
     // fade in/out instead of popping; last-position fields let a deselect/release play its fade-out.
     private final Map<HudElement, Transition> hoverAnim = new HashMap<>();
+    private final Map<HudElement, Transition> alphaAnim = new HashMap<>();   // in-world appear/disappear fade
     private final Transition selAnim =
             new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
     private final Transition guideXAnim =
@@ -125,12 +126,20 @@ public final class HudCanvas extends Container {
             for (int gy = 0; gy <= screenH; gy += GRID_STEP) r.rect(0, gy, screenW, 1, gc);
         }
         MinecraftClient mc = MinecraftClient.getInstance();
+        float now = ctx.time();
         for (HudElement e : elements) {
-            if (!editor && (!e.cfgEnabled() || !e.hasContent(mc))) continue;  // in-world hides disabled + empty; editor shows all
+            if (editor) { e.render(ctx); continue; }   // editor shows all elements solid (no fade)
+            // in-world: fade the element in when it gains content, out when it loses it (panel + text)
+            boolean show = e.cfgEnabled() && e.hasContent(mc);
+            Transition a = alphaAnim.computeIfAbsent(e, k -> new Transition(show ? 1f : 0f,
+                    Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate()));
+            a.target(show ? 1f : 0f, now);
+            float av = a.value(now);
+            if (av <= 0.001f) continue;   // fully hidden (or never shown) → skip render
+            e.alpha = av;
             e.render(ctx);
         }
         if (!editor) return;
-        float now = ctx.time();
 
         // hover affordance: a faint padded outline (clamped to the screen) that fades in/out — reads as clickable
         for (HudElement e : elements) {

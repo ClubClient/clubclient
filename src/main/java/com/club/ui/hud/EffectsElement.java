@@ -64,7 +64,7 @@ public final class EffectsElement extends HudElement {
         for (int i = 0; i < rows.length; i++) {
             Reveal rev = enter.computeIfAbsent(rows[i][0],
                     k -> new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate(), now));
-            float a = rev.progress(now);                       // eased 0->1 alpha for a soft entrance
+            float a = rev.progress(now) * alpha;               // row entrance × element appear/disappear fade
             float ry = oy + i * ROW * s;                       // tight rows: name (white) left, time (muted) right — no box
             t.draw(rows[i][0], ox, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(hi, a)));
             t.draw(rows[i][1], ox + w, ry, TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(mut, a)).align(Align.RIGHT));
