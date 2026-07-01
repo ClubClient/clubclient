@@ -36,7 +36,10 @@ public final class Button extends Control {
 
     @Override public Size measure(float availW, float availH) {     // text-width: not headless-tested
         Size t = label.measure(availW, availH);
-        return new Size(t.w() + Tokens.spacing().md() * 2f, t.h() + Tokens.spacing().sm() * 2f);
+        // Generous horizontal padding (lg/side) + a min-width floor (xxl*3) so a row of buttons
+        // aligns to a common width instead of hugging each label — the key "designed" signal.
+        float w = Math.max(t.w() + Tokens.spacing().lg() * 2f, Tokens.spacing().xxl() * 3f);
+        return new Size(w, t.h() + Tokens.spacing().sm() * 2f);
     }
 
     @Override public void layout(float x, float y, float w, float h) {
@@ -46,7 +49,7 @@ public final class Button extends Control {
     }
 
     @Override public void render(UiContext ctx) {
-        float r = Tokens.radius().sm();
+        float r = Tokens.radius().md();                 // control-radius language (md=10); sm(6) read too boxy
         float now = ctx.time();
         hover.target(hovered ? 1f : 0f, now);
         float hv = hover.value(now);                    // animated via int colors only (alloc-free)
@@ -54,9 +57,11 @@ public final class Button extends Control {
         if (variant == Variant.PRIMARY) {
             ctx.renderer().roundedRect(x, y, w, h, r, Color.lerp(Tokens.accent().accent(), Tokens.accent().accentHi(), hv));
             if (pressed) WidgetPaint.pressOverlay(ctx, x, y, w, h, r);
-        } else { // GHOST
-            ctx.renderer().border(x, y, w, h, r, Tokens.border().thickness(), Tokens.border().defaultColor());
+        } else { // GHOST — premium outline: a visible strong hairline that tints toward accent on hover.
             WidgetPaint.hoverWash(ctx, x, y, w, h, r, hv);
+            ctx.renderer().border(x, y, w, h, r, Tokens.border().thickness(),
+                    Color.lerp(Tokens.border().strong(), Tokens.accent().accent(), hv));
+            if (pressed) WidgetPaint.pressOverlay(ctx, x, y, w, h, r);
         }
 
         // Discrete label color: Label rebuilds its TextStyle only on a state change, never per-frame (alloc-free).

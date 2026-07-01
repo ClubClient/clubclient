@@ -37,6 +37,12 @@ tasks.withType(JavaCompile).configureEach {
 
 java {
 	withSourcesJar()
+	// Pin the runtime/compile toolchain to JDK 21 (the version MC 1.21.1 + LWJGL 3.3.3 support).
+	// Without this, the build/runClient use whatever JDK runs Gradle (e.g. 25) — an unsupported
+	// combo that LWJGL flags as "Unsupported JNI version" and can cause situational GL instability.
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
 	sourceCompatibility = JavaVersion.VERSION_21
 	targetCompatibility = JavaVersion.VERSION_21
 }

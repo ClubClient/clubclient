@@ -1,9 +1,9 @@
 package com.club;
 
 import com.club.config.ClubConfig;
-import com.club.gui.ClubScreen;
 import com.club.gui.sandbox.SandboxBootstrap;
 import com.club.gui.sandbox.UiSandboxScreen;
+import com.club.ui.menu.ClubMenuScreen;
 import com.club.ui.Ui;
 import com.club.hud.HudManager;
 import net.fabricmc.api.ClientModInitializer;
@@ -50,7 +50,7 @@ public class ClubClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openMenuKey.wasPressed()) {
                 if (client.player != null) {
-                    client.setScreen(new ClubScreen());
+                    client.setScreen(new ClubMenuScreen());
                 }
             }
             while (openSandboxKey.wasPressed()) {

@@ -161,8 +161,8 @@ public final class ScrollArea extends Container {
             float r  = barW() / 2f;
             // Track
             ctx.renderer().roundedRect(bx, y, barW(), viewportH, r, Tokens.border().subtle());
-            // Thumb
-            ctx.renderer().roundedRect(bx, thumbY(), barW(), thumbHeight(), r, Tokens.accent().accent());
+            // Thumb — neutral (accent is reserved for actions/selection, never chrome)
+            ctx.renderer().roundedRect(bx, thumbY(), barW(), thumbHeight(), r, Tokens.palette().textFaint());
         }
     }
 }

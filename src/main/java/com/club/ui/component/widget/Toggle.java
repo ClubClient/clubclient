@@ -1,22 +1,29 @@
 package com.club.ui.component.widget;
 
-import com.club.ui.Axis;
 import com.club.ui.UiContext;
 import com.club.ui.layout.Size;
 import com.club.ui.motion.Transition;
-import com.club.ui.theme.Glow;
 import com.club.ui.theme.Tokens;
 
 /**
  * On/off switch (bare — label composed externally). Commit-model + keyboard from {@link Control}.
- * ON = accent gradient + restrained active glow (the only sanctioned glow use, §3.3); OFF = surfaceHi track.
- * Knob position is animated via a {@link Transition}.
+ *
+ * <p>Design language: a pill track + a white-puck handle (shared with {@link Slider}). ON = flat accent
+ * track; OFF = inset control surface ({@link WidgetPaint#controlTrack}). No gradient/glow — coherent with
+ * every other accent surface. Knob slides via a {@link Transition} and grows on hover/press (shared
+ * handle-grow constants). Focus = offset accent ring around the pill.
  */
 public final class Toggle extends Control {
+
+    // Shape geometry (proportions, NOT design tokens).
+    private static final float W = 40f, H = 22f, KNOB_INSET = 3f;
+
     private boolean value;
     private BoolConsumer onChange;
     private final Transition knob =
             new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+    private final Transition grow =
+            new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
 
     public Toggle(boolean value) { this.value = value; knob.target(value ? 1f : 0f, 0f); }
     public Toggle onChange(BoolConsumer cb) { this.onChange = cb; return this; }
@@ -27,28 +34,24 @@ public final class Toggle extends Control {
         if (onChange != null) onChange.accept(value);
     }
 
-    @Override public Size measure(float availW, float availH) {
-        float hgt = Tokens.type().body().lineHeight();          // stored Role value — headless-safe
-        return new Size(hgt + Tokens.spacing().lg(), hgt);      // width = height + knob travel (token)
-    }
+    @Override public Size measure(float availW, float availH) { return new Size(W, H); }
 
     @Override public void render(UiContext ctx) {
         float now = ctx.time();
         knob.target(value ? 1f : 0f, now);
+        grow.target(pressed ? WidgetPaint.HANDLE_PRESS_GROW : (hovered ? WidgetPaint.HANDLE_HOVER_GROW : 0f), now);
         float k = knob.value(now);
         float r = h / 2f;
 
-        if (value) {
-            ctx.renderer().gradient(x, y, w, h, r, Tokens.accent().gradientA(), Tokens.accent().gradientB(), Axis.HORIZONTAL);
-            Glow.Preset g = Tokens.glow().active();
-            ctx.renderer().glow(x, y, w, h, r, g.size(), g.color());
-        } else {
-            ctx.renderer().roundedRect(x, y, w, h, r, Tokens.surface().surfaceHi());
-            ctx.renderer().border(x, y, w, h, r, Tokens.border().thickness(), Tokens.border().defaultColor());
-        }
-        float kr = r - Tokens.border().thickness() * 2f;
-        float travel = w - 2f * r;
-        ctx.renderer().circle(x + r + travel * k, y + r, kr, Tokens.palette().white());
+        // Track: flat accent (ON) vs inset control surface (OFF) — one language, no gradient/glow.
+        if (value) WidgetPaint.surface(ctx, x, y, w, h, r, Tokens.accent().accent(), 0);
+        else       WidgetPaint.controlTrack(ctx, x, y, w, h, r);
+
+        // White-puck handle; travel uses a stable base radius so hover/press grow doesn't shift position.
+        float baseKr = h / 2f - KNOB_INSET;
+        float kr = baseKr + grow.value(now);
+        float cx = (x + KNOB_INSET + baseKr) + (w - 2f * (KNOB_INSET + baseKr)) * k;
+        WidgetPaint.whitePuck(ctx, cx, y + r, kr, 0, 0f);
 
         WidgetPaint.focusRing(ctx, this, r);
     }

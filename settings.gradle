@@ -9,5 +9,11 @@ pluginManagement {
 	}
 }
 
+// Auto-provision the Java toolchain (JDK 21) so the build/runClient never fall back to an
+// unsupported runtime (e.g. JDK 25, which triggers the LWJGL "Unsupported JNI version" instability).
+plugins {
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 // Should match your modid
 rootProject.name = 'modid'

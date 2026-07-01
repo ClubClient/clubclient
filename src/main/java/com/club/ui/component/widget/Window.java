@@ -23,8 +23,8 @@ import com.club.ui.theme.Typography;
  * <p>Position-exception (§1.3): Window owns its own x,y; the caller sets position via
  * {@link #position} or drag; the parent layout does NOT assign position here.
  *
- * <p>render: {@link WidgetPaint#elevation} (level2) for the frame, then
- * {@link WidgetPaint#clipRounded} for the column (titleBar + content).
+ * <p>render: flat frame — a roundedRect fill (bg2), then {@link WidgetPaint#clipRounded} for the
+ * column (titleBar + content), then a strong hairline border on top. Depth is tone+hairline, never shadow.
  */
 public final class Window extends Container {
 
@@ -106,11 +106,13 @@ public final class Window extends Container {
         column.layout(this.x, this.y, this.w, this.h);
     }
 
-    /** render: elevation (level2) frame, then the column (titleBar + content) clipped to the rounded rect. */
+    /** render: flat frame — fill, then content, then the strong border ON TOP so the edge stays crisp
+     *  over the title bar. Depth is tone+hairline, never shadow (flat language). */
     @Override public void render(UiContext ctx) {
         float r = Tokens.radius().lg();
-        WidgetPaint.elevation(ctx, x, y, w, h, r, Tokens.elevation().level2());
+        ctx.renderer().roundedRect(x, y, w, h, r, Tokens.surface().bg2());
         WidgetPaint.clipRounded(ctx, x, y, w, h, r, column);
+        ctx.renderer().border(x, y, w, h, r, Tokens.border().thickness(), Tokens.border().strong());
     }
 
     // -------------------------------------------------------------------------
@@ -125,6 +127,7 @@ public final class Window extends Container {
     private final class TitleBar extends Component {
 
         private TextStyle titleStyle;   // built once (title is immutable per Window) — alloc-free render
+        private com.club.ui.Radii topRadii;   // top-rounded corners, cached (radius is constant)
 
         /**
          * measure: uses only {@code role.lineHeight()} — headless-safe (never calls Ui.text().width).
@@ -150,9 +153,12 @@ public final class Window extends Container {
             return true;
         }
 
-        /** Draws the title-bar background and title text (TextStyle cached once — no per-frame alloc). */
+        /** Draws the title-bar (top-rounded so the window's top corners stay round) + hairline divider + title. */
         @Override public void render(UiContext ctx) {
-            ctx.renderer().rect(x, y, w, h, Tokens.surface().surfaceHi());
+            if (topRadii == null) { float r = Tokens.radius().lg(); topRadii = new com.club.ui.Radii(r, r, 0f, 0f); }
+            ctx.renderer().roundedRect(x, y, w, h, topRadii, Tokens.surface().surface());   // lighter than frame → reads as header
+            float t = Tokens.border().thickness();
+            ctx.renderer().rect(x, y + h - t, w, t, Tokens.border().defaultColor());          // hairline divider under title
             if (titleStyle == null) {
                 Typography.Role role = Tokens.type().title();
                 titleStyle = TextStyle.of(role.weight(), role.size(), Tokens.palette().textHi());

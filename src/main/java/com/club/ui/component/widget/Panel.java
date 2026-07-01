@@ -47,7 +47,7 @@ public final class Panel extends Container {
     }
 
     @Override public void render(UiContext ctx) {
-        float r = Tokens.radius().md();
+        float r = Tokens.radius().lg();   // surfaces share the lg radius (Panel/Card/Window)
         WidgetPaint.flatSurface(ctx, x, y, w, h, r, Tokens.surface().surface());
         if (child != null) WidgetPaint.clipRounded(ctx, x, y, w, h, r, child);
     }

@@ -11,11 +11,11 @@ import com.club.ui.layout.Sizing;
 import com.club.ui.theme.Tokens;
 
 /**
- * Elevated card surface with optional header and footer sections.
+ * Raised card surface (flat) with optional header and footer sections.
  *
  * <p>Composition: internal {@link Column}[header?, Divider, content, Divider, footer?].
- * Surface drawn via {@link WidgetPaint#elevation} (level1) — shadow→fill→border in one call.
- * Content is clipped to the card's rounded rect.
+ * Surface drawn via {@link WidgetPaint#surface} (surfaceHi fill + hairline — one tone above Panel);
+ * depth is tone+hairline, never shadow (frozen flat language). Content is clipped to the rounded rect.
  *
  * <p>The internal Column is rebuilt lazily behind a dirty flag — never allocated on the hot path.
  */
@@ -52,13 +52,13 @@ public final class Card extends Container {
 
             if (header != null) {
                 column.add(header);
-                column.add(new Divider());
+                column.add(new Divider().color(Tokens.border().defaultColor()));
             }
             if (content != null) {
                 column.add(content, Sizing.fill());
             }
             if (footer != null) {
-                column.add(new Divider());
+                column.add(new Divider().color(Tokens.border().defaultColor()));
                 column.add(footer);
             }
 
@@ -83,10 +83,11 @@ public final class Card extends Container {
         column().layout(x, y, w, h);
     }
 
-    /** render: elevation (level1) frame, then the inner Column clipped to the rounded rect. */
+    /** render: flat raised surface (surfaceHi + default hairline — one tone above Panel), then the
+     *  inner Column clipped to the rounded rect. Elevation is tone+hairline, never shadow (flat language). */
     @Override public void render(UiContext ctx) {
         float r = Tokens.radius().lg();
-        WidgetPaint.elevation(ctx, x, y, w, h, r, Tokens.elevation().level1());
+        WidgetPaint.surface(ctx, x, y, w, h, r, Tokens.surface().surfaceHi(), Tokens.border().defaultColor());
         WidgetPaint.clipRounded(ctx, x, y, w, h, r, column());
     }
 }
