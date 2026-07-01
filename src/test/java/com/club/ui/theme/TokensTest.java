@@ -35,7 +35,7 @@ class TokensTest {
         assertEquals(10f, Tokens.radius().md());
         assertEquals(6f,  Tokens.radius().sm());
         assertEquals(12f, Tokens.spacing().md());
-        assertEquals(0.20f, Tokens.motion().durations().normal(), 1e-6);
+        assertEquals(0.28f, Tokens.motion().durations().normal(), 1e-6);   // softened ~1.4x (owner request, Stage 9 review)
     }
     @Test void surfaceReferencesPalette() {
         assertEquals(Tokens.palette().ink2(), Tokens.surface().bg1());   // bg1 == ink2 (#0B111A)

@@ -46,7 +46,7 @@ public final class ClubDark {
             new Elevation.Level(surface.bg2(),     border.strong(),       shadow.lg(), glow.subtle()));
 
         Motion motion = new Motion(
-            new Motion.Durations(0f, 0.12f, 0.20f, 0.32f),
+            new Motion.Durations(0f, 0.17f, 0.28f, 0.45f),   // ~1.4x softer than the original 0.12/0.20/0.32 (owner request)
             new Motion.Easings(Curves.STANDARD, Curves.DECELERATE, Curves.ACCELERATE, Curves.LINEAR));
 
         Interaction interaction = new Interaction(

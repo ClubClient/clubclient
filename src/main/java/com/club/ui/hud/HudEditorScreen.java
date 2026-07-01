@@ -164,7 +164,7 @@ public final class HudEditorScreen extends Screen {
         positionPopover();
         if (hasPopover) {
             float now = uiCtx.time();
-            if (popReveal == null) { popReveal = new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate(), now); popHTween.snap(popH, now); }
+            if (popReveal == null) { popReveal = new Reveal(Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate(), now); popHTween.snap(popH, now); }
             popHTween.set(popH, now);
             float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
             r.roundedRect(popX, popY, popW, drawnH, Tokens.radius().md(), Tokens.surface().bg2());

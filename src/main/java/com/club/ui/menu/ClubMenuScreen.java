@@ -92,6 +92,8 @@ public final class ClubMenuScreen extends Screen {
     private boolean popClosing;
     private final ValueTween popHTween =
             new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
+    private boolean dropCollapsing;   // a dropdown pick-list is animating closed (rows kept until the height settles)
+    private float collapsedPopH;      // the popover height with no dropdown expanded (collapse target)
 
     private float winX, winY, winW, winH, bodyY, bodyH, contentX, contentW, railW, headH, footH;
 
@@ -118,7 +120,7 @@ public final class ClubMenuScreen extends Screen {
         for (int i = 0; i < cats.size(); i++)
             railText[i] = new Transition(i == catIndex ? 1f : 0f,
                     Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
-        entrance = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
+        entrance = new Transition(0f, Tokens.motion().durations().slow(), Tokens.motion().easings().decelerate());
     }
 
     private float railY(int i) { return bodyY + 8 + i * RAIL_ROW; }
@@ -160,7 +162,7 @@ public final class ClubMenuScreen extends Screen {
 
     private void openPopover(Module m, float ax, float ay, float aw, float ah) {
         popModule = m; popAX = ax; popAY = ay; popAW = aw; popAH = ah; tabIndex = 0; openDrop = null;
-        popClosing = false; popReveal = null;   // render() plays the grow-in on the first frame
+        popClosing = false; popReveal = null; dropCollapsing = false;   // render() plays the grow-in on the first frame
         rebuildPopover();
     }
 
@@ -177,7 +179,11 @@ public final class ClubMenuScreen extends Screen {
         popScroll = new ScrollArea(popCol);
         positionPopover();
         popScroll.scrollOffset(prevOffset);                  // restore scroll after layout has set the clamp bounds
+        if (openDrop == null) collapsedPopH = popH;           // remember the no-dropdown height as the collapse target
     }
+
+    /** Begin animating the open dropdown's pick-list closed: keep its rows until the popover height settles. */
+    private void startDropCollapse() { if (openDrop != null) dropCollapsing = true; }
 
     private void positionPopover() {
         popX = clamp(popAX, winX + 8, winX + winW - popW - 8);
@@ -194,7 +200,7 @@ public final class ClubMenuScreen extends Screen {
 
     private void reallyClosePopover() {
         popModule = null; popCol = null; popScroll = null; openDrop = null;
-        popReveal = null; popClosing = false;
+        popReveal = null; popClosing = false; dropCollapsing = false;
         focus.clear();
         if (search != null) focus.register(search);
     }
@@ -225,14 +231,14 @@ public final class ClubMenuScreen extends Screen {
                 Row row = new Row().crossAlign(CrossAlign.CENTER);
                 row.add(new Label(d.label(), Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
                 Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST)
-                        .onClick(() -> { openDrop = (openDrop == d) ? null : d; rebuildPopover(); });
+                        .onClick(() -> { if (openDrop == d) startDropCollapse(); else { openDrop = d; rebuildPopover(); } });
                 row.add(field);
                 col.add(row); focus.register(field);
                 if (openDrop == d) {
                     for (int i = 0; i < d.options().length; i++) {
                         final int oi = i;
                         col.add(new OptionRow(d.options()[i], i == cur,
-                                () -> { d.set().accept(oi); openDrop = null; rebuildPopover(); }));
+                                () -> { d.set().accept(oi); startDropCollapse(); }));   // apply value, then animate the list closed
                     }
                 }
             } else if (s instanceof ActionSetting) {
@@ -301,7 +307,7 @@ public final class ClubMenuScreen extends Screen {
         float now = uiCtx.time();
         float ep = 1f;
         if (entrance != null) { entrance.target(1f, now); ep = entrance.value(now); }
-        entranceYOff = (1f - ep) * 8f;   // window rises 8px into place as it appears
+        entranceYOff = (1f - ep) * 12f;   // window rises into place as it appears (graceful, no scale)
 
         layoutAll();
         float lg = Tokens.radius().lg();
@@ -312,10 +318,12 @@ public final class ClubMenuScreen extends Screen {
 
         r.roundedRect(winX, winY, winW, winH, lg, Tokens.surface().bg2());
         r.rect(winX, bodyY, railW, bodyH, Tokens.surface().bg1());
+        r.rect(contentX, bodyY, contentW, bodyH, Tokens.surface().bg1());   // content body recessed (deeper than the header) — reads as a distinct list panel
 
         int dv = Tokens.border().defaultColor();
         r.rect(winX + railW, winY, 1, winH - footH, dv);   // CLUB/rail | content — full height
         r.rect(winX, bodyY, railW, 1, dv);                 // under CLUB — gives the category list a top edge
+        r.rect(contentX, bodyY, contentW, 1, dv);          // under the search/header — separates the raised header from the content list
         r.rect(winX, winY + winH - footH, winW, 1, dv);    // above footer
 
         // header — CLUB wordmark centred in the rail cell (dot + text as one group)
@@ -361,14 +369,19 @@ public final class ClubMenuScreen extends Screen {
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
         if (popModule != null && popScroll != null) {
             if (popReveal == null) {
-                popReveal = new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate(), now);
+                popReveal = new Reveal(Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate(), now);
                 popHTween.snap(popH, now);
             }
             if (popClosing) popReveal.close(now);
-            popHTween.set(popH, now);
+            // while a dropdown collapses, ease toward the no-dropdown height (rows stay, clipped away) ...
+            popHTween.set((dropCollapsing && !popClosing) ? collapsedPopH : popH, now);
             if (popClosing && popReveal.gone(now)) {
                 reallyClosePopover();
             } else {
+                // ... then, once shrunk, actually drop the option rows
+                if (dropCollapsing && !popClosing && popHTween.get(now) <= collapsedPopH + 1f) {
+                    dropCollapsing = false; openDrop = null; rebuildPopover();
+                }
                 float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
                 float pr = Tokens.radius().md();
                 r.roundedRect(popX, popY, popW, drawnH, pr, Tokens.surface().bg2());
@@ -403,25 +416,25 @@ public final class ClubMenuScreen extends Screen {
     @Override public boolean mouseClicked(double mx, double my, int b) {
         focus.clickFocus(mx, my);
         if (insidePop(mx, my)) {
-            if (b == 1) { closePopover(); return true; }       // RMB inside → close
-            popScroll.mouseClicked(mx, my, b); pressOwner = 1; return true;
+            popScroll.mouseClicked(mx, my, 0); pressOwner = 1; return true;   // RMB behaves as LMB inside; never closes
         }
         if (b == 0 && mx >= winX && mx <= winX + railW && my >= bodyY + 8 && my < bodyY + 8 + cats.size() * RAIL_ROW) {
             int i = (int) ((my - (bodyY + 8)) / RAIL_ROW);
             if (i >= 0 && i < cats.size()) { if (i != catIndex) setCategory(i); return true; }
         }
         if (root.mouseClicked(mx, my, b)) { pressOwner = 2; return true; }
-        if (b == 1) closePopover();                            // RMB on empty → close
+        closePopover();                                        // click on empty space (any button) → close
         pressOwner = 0;
         return super.mouseClicked(mx, my, b);
     }
     @Override public boolean mouseReleased(double mx, double my, int b) {
-        boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseReleased(mx, my, b)) : root.mouseReleased(mx, my, b);
+        // inside the popover the gesture is routed as left-button (RMB acts as LMB there)
+        boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseReleased(mx, my, 0)) : root.mouseReleased(mx, my, b);
         pressOwner = 0;
         return h || super.mouseReleased(mx, my, b);
     }
     @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) {
-        boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseDragged(mx, my, b, dx, dy))
+        boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseDragged(mx, my, 0, dx, dy))
                                       : root.mouseDragged(mx, my, b, dx, dy);
         return h || super.mouseDragged(mx, my, b, dx, dy);
     }
@@ -445,7 +458,7 @@ public final class ClubMenuScreen extends Screen {
     // ---- module card ---------------------------------------------------------
 
     private static final float TILE_H = 46f, TILE_PAD = 12f;
-    private static final int POP_PAD = 12;
+    private static final int POP_PAD = 8;   // tighter popover gutter — the scrollbar fills the right, so a wide left pad read as empty
 
     /** Compact module card (name only). LMB = enable/disable (or run the action); RMB = settings popover. */
     private final class ModuleTile extends Component {
