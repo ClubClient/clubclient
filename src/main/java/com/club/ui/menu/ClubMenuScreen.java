@@ -100,6 +100,7 @@ public final class ClubMenuScreen extends Screen {
     // ClubConfig (menuX/menuY, -1 = centred), always clamped fully on-screen.
     private static final float WIN_W = 660f, WIN_H = 380f;   // compact landscape rectangle (smaller in both dims)
     private static final float GRIP_W = 44f, GRIP_H = 5f, GRIP_TOP = 6f;   // grip straddles the top edge (winY - 3)
+    private static final int MENU_BLUR = 5;   // our own background-blur strength — independent of the user's video setting
     private boolean draggingWin;
     private int winGrabX, winGrabY;
 
@@ -121,7 +122,7 @@ public final class ClubMenuScreen extends Screen {
         focus.register(search);
         rebuildGrid();
         layoutAll();
-        indicator = new Transition(railY(catIndex), Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+        indicator = new Transition(railYRel(catIndex), Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         railText = new Transition[cats.size()];
         for (int i = 0; i < cats.size(); i++)
             railText[i] = new Transition(i == catIndex ? 1f : 0f,
@@ -129,7 +130,10 @@ public final class ClubMenuScreen extends Screen {
         entrance = new Transition(0f, Tokens.motion().durations().slow(), Tokens.motion().easings().decelerate());
     }
 
-    private float railY(int i) { return bodyY + 8 + i * RAIL_ROW; }
+    // Indicator tracks the row offset RELATIVE to bodyY, so it never lags behind the window when it's dragged /
+    // rises on open (it only eases when the category actually changes).
+    private float railYRel(int i) { return 8 + i * RAIL_ROW; }
+    private float railY(int i) { return bodyY + railYRel(i); }   // absolute row position (rows + hit-test)
 
     // ---- state ---------------------------------------------------------------
 
@@ -348,8 +352,8 @@ public final class ClubMenuScreen extends Screen {
         uiCtx.text().draw("Profile · Default", winX + 18, fy, stFootMut);
 
         // rail: the active-row highlight pill slides with the accent indicator (drawn once, under the text)
-        if (indicator != null) indicator.target(railY(catIndex), now);
-        float indY = indicator != null ? indicator.value(now) : railY(catIndex);
+        if (indicator != null) indicator.target(railYRel(catIndex), now);
+        float indY = bodyY + (indicator != null ? indicator.value(now) : railYRel(catIndex));
         r.roundedRect(winX + 8, indY + 3, railW - 16, RAIL_ROW - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
 
         // rail categories (text only, no icons) — label colour eases on hover / active
@@ -422,8 +426,14 @@ public final class ClubMenuScreen extends Screen {
     }
 
     @Override public void renderBackground(DrawContext dc, int mx, int my, float d) {
-        // A little blur for beauty, but NO darkening — the world stays visible so settings apply live.
-        if (client != null && client.world != null) applyBlur(d);
+        // Our own slight blur — force a fixed strength regardless of the user's "Menu Background Blur" video
+        // setting, then restore it (never persist a change). NO darkening — the world stays visible for live preview.
+        if (client == null || client.world == null) return;
+        var opt = client.options.getMenuBackgroundBlurriness();
+        int prev = opt.getValue();
+        if (prev != MENU_BLUR) opt.setValue(MENU_BLUR);
+        applyBlur(d);
+        if (prev != MENU_BLUR) opt.setValue(prev);
     }
 
     // ---- input ---------------------------------------------------------------
