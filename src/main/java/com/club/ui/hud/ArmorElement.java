@@ -61,44 +61,10 @@ public final class ArmorElement extends HudElement {
         return (max - s.getDamage()) + "/" + max;
     }
     private int valueWidth(ItemStack[] ps, boolean percent) {
-        float size = Tokens.type().body().size(), w = 0;
-        for (ItemStack s : ps) if (!s.isEmpty()) w = Math.max(w, tabularWidth(value(s, percent), size));
-        return Math.round(w);
-    }
-
-    // --- tabular figures: digits render in a fixed-width cell (the widest digit's advance) so equal-length
-    // values are pixel-identical and every column — icon↔value, value↔dot, and the dots themselves — lines up
-    // regardless of which digits appear (e.g. "481/481" no longer drifts from "592/592"). Non-digits keep their
-    // natural width. This is why premium HUDs use tabular numerals for stats.
-    private static float digitCell(float size) {
-        float w = 0;
-        for (char c = '0'; c <= '9'; c++) w = Math.max(w, Ui.text().width(String.valueOf(c), Weight.SEMIBOLD, size));
+        int w = 0;
+        for (ItemStack s : ps) if (!s.isEmpty())
+            w = Math.max(w, Math.round(Ui.text().width(value(s, percent), Weight.SEMIBOLD, Tokens.type().body().size())));
         return w;
-    }
-    /** Unscaled width of {@code v} rendered with tabular digits. */
-    private static float tabularWidth(String v, float size) {
-        float cell = digitCell(size), w = 0;
-        for (int i = 0; i < v.length(); i++) {
-            char c = v.charAt(i);
-            w += Character.isDigit(c) ? cell : Ui.text().width(String.valueOf(c), Weight.SEMIBOLD, size);
-        }
-        return w;
-    }
-    /** Draw {@code v} with tabular digits, top-left at (x,y); each digit is right-aligned inside its cell. */
-    private static void drawTabular(UiContext ctx, String v, float x, float y, TextStyle style, float s) {
-        float size = Tokens.type().body().size(), cell = digitCell(size), penX = x;
-        for (int i = 0; i < v.length(); i++) {
-            char c = v.charAt(i);
-            String ch = String.valueOf(c);
-            if (Character.isDigit(c)) {
-                float gw = Ui.text().width(ch, Weight.SEMIBOLD, size);
-                ctx.text().draw(ch, penX + (cell - gw) * s, y, style);   // right-align the digit in its cell
-                penX += cell * s;
-            } else {
-                ctx.text().draw(ch, penX, y, style);
-                penX += Ui.text().width(ch, Weight.SEMIBOLD, size) * s;
-            }
-        }
     }
     /** Durability dot colour — green/amber/red with a smooth crossing at the 0.70 / 0.40 thresholds
      *  (a narrow lerp band each side) so a draining piece shifts colour instead of snapping. */
@@ -122,7 +88,7 @@ public final class ArmorElement extends HudElement {
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
-        var r = ctx.renderer(); Typography ty = Tokens.type();
+        var r = ctx.renderer(); var t = ctx.text(); Typography ty = Tokens.type();
         ItemStack[] ps = live ? pieces(mc) : sampleStacks();
         boolean percent = h().armorPercent;
         int valW = valueWidth(ps, percent);
@@ -132,16 +98,14 @@ public final class ArmorElement extends HudElement {
         DrawContext dc = HudSprites.ctx();
 
         if (h().armorVertical) {
-            // tabular values right-aligned in the value column: the dots form one straight column at the tile's
-            // right edge, and equal-length values (407/407, 481/481) share icon↔value + value↔dot spacing exactly.
+            // value drawn naturally right after the icon; the durability dots sit in one fixed column at the
+            // tile's right edge (valW-based), so the dots align down the stack.
             int row = 0;
             for (ItemStack st : ps) {
                 if (st.isEmpty()) continue;
                 float ry = oy + row * LIST_ROW * s;
                 drawSprite(dc, st, ox, ry, s);
-                String v = value(st, percent);
-                float tw = tabularWidth(v, ty.body().size());
-                drawTabular(ctx, v, ox + (ICON + GAP + valW - tw) * s, ry + (ICON - lh) * 0.5f * s, style, s);
+                t.draw(value(st, percent), ox + (ICON + GAP) * s, ry + (ICON - lh) * 0.5f * s, style);
                 float dcx = ox + (ICON + GAP + valW + DOTGAP + DOT * 0.5f) * s;
                 r.circle(dcx, ry + ICON * 0.5f * s, DOT * 0.5f * s, Color.scaleAlpha(stateColor(frac(st)), alpha));
                 row++;
@@ -154,9 +118,9 @@ public final class ArmorElement extends HudElement {
                 float cx = ox + col * (cell + GAP) * s;
                 drawSprite(dc, st, cx + (cell - ICON) * 0.5f * s, oy, s);
                 String v = value(st, percent);
-                float vw = tabularWidth(v, ty.body().size());
+                int vw = Math.round(Ui.text().width(v, Weight.SEMIBOLD, ty.body().size()));
                 float sx = cx + (cell - (vw + DOTGAP + DOT)) * 0.5f * s;
-                drawTabular(ctx, v, sx, oy + (ICON + 2) * s, style, s);
+                t.draw(v, sx, oy + (ICON + 2) * s, style);
                 r.circle(sx + (vw + DOTGAP + DOT * 0.5f) * s, oy + (ICON + 2) * s + lh * 0.5f * s, DOT * 0.5f * s,
                         Color.scaleAlpha(stateColor(frac(st)), alpha));
                 col++;
