@@ -92,8 +92,6 @@ public final class ClubMenuScreen extends Screen {
     private boolean popClosing;
     private final ValueTween popHTween =
             new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
-    private boolean dropCollapsing;   // a dropdown pick-list is animating closed (rows kept until the height settles)
-    private float collapsedPopH;      // the popover height with no dropdown expanded (collapse target)
 
     private float winX, winY, winW, winH, bodyY, bodyH, contentX, contentW, railW, headH, footH;
 
@@ -162,7 +160,7 @@ public final class ClubMenuScreen extends Screen {
 
     private void openPopover(Module m, float ax, float ay, float aw, float ah) {
         popModule = m; popAX = ax; popAY = ay; popAW = aw; popAH = ah; tabIndex = 0; openDrop = null;
-        popClosing = false; popReveal = null; dropCollapsing = false;   // render() plays the grow-in on the first frame
+        popClosing = false; popReveal = null;   // render() plays the grow-in on the first frame
         rebuildPopover();
     }
 
@@ -179,11 +177,7 @@ public final class ClubMenuScreen extends Screen {
         popScroll = new ScrollArea(popCol);
         positionPopover();
         popScroll.scrollOffset(prevOffset);                  // restore scroll after layout has set the clamp bounds
-        if (openDrop == null) collapsedPopH = popH;           // remember the no-dropdown height as the collapse target
     }
-
-    /** Begin animating the open dropdown's pick-list closed: keep its rows until the popover height settles. */
-    private void startDropCollapse() { if (openDrop != null) dropCollapsing = true; }
 
     private void positionPopover() {
         popX = clamp(popAX, winX + 8, winX + winW - popW - 8);
@@ -200,7 +194,7 @@ public final class ClubMenuScreen extends Screen {
 
     private void reallyClosePopover() {
         popModule = null; popCol = null; popScroll = null; openDrop = null;
-        popReveal = null; popClosing = false; dropCollapsing = false;
+        popReveal = null; popClosing = false;
         focus.clear();
         if (search != null) focus.register(search);
     }
@@ -226,19 +220,22 @@ public final class ClubMenuScreen extends Screen {
         } else settings = m.settings();
 
         for (Setting s : settings) {
+            // When a dropdown is expanded, show ONLY it + its options — the other controls are hidden so the
+            // pick-list never pushes/overlaps them (no "teleporting" siblings during the height animation).
+            if (openDrop != null && s != openDrop) continue;
             if (s instanceof DropdownSetting d) {
                 int cur = clampIdx(d);
                 Row row = new Row().crossAlign(CrossAlign.CENTER);
                 row.add(new Label(d.label(), Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
                 Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST)
-                        .onClick(() -> { if (openDrop == d) startDropCollapse(); else { openDrop = d; rebuildPopover(); } });
+                        .onClick(() -> { openDrop = (openDrop == d) ? null : d; rebuildPopover(); });
                 row.add(field);
                 col.add(row); focus.register(field);
                 if (openDrop == d) {
                     for (int i = 0; i < d.options().length; i++) {
                         final int oi = i;
                         col.add(new OptionRow(d.options()[i], i == cur,
-                                () -> { d.set().accept(oi); startDropCollapse(); }));   // apply value, then animate the list closed
+                                () -> { d.set().accept(oi); openDrop = null; rebuildPopover(); }));
                     }
                 }
             } else if (s instanceof ActionSetting) {
@@ -253,7 +250,7 @@ public final class ClubMenuScreen extends Screen {
             }
         }
 
-        if (m.hasReset()) {
+        if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
             Button reset = new Button("Reset to Default").variant(Button.Variant.GHOST)
                     .onClick(() -> { m.reset().run(); openDrop = null; rebuildPopover(); });
             Row rr = new Row(); rr.add(Spacer.fill()); rr.add(reset);
@@ -316,9 +313,10 @@ public final class ClubMenuScreen extends Screen {
 
         r.rect(0, 0, width, height, Color.scaleAlpha(Color.withAlpha(Tokens.palette().ink0(), 0xD9), ep));   // scrim fades in
 
-        r.roundedRect(winX, winY, winW, winH, lg, Tokens.surface().bg2());
-        r.rect(winX, bodyY, railW, bodyH, Tokens.surface().bg1());
-        r.rect(contentX, bodyY, contentW, bodyH, Tokens.surface().bg1());   // content body recessed (deeper than the header) — reads as a distinct list panel
+        // three-tone depth: header/frame lightest (surface) > rail medium (bg2) > content darkest (bg1)
+        r.roundedRect(winX, winY, winW, winH, lg, Tokens.surface().surface());   // top layer — header/footer/frame (lightest)
+        r.rect(winX, bodyY, railW, bodyH, Tokens.surface().bg2());               // categories rail (medium)
+        r.rect(contentX, bodyY, contentW, bodyH, Tokens.surface().bg1());        // content/functions (darkest — deepest list panel)
 
         int dv = Tokens.border().defaultColor();
         r.rect(winX + railW, winY, 1, winH - footH, dv);   // CLUB/rail | content — full height
@@ -373,15 +371,10 @@ public final class ClubMenuScreen extends Screen {
                 popHTween.snap(popH, now);
             }
             if (popClosing) popReveal.close(now);
-            // while a dropdown collapses, ease toward the no-dropdown height (rows stay, clipped away) ...
-            popHTween.set((dropCollapsing && !popClosing) ? collapsedPopH : popH, now);
+            popHTween.set(popH, now);   // eases the popover height on open + on resize (dropdown open/close)
             if (popClosing && popReveal.gone(now)) {
                 reallyClosePopover();
             } else {
-                // ... then, once shrunk, actually drop the option rows
-                if (dropCollapsing && !popClosing && popHTween.get(now) <= collapsedPopH + 1f) {
-                    dropCollapsing = false; openDrop = null; rebuildPopover();
-                }
                 float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
                 float pr = Tokens.radius().md();
                 r.roundedRect(popX, popY, popW, drawnH, pr, Tokens.surface().bg2());
