@@ -2,7 +2,6 @@ package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
-import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.text.TextStyle;
 import com.club.ui.text.Weight;
@@ -61,10 +60,9 @@ public final class ArmorElement extends HudElement {
         return (max - s.getDamage()) + "/" + max;
     }
     private int valueWidth(ItemStack[] ps, boolean percent) {
-        int w = 0;
-        for (ItemStack s : ps) if (!s.isEmpty())
-            w = Math.max(w, Math.round(Ui.text().width(value(s, percent), Weight.SEMIBOLD, Tokens.type().body().size())));
-        return w;
+        float size = Tokens.type().body().size(), w = 0;
+        for (ItemStack s : ps) if (!s.isEmpty()) w = Math.max(w, HudText.width(value(s, percent), Weight.SEMIBOLD, size));
+        return Math.round(w);
     }
     /** Durability dot colour — green/amber/red with a smooth crossing at the 0.70 / 0.40 thresholds
      *  (a narrow lerp band each side) so a draining piece shifts colour instead of snapping. */
@@ -88,24 +86,27 @@ public final class ArmorElement extends HudElement {
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
-        var r = ctx.renderer(); var t = ctx.text(); Typography ty = Tokens.type();
+        var r = ctx.renderer(); Typography ty = Tokens.type();
+        float base = ty.body().size();
         ItemStack[] ps = live ? pieces(mc) : sampleStacks();
         boolean percent = h().armorPercent;
         int valW = valueWidth(ps, percent);
         float lh = ty.body().lineHeight();
-        TextStyle style = TextStyle.of(Weight.SEMIBOLD, ty.body().size() * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
+        TextStyle style = TextStyle.of(Weight.SEMIBOLD, base * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
                 .effect(HudPaint.textShadow(alpha));
         DrawContext dc = HudSprites.ctx();
 
         if (h().armorVertical) {
-            // value drawn naturally right after the icon; the durability dots sit in one fixed column at the
-            // tile's right edge (valW-based), so the dots align down the stack.
+            // tabular values right-aligned in the value column: equal-length values (407/407, 481/481) are now
+            // pixel-identical, so icon↔value, value↔dot and the dot column all line up down the stack.
             int row = 0;
             for (ItemStack st : ps) {
                 if (st.isEmpty()) continue;
                 float ry = oy + row * LIST_ROW * s;
                 drawSprite(dc, st, ox, ry, s);
-                t.draw(value(st, percent), ox + (ICON + GAP) * s, ry + (ICON - lh) * 0.5f * s, style);
+                String v = value(st, percent);
+                float tw = HudText.width(v, Weight.SEMIBOLD, base);
+                HudText.draw(ctx, v, ox + (ICON + GAP + valW - tw) * s, ry + (ICON - lh) * 0.5f * s, style, base, s);
                 float dcx = ox + (ICON + GAP + valW + DOTGAP + DOT * 0.5f) * s;
                 r.circle(dcx, ry + ICON * 0.5f * s, DOT * 0.5f * s, Color.scaleAlpha(stateColor(frac(st)), alpha));
                 row++;
@@ -118,9 +119,9 @@ public final class ArmorElement extends HudElement {
                 float cx = ox + col * (cell + GAP) * s;
                 drawSprite(dc, st, cx + (cell - ICON) * 0.5f * s, oy, s);
                 String v = value(st, percent);
-                int vw = Math.round(Ui.text().width(v, Weight.SEMIBOLD, ty.body().size()));
+                float vw = HudText.width(v, Weight.SEMIBOLD, base);
                 float sx = cx + (cell - (vw + DOTGAP + DOT)) * 0.5f * s;
-                t.draw(v, sx, oy + (ICON + 2) * s, style);
+                HudText.draw(ctx, v, sx, oy + (ICON + 2) * s, style, base, s);
                 r.circle(sx + (vw + DOTGAP + DOT * 0.5f) * s, oy + (ICON + 2) * s + lh * 0.5f * s, DOT * 0.5f * s,
                         Color.scaleAlpha(stateColor(frac(st)), alpha));
                 col++;
