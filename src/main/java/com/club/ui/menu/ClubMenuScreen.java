@@ -255,11 +255,11 @@ public final class ClubMenuScreen extends Screen {
         root.layout(0, 0, width, height);
 
         float searchW = 200, searchH = 32;
-        search.layout(contentX + contentW - 16 - searchW, bodyY + 10, searchW, searchH);
+        search.layout(contentX + contentW - 16 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);   // in the header row, next to CLUB
 
         float gridW = contentW - 32;
         grid.cols(Math.max(2, (int) (gridW / 172)));
-        if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 46, gridW, bodyH - 46 - 12);
+        if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 34, gridW, bodyH - 34 - 12);
 
         if (popModule != null) positionPopover();
     }
@@ -289,7 +289,7 @@ public final class ClubMenuScreen extends Screen {
         // header — CLUB wordmark + brand accent mark (identity, not a glyph icon); no full-width divider
         r.roundedRect(winX + 18, winY + headH / 2f - 4, 8, 8, 2, Tokens.accent().accent());
         uiCtx.text().draw("CLUB", winX + 34, winY + (headH - ty.display().lineHeight()) / 2f, stBrand);
-        uiCtx.text().draw(cats.get(catIndex).name(), contentX + 16, bodyY + 14, stTitle);
+        uiCtx.text().draw(cats.get(catIndex).name(), contentX + 16, bodyY + 8, stTitle);
 
         float fy = winY + winH - footH + (footH - ty.label().lineHeight()) / 2f;
         uiCtx.text().draw("Profile · Default", winX + 18, fy, stFootMut);
