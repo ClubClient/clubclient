@@ -83,14 +83,14 @@ public final class ClubMenuScreen extends Screen {
 
     private float winX, winY, winW, winH, bodyY, bodyH, contentX, contentW, railW, headH, footH;
 
-    private TextStyle stBrand, stTitle, stFootMut, stFootFaint, stName, stNameOff, stCat, stCatOn, stCatNum;
+    private TextStyle stBrand, stTitle, stFootMut, stName, stNameOff, stCat, stCatOn, stCatNum;
 
     public ClubMenuScreen() { super(Text.literal("Club")); }
 
     private void openHudEditor() { MinecraftClient.getInstance().setScreen(new HudEditorScreen(this)); }
 
     @Override protected void init() {
-        railW = 178; headH = 56; footH = 40;
+        railW = 178; headH = 44; footH = 40;
         query = ""; popModule = null; popCol = null; openDrop = null; pressOwner = 0;
         search = new SearchField("Search modules").onChange(q -> { query = q; rebuildGrid(); layoutAll(); });
         gridScroll = new ScrollArea(grid);
@@ -205,10 +205,8 @@ public final class ClubMenuScreen extends Screen {
                 if (openDrop == d) {
                     for (int i = 0; i < d.options().length; i++) {
                         final int oi = i;
-                        Button opt = new Button(d.options()[i])
-                                .variant(i == cur ? Button.Variant.PRIMARY : Button.Variant.GHOST)
-                                .onClick(() -> { d.set().accept(oi); openDrop = null; rebuildPopover(); });
-                        col.add(opt); focus.register(opt);
+                        col.add(new OptionRow(d.options()[i], i == cur,
+                                () -> { d.set().accept(oi); openDrop = null; rebuildPopover(); }));
                     }
                 }
             } else if (s instanceof ActionSetting) {
@@ -257,11 +255,11 @@ public final class ClubMenuScreen extends Screen {
         root.layout(0, 0, width, height);
 
         float searchW = 200, searchH = 32;
-        search.layout(contentX + contentW - 16 - searchW, bodyY + 12, searchW, searchH);
+        search.layout(contentX + contentW - 16 - searchW, bodyY + 10, searchW, searchH);
 
         float gridW = contentW - 32;
         grid.cols(Math.max(2, (int) (gridW / 172)));
-        if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 54, gridW, bodyH - 54 - 12);
+        if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 46, gridW, bodyH - 46 - 12);
 
         if (popModule != null) positionPopover();
     }
@@ -285,15 +283,13 @@ public final class ClubMenuScreen extends Screen {
         r.rect(winX, bodyY, railW, bodyH, Tokens.surface().bg1());
 
         int dv = Tokens.border().defaultColor();
-        r.rect(winX, bodyY - 1, winW, 1, dv);
-        r.rect(winX + railW, bodyY, 1, bodyH, dv);
-        r.rect(winX, winY + winH - footH, winW, 1, dv);
+        r.rect(winX + railW, bodyY, 1, bodyH, dv);         // rail | content
+        r.rect(winX, winY + winH - footH, winW, 1, dv);    // above footer
 
-        // header (brand accent mark kept — it is the identity, not a glyph icon)
+        // header — CLUB wordmark + brand accent mark (identity, not a glyph icon); no full-width divider
         r.roundedRect(winX + 18, winY + headH / 2f - 4, 8, 8, 2, Tokens.accent().accent());
         uiCtx.text().draw("CLUB", winX + 34, winY + (headH - ty.display().lineHeight()) / 2f, stBrand);
-        uiCtx.text().draw("v2.5", winX + winW - 18, winY + (headH - ty.label().lineHeight()) / 2f, stFootFaint);
-        uiCtx.text().draw(cats.get(catIndex).name(), contentX + 16, bodyY + 16, stTitle);
+        uiCtx.text().draw(cats.get(catIndex).name(), contentX + 16, bodyY + 14, stTitle);
 
         float fy = winY + winH - footH + (footH - ty.label().lineHeight()) / 2f;
         uiCtx.text().draw("Profile · Default", winX + 18, fy, stFootMut);
@@ -339,7 +335,6 @@ public final class ClubMenuScreen extends Screen {
         stBrand     = TextStyle.of(t.display().weight(), t.display().size(), Tokens.palette().textHi());
         stTitle     = TextStyle.of(t.title().weight(), t.title().size(), Tokens.palette().textHi());
         stFootMut   = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textMuted());
-        stFootFaint = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textFaint()).align(Align.RIGHT);
         stName      = TextStyle.of(t.heading().weight(), t.heading().size(), Tokens.palette().textHi());
         stNameOff   = TextStyle.of(t.heading().weight(), t.heading().size(), Tokens.palette().textMuted());
         stCat       = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textMuted());
@@ -486,6 +481,33 @@ public final class ClubMenuScreen extends Screen {
                 float tw = empty ? 0f : ctx.text().width(text, ty.body().weight(), ty.body().size());
                 r.rect(x + pad + tw + 1f, ty0, 1f, ty.body().lineHeight(), Tokens.accent().accent());
             }
+        }
+    }
+
+    private static final float OPT_H = 24f;
+
+    /** Compact dropdown option row: subtle accent tint + accent text for the selected value, hover wash for
+     *  the rest — no heavy button chrome, so the list stays neat inside the settings popover. */
+    private static final class OptionRow extends Component {
+        private final String text;
+        private final boolean selected;
+        private final Runnable onClick;
+        OptionRow(String text, boolean selected, Runnable onClick) { this.text = text; this.selected = selected; this.onClick = onClick; }
+
+        @Override public Size measure(float aw, float ah) { return new Size(aw, OPT_H); }
+        @Override public void render(UiContext ctx) {
+            UiRenderer r = ctx.renderer();
+            Typography ty = Tokens.type();
+            float rad = Tokens.radius().sm();
+            if (selected) r.roundedRect(x, y, w, h, rad, Color.withAlpha(Tokens.accent().accent(), 0x24));
+            else if (isHovered()) r.roundedRect(x, y, w, h, rad, Tokens.surface().surfaceHi());
+            int col = selected ? Tokens.accent().accent() : (isHovered() ? Tokens.palette().textHi() : Tokens.palette().textMuted());
+            float lh = ty.body().lineHeight();
+            ctx.text().draw(text, x + Tokens.spacing().sm(), y + (OPT_H - lh) / 2f, TextStyle.of(ty.body().weight(), ty.body().size(), col));
+        }
+        @Override public boolean mouseClicked(double mx, double my, int b) {
+            if (b == 0 && contains(mx, my)) { onClick.run(); return true; }
+            return false;
         }
     }
 
