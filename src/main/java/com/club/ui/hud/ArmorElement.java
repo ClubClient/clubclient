@@ -62,8 +62,9 @@ public final class ArmorElement extends HudElement {
     private static float frac(ItemStack s) { int max = s.getMaxDamage(); return max > 0 ? (float) (max - s.getDamage()) / max : 1f; }
     private String value(ItemStack s, boolean percent) {
         if (percent) return Math.round(frac(s) * 100) + "%";
-        int max = s.getMaxDamage();
-        return (max - s.getDamage()) + "/" + max;
+        // count mode = REMAINING durability only (owner 2026-07-03): "407", not "407/407" —
+        // the maximum is implied by the live edge, the chip stays as compact as the percent mode
+        return String.valueOf(s.getMaxDamage() - s.getDamage());
     }
     private int valueWidth(ItemStack[] ps, boolean percent) {
         float size = Tokens.type().body().size(), w = 0;
