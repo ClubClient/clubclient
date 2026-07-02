@@ -1,0 +1,6 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- magnifier: ring + DIAGONAL handle (the diagonal is deliberate — proves the SDF path
+       has no R8 axis-only limitation that the procedural Icon enum had) -->
+  <circle cx="10.5" cy="10.5" r="6.5" stroke-width="2"/>
+  <line x1="15.6" y1="15.6" x2="20.5" y2="20.5" stroke-width="2"/>
+</svg>

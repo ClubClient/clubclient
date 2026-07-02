@@ -18,8 +18,12 @@ import com.club.ui.text.Weight;
  */
 public final class FontRegistry implements GlyphSource {
 
-    // 0=REGULAR, 1=MEDIUM, 2=SEMIBOLD
-    private final MsdfAtlas[] atlases = new MsdfAtlas[3];
+    // 0=REGULAR, 1=MEDIUM, 2=SEMIBOLD, 3=ICONS (Stage 11 — PUA-mapped SDF icon glyphs)
+    private final MsdfAtlas[] atlases = new MsdfAtlas[4];
+    private static final int ICONS = 3;
+    /** Set on the first icon-atlas load failure: PUA lookups then fall through to the '?' path
+     *  instead of re-throwing every frame (a missing icon atlas must not break text). */
+    private boolean iconsBroken;
 
     // -------------------------------------------------------------------------
     // GlyphSource
@@ -27,15 +31,26 @@ public final class FontRegistry implements GlyphSource {
 
     /**
      * Resolves {@code codePoint} at {@code weight} into {@code out}.
-     * Falls back to '?' if the primary code point is absent. Returns {@code false} only
-     * when neither the glyph nor the '?' fallback exists in the atlas.
-     *
-     * <p>GLYPH-CACHE SEAM: future fallback may try other atlases/families/icon/emoji
-     * atlases and set {@code out.atlasId} to that atlas — layout/renderer unchanged
-     * because they key the texture off {@code out.atlasId}.</p>
+     * Private-Use-Area code points (U+E000..U+F8FF) resolve through the ICON atlas first
+     * (the icon seam — an icon IS a glyph; layout/renderer key the texture off
+     * {@code out.atlasId}). Everything else falls back to '?' if the primary code point
+     * is absent. Returns {@code false} only when nothing resolves.
      */
     @Override
     public boolean resolve(Weight weight, int codePoint, ResolvedGlyph out) {
+        if (codePoint >= 0xE000 && codePoint <= 0xF8FF && !iconsBroken) {
+            try {
+                MsdfMetrics.Glyph ig = atlas(ICONS).metrics.get(codePoint);
+                if (ig != null) {
+                    out.atlasId = ICONS;
+                    out.glyph   = ig;
+                    return true;
+                }
+            } catch (Exception e) {
+                iconsBroken = true;
+                System.err.println("[club.ui] icon atlas unavailable — icons disabled: " + e);
+            }
+        }
         int id = atlasId(weight);
         MsdfAtlas a = atlas(id);
         MsdfMetrics.Glyph g = a.metrics.get(codePoint);
@@ -89,7 +104,7 @@ public final class FontRegistry implements GlyphSource {
     /** Lazy atlas accessor — loads on first access. */
     private MsdfAtlas atlas(int id) {
         if (atlases[id] == null) {
-            atlases[id] = MsdfAtlas.load(atlasName(id));
+            atlases[id] = (id == ICONS) ? MsdfAtlas.loadIcons() : MsdfAtlas.load(atlasName(id));
         }
         return atlases[id];
     }

@@ -57,6 +57,33 @@ test {
 	useJUnitPlatform()
 }
 
+// Offline icon SDF atlas (Stage 11). Sources: tools/icons/src/<HHHH>_<name>.svg (HHHH = PUA code
+// point). Generator lives in buildSrc (club.tools.IconAtlasGen) — exact stroke SDF, no external
+// tool. Run manually after adding/editing icons: ./gradlew genIconAtlas
+tasks.register("genIconAtlas") {
+	group = "club"
+	description = "Generate the icon SDF atlas from tools/icons/src into assets/club/ui/icon/msdf."
+	doLast {
+		club.tools.IconAtlasGen.run(
+			file("tools/icons/src"),
+			file("src/main/resources/assets/club/ui/icon/msdf/icons.png"),
+			file("src/main/resources/assets/club/ui/icon/msdf/icons.json"))
+	}
+}
+
+// Software preview board of the icon atlas (shader-accurate alpha math) — for eyeballing icon
+// quality at real UI sizes without launching the client. Output: build/icon-previews/board.png
+tasks.register("genIconPreviews") {
+	group = "club"
+	description = "Render a preview board of the icon atlas at 17/24/40/72px + ghost."
+	doLast {
+		club.tools.IconPreview.run(
+			file("tools/icons/src"),
+			file("build/icon-previews/board.png"),
+			0xF4F6FA)   // textHi — neutral judgement tint; category tints come with the cards
+	}
+}
+
 // Offline MSDF atlas generation. Downloads a pinned msdf-atlas-gen and renders
 // Inter weights to assets/club/ui/font/msdf/. Run manually: ./gradlew genMsdfAtlas
 tasks.register("genMsdfAtlas") {

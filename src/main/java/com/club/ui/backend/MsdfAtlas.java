@@ -45,16 +45,23 @@ public final class MsdfAtlas {
      * @throws RuntimeException if the JSON resource cannot be found or parsed.
      */
     public static MsdfAtlas load(String weight) {
+        return load("ui/font/msdf/inter_" + weight, "ui_atlas_" + weight);
+    }
+
+    /** Loads the Stage-11 icon atlas (same JSON/PNG format; glyphs mapped to PUA code points). */
+    public static MsdfAtlas loadIcons() {
+        return load("ui/icon/msdf/icons", "ui_atlas_icons");
+    }
+
+    private static MsdfAtlas load(String basePath, String texName) {
         ResourceManager rm = MinecraftClient.getInstance().getResourceManager();
-        Identifier jsonId = Identifier.of("club", "ui/font/msdf/inter_" + weight + ".json");
+        Identifier jsonId = Identifier.of("club", basePath + ".json");
         try (InputStream in = rm.getResourceOrThrow(jsonId).getInputStream()) {
             String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             MsdfMetrics m = MsdfMetrics.parse(json);
-            Identifier pngId    = Identifier.of("club", "ui/font/msdf/inter_" + weight + ".png");
-            Identifier texId    = Identifier.of("club", "ui_atlas_" + weight);
-            return new MsdfAtlas(m, pngId, texId);
+            return new MsdfAtlas(m, Identifier.of("club", basePath + ".png"), Identifier.of("club", texName));
         } catch (Exception e) {
-            throw new RuntimeException("MsdfAtlas: failed to load weight '" + weight + "'", e);
+            throw new RuntimeException("MsdfAtlas: failed to load atlas '" + basePath + "'", e);
         }
     }
 

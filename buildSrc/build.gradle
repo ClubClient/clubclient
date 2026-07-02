@@ -1,0 +1,5 @@
+// Build-time tooling for the Club mod (icon SDF atlas generator). Plain Java, no third-party deps —
+// classes here are directly callable from the root build script's task actions.
+plugins {
+    id 'java'
+}
