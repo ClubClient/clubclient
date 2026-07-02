@@ -20,6 +20,7 @@ public final class Toggle extends Control {
 
     private boolean value;
     private BoolConsumer onChange;
+    private int accent;   // 0 = theme accent; set for category-tinted contexts (Stage 11.9)
     private final Transition knob =
             new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
     private final Transition grow =
@@ -27,6 +28,8 @@ public final class Toggle extends Control {
 
     public Toggle(boolean value) { this.value = value; knob.target(value ? 1f : 0f, 0f); }
     public Toggle onChange(BoolConsumer cb) { this.onChange = cb; return this; }
+    /** Overrides the accent colour (ON track + focus ring); 0 restores the theme accent. */
+    public Toggle accent(int color) { this.accent = color; return this; }
     public boolean value() { return value; }
 
     @Override protected void activate() {
@@ -44,7 +47,7 @@ public final class Toggle extends Control {
         float r = h / 2f;
 
         // Track: flat accent (ON) vs inset control surface (OFF) — one language, no gradient/glow.
-        if (value) WidgetPaint.surface(ctx, x, y, w, h, r, Tokens.accent().accent(), 0);
+        if (value) WidgetPaint.surface(ctx, x, y, w, h, r, WidgetPaint.acc(accent), 0);
         else       WidgetPaint.controlTrack(ctx, x, y, w, h, r);
 
         // White-puck handle; travel uses a stable base radius so hover/press grow doesn't shift position.
@@ -53,6 +56,6 @@ public final class Toggle extends Control {
         float cx = (x + KNOB_INSET + baseKr) + (w - 2f * (KNOB_INSET + baseKr)) * k;
         WidgetPaint.whitePuck(ctx, cx, y + r, kr, 0, 0f);
 
-        WidgetPaint.focusRing(ctx, this, r);
+        WidgetPaint.focusRing(ctx, this, r, WidgetPaint.acc(accent));
     }
 }

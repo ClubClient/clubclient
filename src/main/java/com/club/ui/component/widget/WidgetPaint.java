@@ -25,6 +25,14 @@ final class WidgetPaint {
     static final float HANDLE_HOVER_GROW = 1f;
     static final float HANDLE_PRESS_GROW = 2f;
 
+    /** Resolves a per-widget accent override (Stage 11.9: category-tinted popovers): 0 → theme accent. */
+    static int acc(int override) { return override != 0 ? override : Tokens.accent().accent(); }
+    /** Hover-lightened companion of {@link #acc}: theme accentHi, or the same ~18% white lift derived
+     *  from the override (matches #7CABFF → #93BBFF). */
+    static int accHi(int override) {
+        return override != 0 ? Color.lerp(override, 0xFFFFFFFF, 0.18f) : Tokens.accent().accentHi();
+    }
+
     /** Universal flat surface: rounded fill + 1px hairline. Elevation = the chosen fill/border tone
      *  ({@code border==0} → no hairline). */
     static void surface(UiContext ctx, float x, float y, float w, float h, float radius, int fill, int border) {
@@ -50,9 +58,14 @@ final class WidgetPaint {
 
     /** Focus ring around a circular handle at (cx,cy,r) — the knob-local twin of {@link #focusRing}. */
     static void focusRingCircle(UiContext ctx, float cx, float cy, float r) {
+        focusRingCircle(ctx, cx, cy, r, Tokens.interaction().focusRing());
+    }
+
+    /** {@link #focusRingCircle} with an explicit ring colour (category-accent overrides, Stage 11.9). */
+    static void focusRingCircle(UiContext ctx, float cx, float cy, float r, int color) {
         float fr = r + FOCUS_GAP;
         ctx.renderer().border(cx - fr, cy - fr, fr * 2f, fr * 2f, fr,
-                Tokens.interaction().focusRingWidth(), Tokens.interaction().focusRing());
+                Tokens.interaction().focusRingWidth(), color);
     }
 
     /** Gap (px) between a component's bounds and its focus ring, so the ring reads as an offset
@@ -62,10 +75,15 @@ final class WidgetPaint {
     /** Focus ring: an offset accent halo just outside the component's bounds — drawn only while focused.
      *  Flat (a hairline stroke, not a glow); the 2px gap keeps it off the element's own edge. */
     static void focusRing(UiContext ctx, Component c, float radius) {
+        focusRing(ctx, c, radius, Tokens.interaction().focusRing());
+    }
+
+    /** {@link #focusRing} with an explicit ring colour (category-accent overrides, Stage 11.9). */
+    static void focusRing(UiContext ctx, Component c, float radius, int color) {
         if (!c.isFocused()) return;
         ctx.renderer().border(c.xLeft() - FOCUS_GAP, c.yTop() - FOCUS_GAP,
                 c.width() + FOCUS_GAP * 2f, c.height() + FOCUS_GAP * 2f, radius + FOCUS_GAP,
-                Tokens.interaction().focusRingWidth(), Tokens.interaction().focusRing());
+                Tokens.interaction().focusRingWidth(), color);
     }
 
     /** Hover-wash overlay scaled by progress t∈[0,1] (alpha-scaled token, no literals). */

@@ -54,7 +54,11 @@ public final class Slider extends Container {
 
     public Slider onChange(FloatConsumer cb) { this.onChange = cb; return this; }
     public Slider showValue(boolean s) { this.showValue = s; built = false; return this; }
+    /** Overrides the accent colour (fill/knob/focus ring); 0 restores the theme accent. */
+    public Slider accent(int color) { this.accent = color; return this; }
     public float value() { return value; }
+
+    private int accent;   // 0 = theme accent; set for category-tinted contexts (Stage 11.9)
 
     /** Clamp to [min,max] then snap to step (step==0 → continuous). Pure — unit-tested without GL. */
     static float quantize(float raw, float min, float max, float step) {
@@ -176,12 +180,12 @@ public final class Slider extends Container {
 
             // Groove (full width) then flat accent fill up to the puck centre.
             ctx.renderer().roundedRect(x, railY, w, RAIL_H, railR, Tokens.surface().surfaceHi());
-            ctx.renderer().roundedRect(x, railY, knobX - x, RAIL_H, railR, Tokens.accent().accent());
+            ctx.renderer().roundedRect(x, railY, knobX - x, RAIL_H, railR, WidgetPaint.acc(accent));
 
             // Focus ring + knob: a compact light-accent knob with a thin dark ring — reads integrated
             // with the fill (not a foreign white puck), defined on both fill and groove. Flat.
-            if (Slider.this.isFocused()) WidgetPaint.focusRingCircle(ctx, knobX, cy, kr);
-            WidgetPaint.puck(ctx, knobX, cy, kr, Tokens.accent().accentHi(), Tokens.accent().onAccent(),
+            if (Slider.this.isFocused()) WidgetPaint.focusRingCircle(ctx, knobX, cy, kr, WidgetPaint.acc(accent));
+            WidgetPaint.puck(ctx, knobX, cy, kr, WidgetPaint.accHi(accent), Tokens.accent().onAccent(),
                     Tokens.border().thickness());
         }
     }

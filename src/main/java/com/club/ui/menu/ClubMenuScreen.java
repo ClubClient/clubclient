@@ -36,6 +36,7 @@ import com.club.ui.menu.MenuContent.ToggleSetting;
 import com.club.ui.motion.Reveal;
 import com.club.ui.motion.Transition;
 import com.club.ui.motion.ValueTween;
+import com.club.ui.text.Align;
 import com.club.ui.text.TextStyle;
 import com.club.ui.theme.Tokens;
 import com.club.ui.theme.Typography;
@@ -90,6 +91,7 @@ public final class ClubMenuScreen extends Screen {
     private Column popCol;
     private ScrollArea popScroll;   // wraps popCol so long settings/dropdown lists scroll instead of overflowing
     private int tabIndex;
+    private Transition segSlide;    // segmented-tab pill position — outer, so it survives popover rebuilds
     private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
     private float popX, popY, popW, popH, popAX, popAY, popAW, popAH;
     private int pressOwner;
@@ -201,6 +203,7 @@ public final class ClubMenuScreen extends Screen {
     private void openPopover(Module m, float ax, float ay, float aw, float ah) {
         popModule = m; popAX = ax; popAY = ay; popAW = aw; popAH = ah; tabIndex = 0; openDrop = null;
         popClosing = false; popReveal = null;   // render() plays the grow-in on the first frame
+        segSlide = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         rebuildPopover();
     }
 
@@ -243,19 +246,14 @@ public final class ClubMenuScreen extends Screen {
 
     private Column buildSettings(Module m) {
         Column col = new Column().gap(Tokens.spacing().sm()).crossAlign(CrossAlign.STRETCH);
+        int accent = catAccent(catIndex);   // 11.9: the popover speaks its category's colour
 
         List<Setting> settings;
         if (m.hasTabs()) {
             List<Tab> tabs = m.tabs();
-            Row seg = new Row().gap(Tokens.spacing().sm());
-            for (int i = 0; i < tabs.size(); i++) {
-                final int ti = i;
-                Button b = new Button(tabs.get(i).label())
-                        .variant(ti == tabIndex ? Button.Variant.PRIMARY : Button.Variant.GHOST)
-                        .onClick(() -> { tabIndex = ti; openDrop = null; rebuildPopover(); });
-                seg.add(b); focus.register(b);
-            }
-            col.add(seg);
+            String[] labels = new String[tabs.size()];
+            for (int i = 0; i < tabs.size(); i++) labels[i] = tabs.get(i).label();
+            col.add(new SegmentRow(labels, accent));
             settings = tabs.get(Math.min(tabIndex, tabs.size() - 1)).settings();
         } else settings = m.settings();
 
@@ -267,22 +265,22 @@ public final class ClubMenuScreen extends Screen {
                 int cur = clampIdx(d);
                 Row row = new Row().crossAlign(CrossAlign.CENTER);
                 row.add(new Label(d.label(), Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
-                Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST)
+                Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST).accent(accent)
                         .onClick(() -> { openDrop = (openDrop == d) ? null : d; rebuildPopover(); });
                 row.add(field);
                 col.add(row); focus.register(field);
                 if (openDrop == d) {
                     for (int i = 0; i < d.options().length; i++) {
                         final int oi = i;
-                        col.add(new OptionRow(d.options()[i], i == cur,
+                        col.add(new OptionRow(d.options()[i], i == cur, accent,
                                 () -> { d.set().accept(oi); openDrop = null; rebuildPopover(); }));
                     }
                 }
             } else if (s instanceof ActionSetting) {
-                Component ctrl = buildControl(s);
+                Component ctrl = buildControl(s, accent);
                 Row rr = new Row(); rr.add(ctrl); col.add(rr); focus.register(ctrl);
             } else {
-                Component ctrl = buildControl(s);
+                Component ctrl = buildControl(s, accent);
                 Row rr = new Row().crossAlign(CrossAlign.CENTER);
                 rr.add(new Label(s.label(), Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
                 rr.add(ctrl);
@@ -291,7 +289,7 @@ public final class ClubMenuScreen extends Screen {
         }
 
         if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
-            Button reset = new Button("Reset to Default").variant(Button.Variant.GHOST)
+            Button reset = new Button("Reset to Default").variant(Button.Variant.GHOST).accent(accent)
                     .onClick(() -> { m.reset().run(); openDrop = null; rebuildPopover(); });
             Row rr = new Row(); rr.add(Spacer.fill()); rr.add(reset);
             col.add(rr); focus.register(reset);
@@ -303,11 +301,11 @@ public final class ClubMenuScreen extends Screen {
         return Math.max(0, Math.min(d.get().getAsInt(), d.options().length - 1));
     }
 
-    private Component buildControl(Setting s) {
-        if (s instanceof SliderSetting sl) return new Slider(sl.get().get(), sl.min(), sl.max(), sl.step()).onChange(sl.set());
-        if (s instanceof ToggleSetting t)  return new Toggle(t.get().getAsBoolean()).onChange(t.set());
-        if (s instanceof CheckSetting ck)  return new Checkbox(ck.get().getAsBoolean()).onChange(ck.set());
-        if (s instanceof ActionSetting a)  return new Button(a.label()).variant(Button.Variant.GHOST).onClick(a.action());
+    private Component buildControl(Setting s, int accent) {
+        if (s instanceof SliderSetting sl) return new Slider(sl.get().get(), sl.min(), sl.max(), sl.step()).onChange(sl.set()).accent(accent);
+        if (s instanceof ToggleSetting t)  return new Toggle(t.get().getAsBoolean()).onChange(t.set()).accent(accent);
+        if (s instanceof CheckSetting ck)  return new Checkbox(ck.get().getAsBoolean()).onChange(ck.set()).accent(accent);
+        if (s instanceof ActionSetting a)  return new Button(a.label()).variant(Button.Variant.GHOST).onClick(a.action()).accent(accent);
         throw new IllegalStateException("unsupported inline setting: " + s);
     }
 
@@ -670,15 +668,16 @@ public final class ClubMenuScreen extends Screen {
             hoverT.target(isHovered() ? 1f : 0f, now);
             float fv = focusT.value(now), hv = hoverT.value(now);
 
+            int acc = catAccent(catIndex);   // 11.9: search highlight speaks the current category's colour
             r.roundedRect(x, y, w, h, rad, Tokens.surface().bg1());
             // border eases default -> accent@0x99 (hover) -> accent (focus)
-            int hoverBorder = Color.lerp(Tokens.border().defaultColor(), Color.withAlpha(Tokens.accent().accent(), 0x99), hv);
-            r.border(x, y, w, h, rad, Tokens.border().thickness(), Color.lerp(hoverBorder, Tokens.accent().accent(), fv));
+            int hoverBorder = Color.lerp(Tokens.border().defaultColor(), Color.withAlpha(acc, 0x99), hv);
+            r.border(x, y, w, h, rad, Tokens.border().thickness(), Color.lerp(hoverBorder, acc, fv));
 
-            // leading magnifier glyph — tints toward accent on focus, matching the border
+            // leading magnifier glyph — tints toward the category accent on focus, matching the border
             float isz = 13f;
             IconGlyph.SEARCH.draw(ctx, x + pad, y + (h - isz) / 2f, isz,
-                    Color.scaleAlpha(Color.lerp(Tokens.palette().textMuted(), Tokens.accent().accent(), fv), screenAlpha));
+                    Color.scaleAlpha(Color.lerp(Tokens.palette().textMuted(), acc, fv), screenAlpha));
             float textX = x + pad + isz + 6f;
 
             float ty0 = y + (h - ty.body().lineHeight()) / 2f;
@@ -693,7 +692,7 @@ public final class ClubMenuScreen extends Screen {
             if (fv > 0.001f) {   // caret: smooth ~1 Hz sine pulse — inside the clip so a long query can't spill it past the field
                 float blink = 0.15f + 0.85f * (0.5f + 0.5f * (float) Math.sin(now * 2f * (float) Math.PI));
                 float tw = empty ? 0f : ctx.text().width(text, ty.body().weight(), ty.body().size());
-                r.rect(textX + tw + 1f, ty0, 1f, ty.body().lineHeight(), Color.scaleAlpha(Tokens.accent().accent(), fv * blink));
+                r.rect(textX + tw + 1f, ty0, 1f, ty.body().lineHeight(), Color.scaleAlpha(acc, fv * blink));
             }
             r.popClip();
         }
@@ -701,15 +700,18 @@ public final class ClubMenuScreen extends Screen {
 
     private static final float OPT_H = 24f;
 
-    /** Compact dropdown option row: subtle accent tint + accent text for the selected value, hover wash for
-     *  the rest — no heavy button chrome, so the list stays neat inside the settings popover. */
+    /** Compact dropdown option row: subtle category-accent tint + accent text for the selected value,
+     *  hover wash for the rest — no heavy button chrome, so the list stays neat inside the popover. */
     private static final class OptionRow extends Component {
         private final String text;
         private final boolean selected;
+        private final int accent;
         private final Runnable onClick;
         private final Transition hoverT =
                 new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
-        OptionRow(String text, boolean selected, Runnable onClick) { this.text = text; this.selected = selected; this.onClick = onClick; }
+        OptionRow(String text, boolean selected, int accent, Runnable onClick) {
+            this.text = text; this.selected = selected; this.accent = accent; this.onClick = onClick;
+        }
 
         @Override public Size measure(float aw, float ah) { return new Size(aw, OPT_H); }
         @Override public void render(UiContext ctx) {
@@ -719,9 +721,9 @@ public final class ClubMenuScreen extends Screen {
             float rad = Tokens.radius().sm();
             hoverT.target(isHovered() ? 1f : 0f, now);
             float hv = hoverT.value(now);
-            if (selected) r.roundedRect(x, y, w, h, rad, Color.withAlpha(Tokens.accent().accent(), 0x24));   // selected tint (baked)
+            if (selected) r.roundedRect(x, y, w, h, rad, Color.withAlpha(accent, 0x24));   // selected tint (baked)
             else if (hv > 0.001f) r.roundedRect(x, y, w, h, rad, Color.scaleAlpha(Tokens.surface().surfaceHi(), hv));  // hover wash eases in
-            int col = selected ? Tokens.accent().accent()
+            int col = selected ? accent
                                : Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), hv);
             float lh = ty.body().lineHeight();
             ctx.text().draw(text, x + Tokens.spacing().sm(), y + (OPT_H - lh) / 2f, TextStyle.of(ty.body().weight(), ty.body().size(), col));
@@ -729,6 +731,50 @@ public final class ClubMenuScreen extends Screen {
         @Override public boolean mouseClicked(double mx, double my, int b) {
             if (b == 0 && contains(mx, my)) { onClick.run(); return true; }
             return false;
+        }
+    }
+
+    private static final float SEG_H = 28f;
+
+    /** Quiet segmented selector for popover tabs (11.9 — replaces the loud PRIMARY/GHOST button pair):
+     *  one recessed track, equal segments, an eased category-tinted pill sliding between them; active
+     *  label = category accent, inactive = muted. The slide lives in the outer {@code segSlide} so it
+     *  survives the popover rebuild a tab switch triggers. */
+    private final class SegmentRow extends Component {
+        private final String[] labels;
+        private final int accent;
+        SegmentRow(String[] labels, int accent) { this.labels = labels; this.accent = accent; }
+
+        @Override public Size measure(float aw, float ah) { return new Size(aw, SEG_H); }
+
+        @Override public void render(UiContext ctx) {
+            UiRenderer r = ctx.renderer();
+            Typography ty = Tokens.type();
+            float now = ctx.time();
+            float rad = 8f;   // matches the card chip radius
+            r.roundedRect(x, y, w, h, rad, Tokens.surface().bg1());
+            r.border(x, y, w, h, rad, Tokens.border().thickness(), Tokens.border().defaultColor());
+            float segW = w / labels.length;
+            float px = x + (segSlide != null ? segSlide.value(now) : tabIndex) * segW;
+            r.roundedRect(px + 2, y + 2, segW - 4, h - 4, rad - 2, Color.withAlpha(accent, 0x2E));
+            float lh = ty.label().lineHeight();
+            for (int i = 0; i < labels.length; i++) {
+                int col = (i == tabIndex) ? accent : Tokens.palette().textMuted();
+                ctx.text().draw(labels[i], x + segW * i + segW / 2f, y + (h - lh) / 2f,
+                        TextStyle.of(ty.label().weight(), ty.label().size(), col).align(Align.CENTER));
+            }
+        }
+
+        @Override public boolean mouseClicked(double mx, double my, int b) {
+            if (b != 0 || !contains(mx, my)) return false;
+            int seg = Math.max(0, Math.min(labels.length - 1, (int) ((mx - x) / (w / labels.length))));
+            if (seg != tabIndex) {
+                tabIndex = seg;
+                if (segSlide != null) segSlide.target(seg, uiCtx.time());
+                openDrop = null;
+                rebuildPopover();
+            }
+            return true;
         }
     }
 

@@ -20,6 +20,7 @@ public final class Button extends Control {
     private final Label label;
     private Variant variant = Variant.PRIMARY;
     private Runnable onClick;
+    private int accent;   // 0 = theme accent; set for category-tinted contexts (Stage 11.9)
     private final Transition hover =
             new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
     private boolean styleInit, lastHovered;   // discrete label-color state → no per-frame TextStyle rebuild
@@ -28,6 +29,8 @@ public final class Button extends Control {
 
     public Button variant(Variant v) { this.variant = v; this.styleInit = false; return this; }
     public Button onClick(Runnable r) { this.onClick = r; return this; }
+    /** Overrides the accent colour (PRIMARY fill / GHOST hover tint / focus ring); 0 = theme accent. */
+    public Button accent(int color) { this.accent = color; this.styleInit = false; return this; }
 
     /** Package-private for same-package tests (NOT public §3 API). */
     Variant variantValue() { return variant; }
@@ -55,23 +58,23 @@ public final class Button extends Control {
         float hv = hover.value(now);                    // animated via int colors only (alloc-free)
 
         if (variant == Variant.PRIMARY) {
-            ctx.renderer().roundedRect(x, y, w, h, r, Color.lerp(Tokens.accent().accent(), Tokens.accent().accentHi(), hv));
+            ctx.renderer().roundedRect(x, y, w, h, r, Color.lerp(WidgetPaint.acc(accent), WidgetPaint.accHi(accent), hv));
             if (pressed) WidgetPaint.pressOverlay(ctx, x, y, w, h, r);
         } else { // GHOST — premium outline: a visible strong hairline that tints toward accent on hover.
             WidgetPaint.hoverWash(ctx, x, y, w, h, r, hv);
             ctx.renderer().border(x, y, w, h, r, Tokens.border().thickness(),
-                    Color.lerp(Tokens.border().strong(), Tokens.accent().accent(), hv));
+                    Color.lerp(Tokens.border().strong(), WidgetPaint.acc(accent), hv));
             if (pressed) WidgetPaint.pressOverlay(ctx, x, y, w, h, r);
         }
 
         // Discrete label color: Label rebuilds its TextStyle only on a state change, never per-frame (alloc-free).
         if (!styleInit || hovered != lastHovered) {
             label.color(variant == Variant.PRIMARY ? Tokens.accent().onAccent()
-                        : (hovered ? Tokens.accent().accent() : Tokens.palette().textHi()));
+                        : (hovered ? WidgetPaint.acc(accent) : Tokens.palette().textHi()));
             lastHovered = hovered;
             styleInit = true;
         }
         label.render(ctx);                              // bounds set in layout(); no per-frame measure/alloc
-        WidgetPaint.focusRing(ctx, this, r);
+        WidgetPaint.focusRing(ctx, this, r, WidgetPaint.acc(accent));
     }
 }
