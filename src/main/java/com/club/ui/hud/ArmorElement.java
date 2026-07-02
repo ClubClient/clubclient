@@ -13,13 +13,18 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 
 /**
- * Armor durability on the V2 stack: per equipped piece a vanilla item sprite + its value (white SemiBold) +
- * a small durability dot (green ≥70% / amber ≥40% / red &lt;40%). Vertical column (default) or a row of cells.
- * The sprite is the one thing the V2 renderer can't draw, so it goes through the frame's {@link HudSprites}
- * DrawContext (matrix-scaled to the element's scale); value/dot/panel are pure V2. Empty pieces are skipped.
+ * Armor on the V4 "Chips" language (Stage 13): each equipped piece is its own capsule
+ * [sprite + exact value], and the capsule's LIVE EDGE is that piece's durability — state-coloured
+ * (green/amber/red with smooth threshold crossings). The old dot indicator is gone: the edge carries
+ * the state, the digits stay exact (truth). Vertical stack (default) or a row of capsules.
+ * The sprite is the one thing the V2 renderer can't draw, so it goes through the frame's
+ * {@link HudSprites} DrawContext (matrix-scaled). Empty pieces are skipped.
  */
 public final class ArmorElement extends HudElement {
-    private static final int ICON = 16, GAP = 6, DOT = 4, DOTGAP = 6;   // value text is body-size (smaller than the 16px icon); row height = shared LIST_ROW
+    private static final int ICON = 16, GAP = 7;            // sprite size; sprite ↔ value gap
+    private static final float CHIP_H = 28f, CHIP_GAP = 4f; // capsule height / stack gap (unscaled)
+    private static final float PAD_X = 10f, PAD_TOP = 4f;   // capsule padding (icon band sits high; edge zone below)
+    private static final float BAR_H = 2f;                  // live edge height (rows are quieter than Target's 3px)
 
     public ArmorElement() { super("armor"); }
     @Override public String displayName() { return "Armor"; }
@@ -65,7 +70,7 @@ public final class ArmorElement extends HudElement {
         for (ItemStack s : ps) if (!s.isEmpty()) w = Math.max(w, HudText.width(value(s, percent), Weight.SEMIBOLD, size));
         return Math.round(w);
     }
-    /** Durability dot colour — green/amber/red with a smooth crossing at the 0.70 / 0.40 thresholds
+    /** Edge colour — green/amber/red with a smooth crossing at the 0.70 / 0.40 thresholds
      *  (a narrow lerp band each side) so a draining piece shifts colour instead of snapping. */
     private static int stateColor(float f) {
         int good = Tokens.palette().stateGood(), warn = Tokens.palette().stateWarn(), low = Tokens.palette().stateLow();
@@ -76,57 +81,56 @@ public final class ArmorElement extends HudElement {
         return low;
     }
 
+    // V4: capsules are drawn per piece in paint(); no shared outer panel.
+    @Override protected float panelPadX() { return 0f; }
+    @Override protected float panelPadY() { return 0f; }
+    @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
+
+    /** Uniform capsule width (all chips share it → the stack reads as one column). */
+    private int chipW(ItemStack[] ps, boolean percent) {
+        return Math.round(2 * PAD_X + ICON + GAP + valueWidth(ps, percent));
+    }
+
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
         ItemStack[] ps = live ? pieces(mc) : sampleStacks();
         int count = count(ps);
         if (count == 0) return new int[]{0, 0};
-        int valW = valueWidth(ps, h().armorPercent);
-        if (h().armorVertical) return new int[]{ ICON + GAP + valW + DOTGAP + DOT, (count - 1) * LIST_ROW + ICON };
-        int cell = Math.max(ICON, valW + DOTGAP + DOT);
-        return new int[]{ count * cell + (count - 1) * GAP, ICON + 2 + Math.round(Tokens.type().body().lineHeight()) };
+        int cw = chipW(ps, h().armorPercent);
+        if (h().armorVertical)
+            return new int[]{ cw, Math.round(count * CHIP_H + (count - 1) * CHIP_GAP) };
+        return new int[]{ Math.round(count * cw + (count - 1) * CHIP_GAP), Math.round(CHIP_H) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
-        var r = ctx.renderer(); Typography ty = Tokens.type();
+        Typography ty = Tokens.type();
         float base = ty.body().size();
         ItemStack[] ps = live ? pieces(mc) : sampleStacks();
         boolean percent = h().armorPercent;
+        boolean vertical = h().armorVertical;
+        float cw = chipW(ps, percent);
         int valW = valueWidth(ps, percent);
         float lh = ty.body().lineHeight();
         TextStyle style = TextStyle.of(Weight.SEMIBOLD, base * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
                 .effect(HudPaint.textShadow(alpha));
         DrawContext dc = HudSprites.ctx();
 
-        if (h().armorVertical) {
-            // tabular values right-aligned in the value column: equal-length values (407/407, 481/481) are now
-            // pixel-identical, so icon↔value, value↔dot and the dot column all line up down the stack.
-            int row = 0;
-            for (ItemStack st : ps) {
-                if (st.isEmpty()) continue;
-                float ry = oy + row * LIST_ROW * s;
-                drawSprite(dc, st, ox, ry, s);
-                String v = value(st, percent);
-                float tw = HudText.width(v, Weight.SEMIBOLD, base);
-                HudText.draw(ctx, v, ox + (ICON + GAP + valW - tw) * s, ry + (ICON - lh) * 0.5f * s, style, base, s);
-                float dcx = ox + (ICON + GAP + valW + DOTGAP + DOT * 0.5f) * s;
-                r.circle(dcx, ry + ICON * 0.5f * s, DOT * 0.5f * s, Color.scaleAlpha(stateColor(frac(st)), alpha));
-                row++;
-            }
-        } else {
-            int cell = Math.max(ICON, valW + DOTGAP + DOT);
-            int col = 0;
-            for (ItemStack st : ps) {
-                if (st.isEmpty()) continue;
-                float cx = ox + col * (cell + GAP) * s;
-                drawSprite(dc, st, cx + (cell - ICON) * 0.5f * s, oy, s);
-                String v = value(st, percent);
-                float vw = HudText.width(v, Weight.SEMIBOLD, base);
-                float sx = cx + (cell - (vw + DOTGAP + DOT)) * 0.5f * s;
-                HudText.draw(ctx, v, sx, oy + (ICON + 2) * s, style, base, s);
-                r.circle(sx + (vw + DOTGAP + DOT * 0.5f) * s, oy + (ICON + 2) * s + lh * 0.5f * s, DOT * 0.5f * s,
-                        Color.scaleAlpha(stateColor(frac(st)), alpha));
-                col++;
-            }
+        int i = 0;
+        for (ItemStack st : ps) {
+            if (st.isEmpty()) continue;
+            float cx = vertical ? ox : ox + i * (cw + CHIP_GAP) * s;
+            float cy = vertical ? oy + i * (CHIP_H + CHIP_GAP) * s : oy;
+            float f = frac(st);
+
+            HudPaint.chip(ctx, cx, cy, cw * s, CHIP_H * s, HudPaint.CHIP_RAD * s, alpha);
+            HudPaint.edgeBar(ctx, cx, cy, cw * s, CHIP_H * s, BAR_H, f, stateColor(f), s, alpha);
+
+            drawSprite(dc, st, cx + PAD_X * s, cy + PAD_TOP * s, s);
+            // tabular value right-aligned in the shared column: equal-length values are pixel-identical
+            String v = value(st, percent);
+            float tw = HudText.width(v, Weight.SEMIBOLD, base);
+            HudText.draw(ctx, v, cx + (PAD_X + ICON + GAP + valW - tw) * s,
+                    cy + (PAD_TOP + (ICON - lh) * 0.5f) * s, style, base, s);
+            i++;
         }
     }
 
