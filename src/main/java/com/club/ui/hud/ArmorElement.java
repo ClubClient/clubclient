@@ -170,20 +170,22 @@ public final class ArmorElement extends HudElement {
         };
     }
 
-    /** Icon tint = MATERIAL association (identity only — never grades the durability number). */
+    /** Icon tint = MATERIAL association (identity only — never grades the durability number).
+     *  Deliberately juicier than the raw item colors — a full set in one muted tone read as
+     *  tasteless gray (owner), so every material gets a clearly voiced hue. */
     private static int materialTint(ItemStack st) {
-        if (st.getItem() instanceof ElytraItem) return 0xFFA99EC2;          // phantom-membrane mauve
-        if (!(st.getItem() instanceof ArmorItem ai)) return 0xFFA9B4C4;
+        if (st.getItem() instanceof ElytraItem) return 0xFFB3A6DE;          // phantom-membrane lilac
+        if (!(st.getItem() instanceof ArmorItem ai)) return 0xFFAEB9C9;
         String m = ai.getMaterial().getKey().map(k -> k.getValue().getPath()).orElse("");
         return switch (m) {
-            case "leather"   -> 0xFFB39070;
-            case "chainmail" -> 0xFF9AA6B4;
-            case "iron"      -> 0xFFC9D0D8;
-            case "gold"      -> 0xFFE4C87A;
-            case "diamond"   -> 0xFF7CD0DC;
-            case "netherite" -> 0xFFA28A96;
-            case "turtle"    -> 0xFF7FBFA6;
-            default          -> 0xFFA9B4C4;   // unknown/modded — neutral steel
+            case "leather"   -> 0xFFC1976B;
+            case "chainmail" -> 0xFFACB8C6;
+            case "iron"      -> 0xFFD8DEE6;
+            case "gold"      -> 0xFFF2CE72;
+            case "diamond"   -> 0xFF7FE0E6;
+            case "netherite" -> 0xFFB98FA9;
+            case "turtle"    -> 0xFF8FD0AC;
+            default          -> 0xFFAEB9C9;   // unknown/modded — neutral steel
         };
     }
 }

@@ -136,7 +136,7 @@ public final class EffectsElement extends HudElement {
         for (Fx r : rows) {
             float t = HudText.width(r.time(), Weight.SEMIBOLD, ty.body().size());
             if (!r.amp().isEmpty())
-                t += Ui.text().width(r.amp(), Weight.MEDIUM, ty.label().size()) + 2 * DOT_PAD + DOT;
+                t += Ui.text().width(r.amp(), Weight.SEMIBOLD, ty.label().size()) + 2 * DOT_PAD + DOT;
             w = Math.max(w, t);
         }
         return Math.round(ICON + GAP + w);
@@ -164,7 +164,7 @@ public final class EffectsElement extends HudElement {
         float base = ty.body().size(), ampSize = ty.label().size();
         float lh = ty.body().lineHeight();
         float textTop = (ICON - lh) * 0.5f;                    // text block centered on the icon box
-        float ampDy = Ui.text().ascent(Weight.SEMIBOLD, base) - Ui.text().ascent(Weight.MEDIUM, ampSize);
+        float ampDy = Ui.text().ascent(Weight.SEMIBOLD, base) - Ui.text().ascent(Weight.SEMIBOLD, ampSize);
         // the separator dot sits at the digits' optical middle (~half x-height above the baseline)
         float dotY = textTop + Ui.text().ascent(Weight.SEMIBOLD, base) - base * 0.28f - DOT * 0.5f;
 
@@ -192,13 +192,15 @@ public final class EffectsElement extends HudElement {
                     TextStyle.of(Weight.SEMIBOLD, base * s, Color.scaleAlpha(Tokens.palette().textHi(), a))
                             .effect(HudPaint.textShadow(a)), base, s);
             if (!row.amp().isEmpty()) {
-                // [II · 1:24] — level hugs its own time, separated by the faint dot
-                float ampW = Ui.text().width(row.amp(), Weight.MEDIUM, ampSize);
+                // [II · 1:24] — the level hugs its own time, separated by the faint dot. It speaks
+                // in the effect's association color (it IS the effect's identity — "Speed II"),
+                // muted gray here read as dark and tasteless (owner).
+                float ampW = Ui.text().width(row.amp(), Weight.SEMIBOLD, ampSize);
                 float dotX = timeX - DOT_PAD - DOT;
                 ctx.renderer().roundedRect(cx + dotX * s, cy + dotY * s, DOT * s, DOT * s, DOT * 0.5f * s,
                         Color.scaleAlpha(Tokens.palette().textFaint(), a));
                 ctx.text().draw(row.amp(), cx + (dotX - DOT_PAD - ampW) * s, cy + (textTop + ampDy) * s,
-                        TextStyle.of(Weight.MEDIUM, ampSize * s, Color.scaleAlpha(Tokens.palette().textMuted(), a))
+                        TextStyle.of(Weight.SEMIBOLD, ampSize * s, Color.scaleAlpha(row.color(), a))
                                 .effect(HudPaint.textShadow(a)));
             }
             HudPaint.rowBar(ctx, cx, cy + (ICON + BAR_GAP) * s, cell * s, BAR_H,
