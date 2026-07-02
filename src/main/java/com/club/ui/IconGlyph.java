@@ -20,8 +20,18 @@ import com.club.ui.text.Weight;
 public enum IconGlyph {
     // categories (rail)
     COMBAT(0xE000),
+    VISUALS(0xE001),
+    PLAYER(0xE002),
+    MISC(0xE003),
+    // modules
+    ANIMATIONS(0xE010),
+    SCREEN_STRETCH(0xE011),
+    HANDS(0xE012),
+    HUD_EDITOR(0xE013),
     // service
-    SEARCH(0xE020);
+    SEARCH(0xE020),
+    /** The CLUB mark — the club card suit (trefoil), solid. Header wordmark + editor watermark. */
+    LOGO(0xE021);
 
     public final int codePoint;
     private final String str;

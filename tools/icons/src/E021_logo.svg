@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- CLUB logo V1: the club card suit (trefoil) — "Club" IS the club suit. Solid mark. -->
+  <circle cx="12" cy="7.4" r="4.2" fill="solid"/>
+  <circle cx="7.1" cy="13.9" r="4.2" fill="solid"/>
+  <circle cx="16.9" cy="13.9" r="4.2" fill="solid"/>
+  <rect x="10.8" y="13.5" width="2.4" height="7.0" rx="1.2" fill="solid"/>
+</svg>

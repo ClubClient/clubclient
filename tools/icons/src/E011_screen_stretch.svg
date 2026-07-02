@@ -1,0 +1,9 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- screen stretch: two outward diagonal arrows (top-right / bottom-left) -->
+  <line x1="13.6" y1="10.4" x2="20" y2="4" stroke-width="2"/>
+  <line x1="14.8" y1="4" x2="20" y2="4" stroke-width="2"/>
+  <line x1="20" y1="4" x2="20" y2="9.2" stroke-width="2"/>
+  <line x1="10.4" y1="13.6" x2="4" y2="20" stroke-width="2"/>
+  <line x1="4" y1="14.8" x2="4" y2="20" stroke-width="2"/>
+  <line x1="4" y1="20" x2="9.2" y2="20" stroke-width="2"/>
+</svg>

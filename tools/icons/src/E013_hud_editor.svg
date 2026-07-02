@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- hud editor: screen frame with a widget block and readout lines -->
+  <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke-width="2"/>
+  <rect x="6.8" y="7.8" width="4.6" height="3.6" rx="1" stroke-width="2"/>
+  <line x1="14.4" y1="9.6" x2="17.2" y2="9.6" stroke-width="2"/>
+  <line x1="6.8" y1="15.4" x2="12.4" y2="15.4" stroke-width="2"/>
+</svg>

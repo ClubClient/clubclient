@@ -58,8 +58,10 @@ class IconAtlasTest {
         assertEquals(m.atlasW, img.getWidth());
         assertEquals(m.atlasH, img.getHeight());
         // For each glyph tile: the interior of a 2px stroke reaches 0.5 + (1u*SCALE)/range =
-        // 0.5 + 3/8 = 0.875 -> 223 (fills clamp to 255); tile corner is far outside (near 0);
-        // and SOME mid-gray band must exist (the distance ramp) — i.e. not a binary mask.
+        // 0.5 + 3/8 = 0.875 -> 223 when a sample lands on the centerline; worst-case half-pixel
+        // sampling offset drops that to ~210, hence the 205 floor (a degenerate 1px stroke would
+        // be ~175). Fills clamp to 255. Tile corner is far outside (near 0); and SOME mid-gray
+        // band must exist (the distance ramp) — i.e. not a binary mask.
         for (IconGlyph g : IconGlyph.values()) {
             MsdfMetrics.Glyph gl = m.get(g.codePoint);
             int x0 = Math.round(gl.u0 * m.atlasW), x1 = Math.round(gl.u1 * m.atlasW);
@@ -72,7 +74,7 @@ class IconAtlasTest {
                     if (v > 96 && v < 160) mid++;
                 }
             }
-            assertTrue(max >= 215, g + ": interior never crosses the stroke-core level (max=" + max + ")");
+            assertTrue(max >= 205, g + ": interior never crosses the stroke-core level (max=" + max + ")");
             assertTrue(mid > 50, g + ": no distance ramp — not an SDF? (mid=" + mid + ")");
             int corner = img.getRGB(x0, Math.min(y0, y1)) & 0xFF;
             assertTrue(corner <= 16, g + ": tile corner not 'far outside' (corner=" + corner + ")");

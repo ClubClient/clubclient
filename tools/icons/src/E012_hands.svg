@@ -1,0 +1,13 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- hands: move/offset cross (reposition the first-person hands) -->
+  <line x1="12" y1="4.5" x2="12" y2="19.5" stroke-width="2"/>
+  <line x1="4.5" y1="12" x2="19.5" y2="12" stroke-width="2"/>
+  <line x1="9.9" y1="6.6" x2="12" y2="4.5" stroke-width="2"/>
+  <line x1="14.1" y1="6.6" x2="12" y2="4.5" stroke-width="2"/>
+  <line x1="9.9" y1="17.4" x2="12" y2="19.5" stroke-width="2"/>
+  <line x1="14.1" y1="17.4" x2="12" y2="19.5" stroke-width="2"/>
+  <line x1="6.6" y1="9.9" x2="4.5" y2="12" stroke-width="2"/>
+  <line x1="6.6" y1="14.1" x2="4.5" y2="12" stroke-width="2"/>
+  <line x1="17.4" y1="9.9" x2="19.5" y2="12" stroke-width="2"/>
+  <line x1="17.4" y1="14.1" x2="19.5" y2="12" stroke-width="2"/>
+</svg>
