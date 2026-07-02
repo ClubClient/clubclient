@@ -1,5 +1,8 @@
 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-  <!-- armor: elytra — two leaf wings splayed from the top notch -->
+  <!-- armor: elytra — two leaf wings, inner veins, saddle dot -->
   <path d="M 11.3 4.5 C 7.4 5.2 4.8 8.8 5.3 13.2 C 5.6 15.9 6.9 18.1 8.9 19.3 C 10.3 15.6 11.1 10.4 11.3 4.5 Z" stroke-width="2"/>
   <path d="M 12.7 4.5 C 16.6 5.2 19.2 8.8 18.7 13.2 C 18.4 15.9 17.1 18.1 15.1 19.3 C 13.7 15.6 12.9 10.4 12.7 4.5 Z" stroke-width="2"/>
+  <path d="M 9.9 6.2 C 8 7.5 6.9 10 7.2 13.2" stroke-width="1.5"/>
+  <path d="M 14.1 6.2 C 16 7.5 17.1 10 16.8 13.2" stroke-width="1.5"/>
+  <circle cx="12" cy="5.3" r="0.9" fill="solid"/>
 </svg>
