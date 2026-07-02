@@ -12,7 +12,7 @@ class TokensTest {
         assertNotNull(Tokens.type()); assertNotNull(Tokens.surface()); assertNotNull(Tokens.accent());
         assertNotNull(Tokens.border()); assertNotNull(Tokens.shadow()); assertNotNull(Tokens.glow());
         assertNotNull(Tokens.elevation()); assertNotNull(Tokens.motion());
-        assertNotNull(Tokens.interaction());
+        assertNotNull(Tokens.interaction()); assertNotNull(Tokens.categories());
     }
     @Test void interactionTokensReferenceExistingTokensNoNewHex() {
         Interaction in = Tokens.interaction();
@@ -79,9 +79,22 @@ class TokensTest {
         Theme base = ClubDarkRef();
         Theme alt = new Theme(base.palette(), new Radius(1,2,3,4,5), base.spacing(), base.type(), base.surface(),
             base.accent(), base.border(), base.shadow(), base.glow(), base.elevation(), base.motion(),
-            base.interaction());
+            base.interaction(), base.categories());
         Tokens.setTheme(alt);
         assertEquals(3f, Tokens.radius().md());
+    }
+
+    @Test void categoryAccentsPaletteA() {
+        CategoryAccents c = Tokens.categories();
+        assertEquals(0xFFC9808A, c.combat());
+        assertEquals(0xFF9E8BD9, c.visuals());
+        assertEquals(0xFF7FBFA6, c.player());
+        assertEquals(0xFF8C9BB5, c.misc());
+        // identity colors are their own hues — none may alias the brand interaction accent
+        assertNotEquals(Tokens.accent().accent(), c.combat());
+        assertNotEquals(Tokens.accent().accent(), c.visuals());
+        assertNotEquals(Tokens.accent().accent(), c.player());
+        assertNotEquals(Tokens.accent().accent(), c.misc());
     }
     private static Theme ClubDarkRef() { return com.club.ui.theme.themes.ClubDark.create(); }
 }

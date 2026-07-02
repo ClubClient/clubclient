@@ -20,4 +20,5 @@ public final class Tokens {
     public static Elevation  elevation(){ return active.elevation(); }
     public static Motion     motion()   { return active.motion(); }
     public static Interaction interaction() { return active.interaction(); }
+    public static CategoryAccents categories() { return active.categories(); }
 }

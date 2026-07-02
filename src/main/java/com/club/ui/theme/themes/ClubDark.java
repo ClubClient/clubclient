@@ -56,6 +56,12 @@ public final class ClubDark {
             p.accent(),                         // focusRing (reference to accent)
             1.5f);                              // focusRingWidth
 
-        return new Theme(p, radius, spacing, type, surface, accent, border, shadow, glow, elevation, motion, interaction);
+        CategoryAccents categories = new CategoryAccents(   // palette "A" (Stage 11) — identity only, see record doc
+            0xFFC9808A,   // Combat  — muted crimson (attack/damage)
+            0xFF9E8BD9,   // Visuals — muted violet (render; continuity with the enabled-edge violet)
+            0xFF7FBFA6,   // Player  — cold teal-green (body/self)
+            0xFF8C9BB5);  // Misc    — slate (neutral toolbox, the quietest)
+
+        return new Theme(p, radius, spacing, type, surface, accent, border, shadow, glow, elevation, motion, interaction, categories);
     }
 }

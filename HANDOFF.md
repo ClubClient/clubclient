@@ -17,6 +17,7 @@
 | [docs/HUDS.md](docs/HUDS.md) | HUD (Armor/Potion/Target), их настройки и редактор позиций |
 | [docs/UI-V2-MENU.md](docs/UI-V2-MENU.md) | **UI V2**: стек `com.club.ui`, боевое меню (Right Shift, Stage 6+), виджеты, привязка к ClubConfig — для всех правок нового UI |
 | [docs/HUD-LANGUAGE.md](docs/HUD-LANGUAGE.md) | HUD-язык: роли элементов, эталон Hero Target — источник правды для правок HUD |
+| [docs/UI-V2-STAGE11-ICONS-SPEC.md](docs/UI-V2-STAGE11-ICONS-SPEC.md) | **Stage 11 (текущая)**: иконки (MSDF-атлас), цвета категорий (palette A), редизайн карточек, логотип CLUB |
 
 ## Быстрый старт
 
