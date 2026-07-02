@@ -98,12 +98,11 @@ public final class ClubMenuScreen extends Screen {
 
     private float winX, winY, winW, winH, bodyY, bodyH, contentX, contentW, railW, headH, footH;
 
-    // Draggable window: a compact centred rectangle, moved only via the small top grip, position saved to
-    // ClubConfig (menuX/menuY, -1 = centred), always clamped fully on-screen.
-    private static final float WIN_W = 660f, WIN_H = 380f;   // compact landscape rectangle (smaller in both dims)
-    private static final float GRIP_W = 44f, GRIP_H = 5f, GRIP_TOP = 6f;   // grip straddles the top edge (winY - 3)
-    private boolean draggingWin;
-    private int winGrabX, winGrabY;
+    // Fixed centred window (owner decision 2026-07-02): dragging + grip removed — the menu always
+    // sits dead centre. Wide landscape so the grid holds 4 card columns (sparse for now — fine).
+    private static final float WIN_W = 860f, WIN_H = 380f;
+    private static final int GRID_COLS = 4;
+    private boolean closing;   // Right-Shift close: plays the entrance in reverse, then really closes
 
     private TextStyle stBrand, stFootMut;
 
@@ -312,12 +311,8 @@ public final class ClubMenuScreen extends Screen {
         float m = 24;
         winW = Math.min(WIN_W, width - 2 * m);
         winH = Math.min(WIN_H, height - 2 * m);
-        // saved top-left (or centred default), always clamped fully on-screen (keep room above for the grip)
-        ClubConfig cfg = ClubConfig.get();
-        float cx = cfg.menuX >= 0 ? cfg.menuX : (width - winW) / 2f;
-        float cy = cfg.menuY >= 0 ? cfg.menuY : (height - winH) / 2f;
-        winX = clamp(cx, 0, Math.max(0, width - winW));
-        winY = clamp(cy, GRIP_TOP, Math.max(GRIP_TOP, height - winH)) + entranceYOff;
+        winX = (width - winW) / 2f;                     // always dead centre (no drag, no saved position)
+        winY = (height - winH) / 2f + entranceYOff;
         bodyY = winY + headH; bodyH = winH - headH - footH;
         contentX = winX + railW; contentW = winW - railW;
 
@@ -326,9 +321,9 @@ public final class ClubMenuScreen extends Screen {
         float searchW = 200, searchH = 32;
         search.layout(contentX + contentW - 16 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);   // header row, top-right
 
-        // cards at full width (not stretched), just under the search bar so they never overlap it
+        // fixed 4-column grid (like the reference board) — sparse rows are fine for now
         float gridW = contentW - 32;
-        grid.cols(Math.max(2, (int) (gridW / 172)));
+        grid.cols(GRID_COLS);
         if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 6, gridW, bodyH - 6 - 12);
 
         if (popModule != null) positionPopover();
@@ -343,8 +338,12 @@ public final class ClubMenuScreen extends Screen {
         uiCtx.setTime(CLOCK_BASE + (System.nanoTime() - startNanos) / 1_000_000_000f);
         float now = uiCtx.time();
         float ep = 1f;
-        if (entrance != null) { entrance.target(1f, now); ep = entrance.value(now); }
-        entranceYOff = (1f - ep) * 12f;   // window rises into place as it appears (graceful, no scale)
+        if (entrance != null) { entrance.target(closing ? 0f : 1f, now); ep = entrance.value(now); }
+        entranceYOff = (1f - ep) * 12f;   // window rises into place on open; sinks back out on close
+        if (closing && ep <= 0.001f) {    // reverse animation finished — really close now
+            MinecraftClient.getInstance().setScreen(null);
+            return;
+        }
 
         layoutAll();
         float lg = Tokens.radius().lg();
@@ -352,7 +351,7 @@ public final class ClubMenuScreen extends Screen {
         float catLh = ty.label().lineHeight();
 
         // No background scrim: the world stays fully visible so settings apply live (e.g. adjust a hand slider
-        // and watch the hand move behind/around the window). Move the window aside via the top grip to see more.
+        // and watch the hand move behind/around the window).
 
         // three-tone depth: header/frame lightest (surface) > rail medium (bg2) > content darkest (bg1)
         r.roundedRect(winX, winY, winW, winH, lg, Tokens.surface().surface());   // top layer — header/footer/frame (lightest)
@@ -405,15 +404,6 @@ public final class ClubMenuScreen extends Screen {
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
-        // drag grip — a clearly visible pill straddling the top edge; the ONLY handle for moving the window.
-        // Dark halo underneath keeps it visible on any background; brightens to accent on hover/drag.
-        float gx = winX + (winW - GRIP_W) / 2f, gy = winY - 3f;
-        boolean gripHov = draggingWin
-                || (mouseX >= gx - 6 && mouseX <= gx + GRIP_W + 6 && mouseY >= gy - 6 && mouseY <= gy + GRIP_H + 6);
-        int gripCol = gripHov ? Tokens.accent().accent() : Color.withAlpha(Tokens.palette().textHi(), 0xC8);
-        r.roundedRect(gx - 1, gy - 1, GRIP_W + 2, GRIP_H + 2, (GRIP_H + 2) / 2f, Color.scaleAlpha(Color.withAlpha(0xFF000000, 0x66), ep));
-        r.roundedRect(gx, gy, GRIP_W, GRIP_H, GRIP_H / 2f, Color.scaleAlpha(gripCol, ep));
-
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
         if (popModule != null && popScroll != null) {
             if (popReveal == null) {
@@ -454,18 +444,15 @@ public final class ClubMenuScreen extends Screen {
         return popModule != null && !popClosing && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH;
     }
 
-    /** The small top grip is the only place the window can be grabbed (generous hit padding). */
-    private boolean overGrip(double mx, double my) {
-        float gx = winX + (winW - GRIP_W) / 2f, gy = winY - 3f;
-        return mx >= gx - 6 && mx <= gx + GRIP_W + 6 && my >= gy - 6 && my <= gy + GRIP_H + 6;
+    /** Starts the reverse-of-open animation; render() really closes once it has fully played out. */
+    private void beginClose() {
+        if (closing) return;
+        closing = true;
+        closePopover();
     }
 
     @Override public boolean mouseClicked(double mx, double my, int b) {
         focus.clickFocus(mx, my);
-        if (b == 0 && overGrip(mx, my)) {   // start moving the window (grip only)
-            draggingWin = true; winGrabX = (int) mx - (int) winX; winGrabY = (int) my - (int) winY;
-            closePopover(); return true;
-        }
         if (insidePop(mx, my)) {
             popScroll.mouseClicked(mx, my, 0); pressOwner = 1; return true;   // RMB behaves as LMB inside; never closes
         }
@@ -479,19 +466,12 @@ public final class ClubMenuScreen extends Screen {
         return super.mouseClicked(mx, my, b);
     }
     @Override public boolean mouseReleased(double mx, double my, int b) {
-        if (draggingWin) { draggingWin = false; ClubConfig.save(); return true; }   // persist the new position
         // inside the popover the gesture is routed as left-button (RMB acts as LMB there)
         boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseReleased(mx, my, 0)) : root.mouseReleased(mx, my, b);
         pressOwner = 0;
         return h || super.mouseReleased(mx, my, b);
     }
     @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) {
-        if (draggingWin) {   // move the window (grip drag), clamped fully on-screen; layoutAll picks it up next frame
-            ClubConfig cfg = ClubConfig.get();
-            cfg.menuX = (int) clamp((float) mx - winGrabX, 0, Math.max(0, width - winW));
-            cfg.menuY = (int) clamp((float) my - winGrabY, GRIP_TOP, Math.max(GRIP_TOP, height - winH));
-            return true;
-        }
         boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseDragged(mx, my, 0, dx, dy))
                                       : root.mouseDragged(mx, my, b, dx, dy);
         return h || super.mouseDragged(mx, my, b, dx, dy);
@@ -505,12 +485,16 @@ public final class ClubMenuScreen extends Screen {
         return root.mouseScrolled(mx, my, v) || super.mouseScrolled(mx, my, hx, v);
     }
     @Override public boolean keyPressed(int k, int scan, int mods) {
+        // The menu closes on the SAME key that opens it (owner decision 2026-07-02) — with the
+        // reverse-of-open animation. ESC only closes the settings popover, never the menu.
+        if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)) { beginClose(); return true; }
         if (k == GLFW_KEY_ESCAPE && popModule != null) { closePopover(); return true; }
         if (k == GLFW_KEY_TAB) { if ((mods & GLFW_MOD_SHIFT) != 0) focus.previous(); else focus.next(); return true; }
         return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
     }
     @Override public boolean charTyped(char c, int mods) { return focus.charTyped(c, mods) || super.charTyped(c, mods); }
 
+    @Override public boolean shouldCloseOnEsc() { return false; }
     @Override public boolean shouldPause() { return false; }
 
     // ---- module card ---------------------------------------------------------
@@ -520,7 +504,6 @@ public final class ClubMenuScreen extends Screen {
     private static final float TILE_H = 58f, TILE_PAD = 12f;
     private static final float CHIP = 28f, CHIP_RAD = 8f, CHIP_ICON = 16f;
     private static final float STRIPE_W = 16f, STRIPE_H = 3f, STRIPE_GAP = 4f;
-    private static final float GHOST = 44f, GHOST_BLEED = 10f;   // ghost bleeds past the right edge (clipped)
     private static final int POP_PAD = 8;   // tighter popover gutter — the scrollbar fills the right, so a wide left pad read as empty
 
     /** Module card: icon chip + centered state stripe + name + ghost underlay.
@@ -531,12 +514,20 @@ public final class ClubMenuScreen extends Screen {
         private final Transition onT;    // enabled → chip/stripe/name/ghost ride one eased factor
         private final Transition hoverT = // hover → tone lift, eased
                 new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
+        // Ghost geometry: deterministic per module NAME, so the underlays vary in size/position/crop
+        // and read organic instead of stamped (owner feedback 2026-07-02). Large + heavily cropped.
+        private final float ghostSz, ghostYOff, ghostBleed, ghostA;
         ModuleTile(Module m, int accent) {
             this.m = m;
             this.accent = accent;
             // action-only cards seed at 1 (always "available") — else every grid rebuild replays a grey->colour fade
             this.onT = new Transition(m.hasToggle() ? (m.enabled() ? 1f : 0f) : 1f,
                     Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+            int hsh = m.name().hashCode();
+            ghostSz    = 74f + (hsh & 15);                    // 74..89px on a 58px card → crops top+bottom
+            ghostYOff  = ((hsh >>> 4) % 13) - 6f;             // -6..+6px vertical drift
+            ghostBleed = 12f + ((hsh >>> 8) & 15);            // 12..27px past the right edge
+            ghostA     = 0.045f + ((hsh >>> 12) & 3) * 0.01f; // 4.5..7.5% base alpha
         }
 
         @Override public Size measure(float availW, float availH) { return new Size(150f, TILE_H); }
@@ -555,12 +546,13 @@ public final class ClubMenuScreen extends Screen {
             int edge = Color.lerp(Tokens.border().defaultColor(), Tokens.border().strong(), hv);
             r.roundedRect(x, y, w, h, rad, fill);
 
-            // Ghost underlay: the SAME glyph, large, at whisper alpha, bleeding past the right edge.
+            // Ghost underlay: the SAME glyph, large, at whisper alpha, cropped by the card — size,
+            // drift, bleed and alpha vary per module so the pattern never reads as stamped.
             // Rect clip vs the rounded corner is invisible at this alpha (spec §7 risk — checked).
             int ghostCol = Color.lerp(Tokens.palette().textDesc(), accent, onv);
             r.pushClip(x, y, w, h);
-            m.icon().draw(ctx, x + w - GHOST + GHOST_BLEED, y + (h - GHOST) / 2f, GHOST,
-                    Color.scaleAlpha(ghostCol, 0.05f + 0.05f * onv));
+            m.icon().draw(ctx, x + w - ghostSz + ghostBleed, y + (h - ghostSz) / 2f + ghostYOff, ghostSz,
+                    Color.scaleAlpha(ghostCol, ghostA + 0.035f * onv));
             r.popClip();
 
             r.border(x, y, w, h, rad, Tokens.border().thickness(), edge);

@@ -1,7 +1,10 @@
 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-  <!-- hide vanilla effects: potion flask -->
+  <!-- hide vanilla effects: potion flask with liquid line and bubbles -->
   <line x1="9" y1="4.5" x2="15" y2="4.5" stroke-width="2"/>
   <line x1="10.2" y1="4.5" x2="10.2" y2="8.6" stroke-width="2"/>
   <line x1="13.8" y1="4.5" x2="13.8" y2="8.6" stroke-width="2"/>
   <path d="M 10.2 8.6 C 7.2 10.6 5.5 13.2 5.5 15.7 C 5.5 18.3 7.6 20 10 20 L 14 20 C 16.4 20 18.5 18.3 18.5 15.7 C 18.5 13.2 16.8 10.6 13.8 8.6" stroke-width="2"/>
+  <path d="M 6.6 13.6 C 8.4 14.7 10.4 14.9 12 14.2 C 13.6 13.5 15.6 13.6 17.3 14.5" stroke-width="1.7"/>
+  <circle cx="10.3" cy="17" r="0.85" fill="solid"/>
+  <circle cx="13.4" cy="16.2" r="0.85" fill="solid"/>
 </svg>

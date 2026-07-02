@@ -1,4 +1,5 @@
 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-  <!-- no fire overlay: flame -->
+  <!-- no fire overlay: flame with an inner tongue -->
   <path d="M 12 4.2 C 14.6 7.8 18 10 18 14 C 18 17.7 15.3 20 12 20 C 8.7 20 6 17.7 6 14 C 6 11.7 7 10 8.3 8.6 C 8.7 10.3 9.7 11.3 10.9 11.7 C 10.2 9.3 10.8 6.4 12 4.2 Z" stroke-width="2"/>
+  <path d="M 12.9 13.1 C 13.9 14 14.4 14.9 14.4 15.9 C 14.4 17.3 13.35 18.2 12.1 18.2 C 10.85 18.2 9.8 17.3 9.8 15.9 C 9.8 15.3 10 14.7 10.4 14.2" stroke-width="1.7"/>
 </svg>

@@ -30,9 +30,7 @@ public class ClubConfig {
     public boolean noBobbing = true;
     public Hud hud = new Hud();
 
-    // Club menu (Right-Shift) saved top-left position; -1 = centered. Dragged via the top grip, clamped on-screen.
-    public int menuX = -1;
-    public int menuY = -1;
+    // (menuX/menuY removed 2026-07-02: the menu is fixed centred — stale keys in old files are ignored by Gson)
 
     /** Position/scale for one visual hand side. */
     public static class HandSide {
@@ -140,7 +138,7 @@ public class ClubConfig {
      * defaults per version bump. Note: Gson invokes the no-arg constructors here, so fields
      * ABSENT from the file keep their initializers — the default-seeding blocks are an
      * explicit safety net for hand-edited/partial files, not a Gson workaround (verified:
-     * absent menuX/infoX deserialize to -1/8, never 0). Runs once, then persists.
+     * absent infoX deserializes to 8, never 0). Runs once, then persists.
      */
     private void migrate() {
         boolean changed = false;
