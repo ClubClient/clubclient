@@ -43,6 +43,8 @@ import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 
 import java.util.List;
@@ -522,6 +524,42 @@ public final class ClubMenuScreen extends Screen {
 
     @Override public boolean shouldCloseOnEsc() { return false; }
     @Override public boolean shouldPause() { return false; }
+
+    // ---- gui-move (Stage 12): movement stays live while the menu is open --------
+
+    private boolean[] moveWasDown;   // per-binding raw state — setPressed only on EDGES (sticky-safe)
+
+    /** Movement keys keep working while the menu is open (WASD/jump/sneak/sprint): each tick the
+     *  RAW keyboard state of whatever keys those actions are bound to is fed into the vanilla
+     *  bindings — the camera stays GUI-locked, other screens stay blocked. Typing in the search
+     *  field suspends it (otherwise a "wasd" query would walk the player around). setPressed is
+     *  called only when the raw state CHANGES, mirroring vanilla key events — sneak/sprint may be
+     *  StickyKeyBindings (toggle mode) and a per-tick setPressed(true) would flip them endlessly. */
+    @Override public void tick() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player == null) return;
+        boolean typing = search != null && search.isFocused();
+        long handle = mc.getWindow().getHandle();
+        KeyBinding[] moves = {
+                mc.options.forwardKey, mc.options.backKey, mc.options.leftKey, mc.options.rightKey,
+                mc.options.jumpKey, mc.options.sneakKey, mc.options.sprintKey };
+        if (moveWasDown == null) moveWasDown = new boolean[moves.length];
+        for (int i = 0; i < moves.length; i++) {
+            boolean down = !typing && rawKeyDown(handle, moves[i]);
+            if (down != moveWasDown[i]) {
+                moves[i].setPressed(down);
+                moveWasDown[i] = down;
+            }
+        }
+    }
+
+    /** True if the physical key a binding is bound to is currently held (keyboard-bound only). */
+    private static boolean rawKeyDown(long handle, KeyBinding binding) {
+        InputUtil.Key key = InputUtil.fromTranslationKey(binding.getBoundKeyTranslationKey());
+        if (key.getCategory() != InputUtil.Type.KEYSYM) return false;   // mouse-bound → leave to vanilla
+        int code = key.getCode();
+        return code != GLFW_KEY_UNKNOWN && InputUtil.isKeyPressed(handle, code);
+    }
 
     // ---- module card ---------------------------------------------------------
 
