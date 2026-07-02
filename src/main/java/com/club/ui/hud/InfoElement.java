@@ -7,20 +7,19 @@ import com.club.ui.UiContext;
 import com.club.ui.text.TextStyle;
 import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
-import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
 
 /**
- * FPS on the V4 "Chips" language (Stage 13): one small capsule ["FPS  <value>"] with a subtle
- * half-strength brand edge — the one calm brand touch on the HUD (identity, not state; FPS has
- * no meaningful fraction, so the edge stays full-width). Value is SemiBold, digits never tinted.
+ * FPS — the utility WHISPER (Stage 13.6, owner: a capsule made it read like content, not like
+ * pinned-down auxiliary info). No capsule, no edge, no accent: just a small tabular value +
+ * a faint caps-ish label, sitting quietly in the corner on a text shadow. Role over uniformity —
+ * this is the one element that must NOT look like the others.
  * (Coordinates / CPS / BPS are a separate future element.)
  */
 public final class InfoElement extends HudElement {
-    // Shared row metrics (Stage 13.4 tightening): PAD_X 8 / gaps 5 across every row capsule.
-    private static final float CHIP_H = 24f, PAD_X = 8f, PAD_TOP = 3f, BAR_H = 2f;
-    private static final int GAP = 5;
-    /** Width reserved for the value so 59↔240 doesn't resize the capsule every second. */
+    private static final float VALUE_SIZE = 12f, LABEL_SIZE = 10f;
+    private static final int GAP = 4;
+    /** Width reserved for the value so 59↔240 doesn't shift the label every second. */
     private static final String VALUE_RESERVE = "888";
 
     public InfoElement() { super("info"); }
@@ -34,7 +33,7 @@ public final class InfoElement extends HudElement {
     @Override public float cfgScale() { return h().infoScale; }
     @Override public boolean cfgEnabled() { return h().info; }
 
-    // V4: the capsule is drawn in paint(); no shared outer panel.
+    // Whisper: no ground at all.
     @Override protected float panelPadX() { return 0f; }
     @Override protected float panelPadY() { return 0f; }
     @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
@@ -42,25 +41,22 @@ public final class InfoElement extends HudElement {
     private static String fps(MinecraftClient mc, boolean live) { return (live && mc != null ? mc.getCurrentFps() : 240) + ""; }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
-        Typography.Role r = Tokens.type().label();
-        float w = 2 * PAD_X + Ui.text().width("FPS", r.weight(), r.size()) + GAP
-                + HudText.width(VALUE_RESERVE, Weight.SEMIBOLD, r.size());
-        return new int[]{ Math.round(w), Math.round(CHIP_H) };
+        float w = HudText.width(VALUE_RESERVE, Weight.SEMIBOLD, VALUE_SIZE) + GAP
+                + Ui.text().width("FPS", Weight.MEDIUM, LABEL_SIZE);
+        return new int[]{ Math.round(w), Math.round(Ui.text().lineHeight(Weight.SEMIBOLD, VALUE_SIZE)) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
-        var t = ctx.text(); Typography.Role r = Tokens.type().label();
-        float cw = contentSize(mc, live)[0];
-        HudPaint.chip(ctx, ox, oy, cw * s, CHIP_H * s, HudPaint.CHIP_RAD * s, alpha);
-        HudPaint.edgeBar(ctx, ox, oy, cw * s, CHIP_H * s, BAR_H, 1f,
-                Color.scaleAlpha(Tokens.accent().accent(), 0.5f), s, alpha);
-
-        int mut = Color.scaleAlpha(Tokens.palette().textMuted(), alpha);
-        int hi  = Color.scaleAlpha(Tokens.palette().textHi(), alpha);
-        float labelW = Ui.text().width("FPS", r.weight(), r.size());
-        float ty = oy + (PAD_TOP + (CHIP_H - BAR_H - HudPaint.EDGE_BOT - PAD_TOP - r.lineHeight()) * 0.5f) * s;
-        t.draw("FPS", ox + PAD_X * s, ty, TextStyle.of(r.weight(), r.size() * s, mut).effect(HudPaint.textShadow(alpha)));
-        HudText.draw(ctx, fps(mc, live), ox + (PAD_X + labelW + GAP) * s, ty,
-                TextStyle.of(Weight.SEMIBOLD, r.size() * s, hi).effect(HudPaint.textShadow(alpha)), r.size(), s);
+        int val = Color.scaleAlpha(Tokens.palette().textMuted(), alpha);   // quiet — this is aux info
+        int lab = Color.scaleAlpha(Tokens.palette().textFaint(), alpha);
+        float reserve = HudText.width(VALUE_RESERVE, Weight.SEMIBOLD, VALUE_SIZE);
+        String v = fps(mc, live);
+        float tw = HudText.width(v, Weight.SEMIBOLD, VALUE_SIZE);
+        // value right-aligned inside its reserve → the label never shifts as digits change
+        HudText.draw(ctx, v, ox + (reserve - tw) * s, oy,
+                TextStyle.of(Weight.SEMIBOLD, VALUE_SIZE * s, val).effect(HudPaint.textShadow(alpha)), VALUE_SIZE, s);
+        float labDy = Ui.text().ascent(Weight.SEMIBOLD, VALUE_SIZE) - Ui.text().ascent(Weight.MEDIUM, LABEL_SIZE);
+        ctx.text().draw("FPS", ox + (reserve + GAP) * s, oy + labDy * s,
+                TextStyle.of(Weight.MEDIUM, LABEL_SIZE * s, lab).effect(HudPaint.textShadow(alpha)));
     }
 }

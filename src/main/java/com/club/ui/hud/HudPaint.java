@@ -66,4 +66,15 @@ final class HudPaint {
         float f = Math.max(0f, Math.min(1f, frac));
         if (f > 0f) r.roundedRect(bx, by, Math.max(bh, bw * f), bh, rr, Color.scaleAlpha(color, a));
     }
+
+    /** A row's live line INSIDE a capsule (Armor): recessed pill + state fill at the given spot —
+     *  the in-capsule sibling of {@link #edgeBar} (echoes the menu card's state stripe). */
+    static void rowBar(UiContext ctx, float x, float y, float w, float barH, float frac, int color, float s, float a) {
+        if (a <= 0f) return;
+        var r = ctx.renderer();
+        float bh = barH * s, rr = bh / 2f;
+        r.roundedRect(x, y, w, bh, rr, Color.scaleAlpha(Color.scaleAlpha(Tokens.surface().surfaceHi(), 0.6f), a));
+        float f = Math.max(0f, Math.min(1f, frac));
+        if (f > 0f) r.roundedRect(x, y, Math.max(bh, w * f), bh, rr, Color.scaleAlpha(color, a));
+    }
 }

@@ -13,18 +13,19 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 
 /**
- * Armor on the V4 "Chips" language (Stage 13): each equipped piece is its own capsule
- * [sprite + exact value], and the capsule's LIVE EDGE is that piece's durability — state-coloured
- * (green/amber/red with smooth threshold crossings). The old dot indicator is gone: the edge carries
- * the state, the digits stay exact (truth). Vertical stack (default) or a row of capsules.
- * The sprite is the one thing the V2 renderer can't draw, so it goes through the frame's
- * {@link HudSprites} DrawContext (matrix-scaled). Empty pieces are skipped.
+ * Armor on the V4 "Chips" language (Stage 13.6): ONE capsule for the whole set — separate
+ * per-piece chips read as choppy slivers (owner). Each row inside is [sprite + exact value] with
+ * its own LIVE LINE underneath (the in-capsule sibling of the edge bar, echoing the menu card's
+ * stripe): state-coloured durability, smooth threshold crossings. Digits stay exact (truth).
+ * Vertical rows (default) or horizontal cells. The sprite is the one thing the V2 renderer can't
+ * draw, so it goes through the frame's {@link HudSprites} DrawContext. Empty pieces are skipped.
  */
 public final class ArmorElement extends HudElement {
-    private static final int ICON = 16, GAP = 5;            // sprite size; sprite ↔ value gap
-    private static final float CHIP_H = 26f, CHIP_GAP = 4f; // capsule height / stack gap (unscaled)
-    private static final float PAD_X = 8f, PAD_TOP = 3f;    // shared row metrics (13.4): PAD_X 8 everywhere
-    private static final float BAR_H = 2f;                  // live edge height (rows are quieter than Target's 3px)
+    private static final int ICON = 16, GAP = 5;             // sprite size; sprite ↔ value gap
+    private static final float PAD_X = 8f, PAD_Y = 5f;       // capsule padding
+    private static final float BAR_H = 2f, BAR_GAP = 2f;     // per-row live line + gap above it
+    private static final float ROW_BLOCK = ICON + BAR_GAP + BAR_H;   // sprite + gap + line = 20
+    private static final float ROW_GAP = 5f, CELL_GAP = 12f; // vertical row spacing / horizontal cell spacing
 
     public ArmorElement() { super("armor"); }
     @Override public String displayName() { return "Armor"; }
@@ -87,19 +88,21 @@ public final class ArmorElement extends HudElement {
     @Override protected float panelPadY() { return 0f; }
     @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
 
-    /** Uniform capsule width (all chips share it → the stack reads as one column). */
-    private int chipW(ItemStack[] ps, boolean percent) {
-        return Math.round(2 * PAD_X + ICON + GAP + valueWidth(ps, percent));
+    /** Inner cell width: sprite + gap + value column (uniform → values right-align down the stack). */
+    private int cellW(ItemStack[] ps, boolean percent) {
+        return Math.round(ICON + GAP + valueWidth(ps, percent));
     }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
         ItemStack[] ps = live ? pieces(mc) : sampleStacks();
         int count = count(ps);
         if (count == 0) return new int[]{0, 0};
-        int cw = chipW(ps, h().armorPercent);
+        int cell = cellW(ps, h().armorPercent);
         if (h().armorVertical)
-            return new int[]{ cw, Math.round(count * CHIP_H + (count - 1) * CHIP_GAP) };
-        return new int[]{ Math.round(count * cw + (count - 1) * CHIP_GAP), Math.round(CHIP_H) };
+            return new int[]{ Math.round(2 * PAD_X + cell),
+                              Math.round(2 * PAD_Y + count * ROW_BLOCK + (count - 1) * ROW_GAP) };
+        return new int[]{ Math.round(2 * PAD_X + count * cell + (count - 1) * CELL_GAP),
+                          Math.round(2 * PAD_Y + ROW_BLOCK) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
@@ -108,29 +111,31 @@ public final class ArmorElement extends HudElement {
         ItemStack[] ps = live ? pieces(mc) : sampleStacks();
         boolean percent = h().armorPercent;
         boolean vertical = h().armorVertical;
-        float cw = chipW(ps, percent);
+        int cell = cellW(ps, percent);
         int valW = valueWidth(ps, percent);
         float lh = ty.body().lineHeight();
         TextStyle style = TextStyle.of(Weight.SEMIBOLD, base * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
                 .effect(HudPaint.textShadow(alpha));
         DrawContext dc = HudSprites.ctx();
 
+        // ONE capsule for the whole set — the rows inside carry their own live lines.
+        int[] cs = contentSize(mc, live);
+        HudPaint.chip(ctx, ox, oy, cs[0] * s, cs[1] * s, HudPaint.CHIP_RAD * s, alpha);
+
         int i = 0;
         for (ItemStack st : ps) {
             if (st.isEmpty()) continue;
-            float cx = vertical ? ox : ox + i * (cw + CHIP_GAP) * s;
-            float cy = vertical ? oy + i * (CHIP_H + CHIP_GAP) * s : oy;
+            float cx = ox + (PAD_X + (vertical ? 0 : i * (cell + CELL_GAP))) * s;
+            float cy = oy + (PAD_Y + (vertical ? i * (ROW_BLOCK + ROW_GAP) : 0)) * s;
             float f = frac(st);
 
-            HudPaint.chip(ctx, cx, cy, cw * s, CHIP_H * s, HudPaint.CHIP_RAD * s, alpha);
-            HudPaint.edgeBar(ctx, cx, cy, cw * s, CHIP_H * s, BAR_H, f, stateColor(f), s, alpha);
-
-            drawSprite(dc, st, cx + PAD_X * s, cy + PAD_TOP * s, s);
+            drawSprite(dc, st, cx, cy, s);
             // tabular value right-aligned in the shared column: equal-length values are pixel-identical
             String v = value(st, percent);
             float tw = HudText.width(v, Weight.SEMIBOLD, base);
-            HudText.draw(ctx, v, cx + (PAD_X + ICON + GAP + valW - tw) * s,
-                    cy + (PAD_TOP + (ICON - lh) * 0.5f) * s, style, base, s);
+            HudText.draw(ctx, v, cx + (cell - tw) * s, cy + (ICON - lh) * 0.5f * s, style, base, s);
+            // the row's live line — durability, state-coloured
+            HudPaint.rowBar(ctx, cx, cy + (ICON + BAR_GAP) * s, cell * s, BAR_H, f, stateColor(f), s, alpha);
             i++;
         }
     }
