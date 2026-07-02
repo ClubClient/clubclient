@@ -80,7 +80,7 @@ public final class MenuContent {
             new Category("Player", IconGlyph.PLAYER, List.of(hands(c))),
             new Category("Misc", IconGlyph.MISC, List.of(
                 hudEditor(openHudEditor),
-                flag("Hide Vanilla Effects", "Hide the vanilla status-effect overlay.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
+                flag("Hide Effects", "Hide the vanilla status-effect overlay.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
         );
     }
 

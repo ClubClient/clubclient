@@ -72,6 +72,9 @@ public final class ClubMenuScreen extends Screen {
     private final Pane root = new Pane();
     private final Grid grid = new Grid(GRID_COLS, Tokens.spacing().sm());
     private float cardNameSize = NAME_BASE;   // uniform per-category name size (auto-fit in layoutAll)
+    // Whole-window fade (11.8): shapes ride the renderer opacity stack; text/icon glyphs can't
+    // (known backend limit) — every text/glyph draw multiplies this via Color.scaleAlpha instead.
+    private float screenAlpha = 1f;
     private SearchField search;
     private ScrollArea gridScroll;
     private Transition indicator;
@@ -106,7 +109,8 @@ public final class ClubMenuScreen extends Screen {
     private static final int GRID_COLS = 4;
     private boolean closing;   // Right-Shift close: plays the entrance in reverse, then really closes
 
-    private TextStyle stBrand, stFootMut;
+    private int stFootMutCol;      // footer tone (colour only — styles are built inline now: fade needs live alpha)
+    private boolean stylesInit;
 
     public ClubMenuScreen() { super(Text.literal("Club")); }
 
@@ -329,8 +333,9 @@ public final class ClubMenuScreen extends Screen {
 
         // One name size per category (11.7): the largest size <= NAME_BASE at which the LONGEST
         // module name of the category still fits the card's text slot. All visible names share it —
-        // uniform look, nothing ever truncates. Computed over the whole category (not the search
-        // subset) so the size doesn't jump while typing.
+        // uniform look, nothing ever truncates OR overflows (the floor is sanity-only; with sane
+        // names sizes stay >= ~9px). Computed over the whole category (not the search subset) so
+        // the size doesn't jump while typing.
         float cellW = (gridW - (GRID_COLS - 1) * Tokens.spacing().sm()) / GRID_COLS;
         float slot = cellW - (TILE_PAD + CHIP + NAME_GAP + TILE_PAD);
         float fit = NAME_BASE;
@@ -351,7 +356,7 @@ public final class ClubMenuScreen extends Screen {
     @Override public void render(DrawContext dc, int mouseX, int mouseY, float delta) {
         Ui.beginFrame(dc);
         UiRenderer r = Ui.renderer();
-        if (stBrand == null) initStyles();
+        if (!stylesInit) initStyles();
         uiCtx.setTime(CLOCK_BASE + (System.nanoTime() - startNanos) / 1_000_000_000f);
         float now = uiCtx.time();
         float ep = 1f;
@@ -363,6 +368,8 @@ public final class ClubMenuScreen extends Screen {
         }
 
         layoutAll();
+        screenAlpha = ep;
+        r.pushOpacity(ep);   // whole-window fade: shapes here; text/glyphs multiply screenAlpha
         float lg = Tokens.radius().lg();
         Typography ty = Tokens.type();
         float catLh = ty.label().lineHeight();
@@ -385,11 +392,14 @@ public final class ClubMenuScreen extends Screen {
         float logoSz = 15f;
         float clubTextW = uiCtx.text().width("CLUB", ty.display().weight(), ty.display().size());
         float clubX = winX + (railW - (logoSz + 7 + clubTextW)) / 2f;
-        IconGlyph.LOGO.draw(uiCtx, clubX, winY + (headH - logoSz) / 2f, logoSz, Tokens.accent().accent());
-        uiCtx.text().draw("CLUB", clubX + logoSz + 7, winY + (headH - ty.display().lineHeight()) / 2f, stBrand);
+        IconGlyph.LOGO.draw(uiCtx, clubX, winY + (headH - logoSz) / 2f, logoSz,
+                Color.scaleAlpha(Tokens.accent().accent(), ep));
+        uiCtx.text().draw("CLUB", clubX + logoSz + 7, winY + (headH - ty.display().lineHeight()) / 2f,
+                TextStyle.of(ty.display().weight(), ty.display().size(), Color.scaleAlpha(Tokens.palette().textHi(), ep)));
 
         float fy = winY + winH - footH + (footH - ty.label().lineHeight()) / 2f;
-        uiCtx.text().draw("Profile · Default", winX + 18, fy, stFootMut);
+        uiCtx.text().draw("Profile · Default", winX + 18, fy,
+                TextStyle.of(ty.label().weight(), ty.label().size(), Color.scaleAlpha(stFootMutCol, ep)));
 
         // rail: the active-row highlight pill slides with the accent indicator (drawn once, under the text)
         if (indicator != null) indicator.target(railYRel(catIndex), now);
@@ -402,7 +412,8 @@ public final class ClubMenuScreen extends Screen {
             boolean active = i == catIndex;
             boolean hov = mouseX >= winX && mouseX <= winX + railW && mouseY >= yy && mouseY < yy + RAIL_ROW;
             railText[i].target((active || hov) ? 1f : 0f, now);
-            int col = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), railText[i].value(now));
+            int col = Color.scaleAlpha(
+                    Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), railText[i].value(now)), ep);
             float isz = 15f, iconX = winX + 16f;
             cats.get(i).icon().draw(uiCtx, iconX, yy + (RAIL_ROW - isz) / 2f, isz, col);
             float textX = iconX + isz + 8f, clipR = winX + railW - 14f;
@@ -442,13 +453,12 @@ public final class ClubMenuScreen extends Screen {
                 r.popClip();
             }
         }
+        r.popOpacity();
     }
 
     private void initStyles() {
-        Typography t = Tokens.type();
-        stBrand     = TextStyle.of(t.display().weight(), t.display().size(), Tokens.palette().textHi());
-        stFootMut   = TextStyle.of(t.label().weight(), t.label().size(),
-                Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), 0.35f));   // a touch more contrast
+        stFootMutCol = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), 0.35f);   // a touch more contrast
+        stylesInit = true;
     }
 
     @Override public void renderBackground(DrawContext dc, int mx, int my, float d) {
@@ -469,6 +479,7 @@ public final class ClubMenuScreen extends Screen {
     }
 
     @Override public boolean mouseClicked(double mx, double my, int b) {
+        if (closing) return true;   // window is fading out — swallow clicks
         focus.clickFocus(mx, my);
         if (insidePop(mx, my)) {
             popScroll.mouseClicked(mx, my, 0); pressOwner = 1; return true;   // RMB behaves as LMB inside; never closes
@@ -523,7 +534,9 @@ public final class ClubMenuScreen extends Screen {
     private static final float TILE_H = 58f, TILE_PAD = 7f, NAME_GAP = 6f;
     private static final float CHIP = 22f, CHIP_RAD = 7f, CHIP_ICON = 13f;
     private static final float STRIPE_W = 14f, STRIPE_H = 3f, STRIPE_GAP = 4f;
-    private static final float NAME_BASE = 12f, NAME_MIN = 9f;   // uniform per-category auto-fit bounds
+    private static final float NAME_BASE = 12f;
+    private static final float NAME_MIN = 6f;   // hard sanity floor ONLY — the fit math guarantees no
+                                                // overflow (11.8 fix: a 9px floor let long names spill)
     private static final int POP_PAD = 8;   // tighter popover gutter — the scrollbar fills the right, so a wide left pad read as empty
 
     /** Module card: icon chip + centered state stripe + name + ghost underlay.
@@ -544,10 +557,12 @@ public final class ClubMenuScreen extends Screen {
             this.onT = new Transition(m.hasToggle() ? (m.enabled() ? 1f : 0f) : 1f,
                     Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
             int hsh = m.name().hashCode();
-            ghostSz    = 74f + (hsh & 15);                    // 74..89px on a 58px card → crops top+bottom
-            ghostYOff  = ((hsh >>> 4) % 13) - 6f;             // -6..+6px vertical drift
-            ghostBleed = 12f + ((hsh >>> 8) & 15);            // 12..27px past the right edge
-            ghostA     = 0.045f + ((hsh >>> 12) & 3) * 0.01f; // 4.5..7.5% base alpha
+            // 11.8 "cleaner": smaller, quieter, tighter to the corner — near-invisible when OFF so a
+            // full grid doesn't read as noise; the ghost brightening is itself a state cue.
+            ghostSz    = 52f + (hsh & 11);                     // 52..63px
+            ghostYOff  = ((hsh >>> 4) % 9) - 4f;               // -4..+4px vertical drift
+            ghostBleed = 8f + ((hsh >>> 8) & 7);               // 8..15px past the right edge
+            ghostA     = 0.02f + ((hsh >>> 12) & 3) * 0.005f;  // 2..3.5% when OFF
         }
 
         @Override public Size measure(float availW, float availH) { return new Size(150f, TILE_H); }
@@ -561,18 +576,21 @@ public final class ClubMenuScreen extends Screen {
             hoverT.target(hovered ? 1f : 0f, now);
             float onv = onT.value(now), hv = hoverT.value(now);
 
-            // Card ground stays NEUTRAL — identity/state live in chip, stripe, name and ghost.
-            int fill = Color.lerp(Tokens.surface().surface(), Tokens.surface().surfaceHi(), hv);
-            int edge = Color.lerp(Tokens.border().defaultColor(), Tokens.border().strong(), hv);
+            // 11.8: states pulled further apart — OFF sits low and quiet (faint everything), ON is
+            // unmistakable: category-tinted ground + tinted edge + full-colour chip/stripe/name/ghost.
+            int fill = Color.lerp(Color.lerp(Tokens.surface().surface(), Tokens.surface().surfaceHi(), hv),
+                                  accent, 0.055f * onv);
+            int edge = Color.lerp(Color.lerp(Tokens.border().defaultColor(), Tokens.border().strong(), hv),
+                                  accent, 0.35f * onv);
             r.roundedRect(x, y, w, h, rad, fill);
 
-            // Ghost underlay: the SAME glyph, large, at whisper alpha, cropped by the card — size,
-            // drift, bleed and alpha vary per module so the pattern never reads as stamped.
+            // Ghost underlay: the SAME glyph, cropped by the card — size, drift, bleed and alpha vary
+            // per module so the pattern never reads as stamped. Near-invisible OFF, present ON.
             // Rect clip vs the rounded corner is invisible at this alpha (spec §7 risk — checked).
             int ghostCol = Color.lerp(Tokens.palette().textDesc(), accent, onv);
             r.pushClip(x, y, w, h);
             m.icon().draw(ctx, x + w - ghostSz + ghostBleed, y + (h - ghostSz) / 2f + ghostYOff, ghostSz,
-                    Color.scaleAlpha(ghostCol, ghostA + 0.035f * onv));
+                    Color.scaleAlpha(ghostCol, (ghostA + 0.05f * onv) * screenAlpha));
             r.popClip();
 
             r.border(x, y, w, h, rad, Tokens.border().thickness(), edge);
@@ -580,22 +598,24 @@ public final class ClubMenuScreen extends Screen {
             // Icon chip + the state stripe centered under it (one column, geometry constant).
             float chipX = x + TILE_PAD;
             float chipY = y + (h - (CHIP + STRIPE_GAP + STRIPE_H)) / 2f;
-            int chipBg = Color.lerp(Color.withAlpha(Tokens.palette().textFaint(), 0x16),
-                                    Color.withAlpha(accent, 0x1F), onv);
-            int iconCol = Color.lerp(Tokens.palette().textDesc(), accent, onv);
+            int chipBg = Color.lerp(Color.withAlpha(Tokens.palette().textFaint(), 0x12),
+                                    Color.withAlpha(accent, 0x30), onv);
+            int iconCol = Color.lerp(Tokens.palette().textFaint(), accent, onv);
             r.roundedRect(chipX, chipY, CHIP, CHIP, CHIP_RAD, chipBg);
-            m.icon().draw(ctx, chipX + (CHIP - CHIP_ICON) / 2f, chipY + (CHIP - CHIP_ICON) / 2f, CHIP_ICON, iconCol);
+            m.icon().draw(ctx, chipX + (CHIP - CHIP_ICON) / 2f, chipY + (CHIP - CHIP_ICON) / 2f, CHIP_ICON,
+                    Color.scaleAlpha(iconCol, screenAlpha));
             int stripeCol = Color.lerp(Tokens.border().strong(), accent, onv);
             r.roundedRect(chipX + (CHIP - STRIPE_W) / 2f, chipY + CHIP + STRIPE_GAP,
                     STRIPE_W, STRIPE_H, STRIPE_H / 2f, stripeCol);
 
             // Name: uniform per-category size (cardNameSize, auto-fit in layoutAll) — never truncated.
-            int nameCol = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), onv);
+            // OFF drops to textDesc (not textMuted) so the on/off gap is obvious at a glance.
+            int nameCol = Color.lerp(Tokens.palette().textDesc(), Tokens.palette().textHi(), onv);
             float ns = cardNameSize;
             float nameLh = ctx.text().lineHeight(Tokens.type().heading().weight(), ns);
             float nameX = chipX + CHIP + NAME_GAP;
             ctx.text().draw(m.name(), nameX, y + (h - nameLh) / 2f,
-                    TextStyle.of(Tokens.type().heading().weight(), ns, nameCol));
+                    TextStyle.of(Tokens.type().heading().weight(), ns, Color.scaleAlpha(nameCol, screenAlpha)));
         }
 
         @Override public boolean mouseClicked(double mx, double my, int b) {
@@ -606,8 +626,9 @@ public final class ClubMenuScreen extends Screen {
         }
     }
 
-    /** Minimal single-line search input: no icon, placeholder when idle, blinking caret when focused. */
-    private static final class SearchField extends Component {
+    /** Minimal single-line search input: leading glyph, placeholder when idle, blinking caret when
+     *  focused. Inner (non-static) so its text/glyph colours can ride the whole-window fade. */
+    private final class SearchField extends Component {
         private final String placeholder;
         private String text = "";
         private Consumer<String> onChange;
@@ -657,14 +678,15 @@ public final class ClubMenuScreen extends Screen {
             // leading magnifier glyph — tints toward accent on focus, matching the border
             float isz = 13f;
             IconGlyph.SEARCH.draw(ctx, x + pad, y + (h - isz) / 2f, isz,
-                    Color.lerp(Tokens.palette().textMuted(), Tokens.accent().accent(), fv));
+                    Color.scaleAlpha(Color.lerp(Tokens.palette().textMuted(), Tokens.accent().accent(), fv), screenAlpha));
             float textX = x + pad + isz + 6f;
 
             float ty0 = y + (h - ty.body().lineHeight()) / 2f;
             r.pushClip(textX, y, x + w - pad - textX, h);
-            if (!empty) ctx.text().draw(text, textX, ty0, TextStyle.of(ty.body().weight(), ty.body().size(), Tokens.palette().textHi()));
+            if (!empty) ctx.text().draw(text, textX, ty0, TextStyle.of(ty.body().weight(), ty.body().size(),
+                    Color.scaleAlpha(Tokens.palette().textHi(), screenAlpha)));
             else {   // placeholder dissolves as focus grows (instead of snapping off on first focus/keypress)
-                float pa = 1f - fv;
+                float pa = (1f - fv) * screenAlpha;
                 if (pa > 0.001f) ctx.text().draw(placeholder, textX, ty0, TextStyle.of(ty.body().weight(), ty.body().size(),
                         Color.scaleAlpha(Color.lerp(Tokens.palette().textFaint(), Tokens.palette().textMuted(), 0.4f), pa)));
             }
