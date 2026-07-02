@@ -70,7 +70,8 @@ public final class ClubMenuScreen extends Screen {
     private String query = "";
 
     private final Pane root = new Pane();
-    private final Grid grid = new Grid(3, Tokens.spacing().md());
+    private final Grid grid = new Grid(GRID_COLS, Tokens.spacing().sm());
+    private float cardNameSize = NAME_BASE;   // uniform per-category name size (auto-fit in layoutAll)
     private SearchField search;
     private ScrollArea gridScroll;
     private Transition indicator;
@@ -99,8 +100,9 @@ public final class ClubMenuScreen extends Screen {
     private float winX, winY, winW, winH, bodyY, bodyH, contentX, contentW, railW, headH, footH;
 
     // Fixed centred window (owner decision 2026-07-02): dragging + grip removed — the menu always
-    // sits dead centre. Wide landscape so the grid holds 4 card columns (sparse for now — fine).
-    private static final float WIN_W = 860f, WIN_H = 380f;
+    // sits dead centre. Compact 660 width kept (owner): 4 columns fit via SMALLER cards, not a
+    // wider window — hence the vertical card composition (chip on top, name under).
+    private static final float WIN_W = 660f, WIN_H = 380f;
     private static final int GRID_COLS = 4;
     private boolean closing;   // Right-Shift close: plays the entrance in reverse, then really closes
 
@@ -322,9 +324,24 @@ public final class ClubMenuScreen extends Screen {
         search.layout(contentX + contentW - 16 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);   // header row, top-right
 
         // fixed 4-column grid (like the reference board) — sparse rows are fine for now
-        float gridW = contentW - 32;
+        float gridW = contentW - 24;
         grid.cols(GRID_COLS);
-        if (gridScroll != null) gridScroll.layout(contentX + 16, bodyY + 6, gridW, bodyH - 6 - 12);
+
+        // One name size per category (11.7): the largest size <= NAME_BASE at which the LONGEST
+        // module name of the category still fits the card's text slot. All visible names share it —
+        // uniform look, nothing ever truncates. Computed over the whole category (not the search
+        // subset) so the size doesn't jump while typing.
+        float cellW = (gridW - (GRID_COLS - 1) * Tokens.spacing().sm()) / GRID_COLS;
+        float slot = cellW - (TILE_PAD + CHIP + NAME_GAP + TILE_PAD);
+        float fit = NAME_BASE;
+        var nameWeight = Tokens.type().heading().weight();
+        for (Module mod : cats.get(catIndex).modules()) {
+            float atBase = Ui.text().width(mod.name(), nameWeight, NAME_BASE);
+            if (atBase > slot) fit = Math.min(fit, Math.max(NAME_MIN, slot * NAME_BASE / atBase));
+        }
+        cardNameSize = fit;
+
+        if (gridScroll != null) gridScroll.layout(contentX + 12, bodyY + 6, gridW, bodyH - 6 - 12);
 
         if (popModule != null) positionPopover();
     }
@@ -499,11 +516,14 @@ public final class ClubMenuScreen extends Screen {
 
     // ---- module card ---------------------------------------------------------
 
-    // Card anatomy (Stage 11, approved): icon chip + centered state stripe under it + name + ghost glyph.
+    // Card anatomy (Stage 11, approved): icon chip + centered state stripe under it + name + ghost glyph
+    // — HORIZONTAL, per the reference board. Compact 4-column metrics (11.7): chip 22, tight pads; the
+    // name never truncates — its SIZE fits the space (one uniform size per category, see cardNameSize).
     // State lives in COLOUR only (grey <-> category hue via one eased factor) — geometry never jumps.
-    private static final float TILE_H = 58f, TILE_PAD = 12f;
-    private static final float CHIP = 28f, CHIP_RAD = 8f, CHIP_ICON = 16f;
-    private static final float STRIPE_W = 16f, STRIPE_H = 3f, STRIPE_GAP = 4f;
+    private static final float TILE_H = 58f, TILE_PAD = 7f, NAME_GAP = 6f;
+    private static final float CHIP = 22f, CHIP_RAD = 7f, CHIP_ICON = 13f;
+    private static final float STRIPE_W = 14f, STRIPE_H = 3f, STRIPE_GAP = 4f;
+    private static final float NAME_BASE = 12f, NAME_MIN = 9f;   // uniform per-category auto-fit bounds
     private static final int POP_PAD = 8;   // tighter popover gutter — the scrollbar fills the right, so a wide left pad read as empty
 
     /** Module card: icon chip + centered state stripe + name + ghost underlay.
@@ -569,13 +589,13 @@ public final class ClubMenuScreen extends Screen {
             r.roundedRect(chipX + (CHIP - STRIPE_W) / 2f, chipY + CHIP + STRIPE_GAP,
                     STRIPE_W, STRIPE_H, STRIPE_H / 2f, stripeCol);
 
+            // Name: uniform per-category size (cardNameSize, auto-fit in layoutAll) — never truncated.
             int nameCol = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), onv);
-            float nameLh = Tokens.type().heading().lineHeight();
-            float nameX = chipX + CHIP + TILE_PAD;
-            r.pushClip(nameX, y, x + w - TILE_PAD - nameX, h);
+            float ns = cardNameSize;
+            float nameLh = ctx.text().lineHeight(Tokens.type().heading().weight(), ns);
+            float nameX = chipX + CHIP + NAME_GAP;
             ctx.text().draw(m.name(), nameX, y + (h - nameLh) / 2f,
-                    TextStyle.of(Tokens.type().heading().weight(), Tokens.type().heading().size(), nameCol));
-            r.popClip();
+                    TextStyle.of(Tokens.type().heading().weight(), ns, nameCol));
         }
 
         @Override public boolean mouseClicked(double mx, double my, int b) {
