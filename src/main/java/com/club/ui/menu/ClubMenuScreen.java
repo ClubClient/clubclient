@@ -2,7 +2,7 @@ package com.club.ui.menu;
 
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
-import com.club.ui.Icon;
+import com.club.ui.IconGlyph;
 import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.UiRenderer;
@@ -59,7 +59,6 @@ import static org.lwjgl.glfw.GLFW.*;
 public final class ClubMenuScreen extends Screen {
 
     private static final float CLOCK_BASE = 1000f;   // keep past any transition so fresh widgets read settled
-    private static final int VIOLET = 0xFF9B7CFF;    // for the enabled edge: accent mixed toward violet
     private static final float RAIL_ROW = 36f;       // category row height (tighter than the old 40 — less dead air)
 
     private final UiContextImpl uiCtx = new UiContextImpl();
@@ -78,6 +77,9 @@ public final class ClubMenuScreen extends Screen {
     private Transition[] railText;   // per-category label colour ease (hover / active)
     private Transition entrance;     // screen open: scrim fades in + window rises a few px (no scale)
     private float entranceYOff;      // current window rise offset (added to winY in layoutAll)
+    // Rail accent bar: eases between CATEGORY colours on switch (identity colour — Stage 11 palette A)
+    private int railBarFrom;
+    private Transition railBarBlend;
 
     // settings popover (RMB), anchored to a card
     private Module popModule;
@@ -103,7 +105,7 @@ public final class ClubMenuScreen extends Screen {
     private boolean draggingWin;
     private int winGrabX, winGrabY;
 
-    private TextStyle stBrand, stFootMut, stName, stNameOff, stCat, stCatOn;
+    private TextStyle stBrand, stFootMut;
 
     public ClubMenuScreen() { super(Text.literal("Club")); }
 
@@ -127,6 +129,23 @@ public final class ClubMenuScreen extends Screen {
             railText[i] = new Transition(i == catIndex ? 1f : 0f,
                     Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
         entrance = new Transition(0f, Tokens.motion().durations().slow(), Tokens.motion().easings().decelerate());
+        railBarFrom = catAccent(catIndex);
+        railBarBlend = new Transition(1f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+    }
+
+    /** Identity colour of a category (Stage 11 palette A) — keyed off its semantic icon. */
+    private int catAccent(int i) {
+        return switch (cats.get(i).icon()) {
+            case COMBAT  -> Tokens.categories().combat();
+            case VISUALS -> Tokens.categories().visuals();
+            case PLAYER  -> Tokens.categories().player();
+            default      -> Tokens.categories().misc();
+        };
+    }
+
+    /** Rail bar colour, easing from the previous category's hue to the current one. */
+    private int railBarColor(float now) {
+        return Color.lerp(railBarFrom, catAccent(catIndex), railBarBlend.value(now));
     }
 
     // Indicator tracks the row offset RELATIVE to bodyY, so it never lags behind the window when it's dragged /
@@ -137,7 +156,11 @@ public final class ClubMenuScreen extends Screen {
     // ---- state ---------------------------------------------------------------
 
     private void setCategory(int i) {
+        float now = uiCtx.time();
+        railBarFrom = railBarColor(now);   // ease the bar from wherever its colour currently is
         catIndex = i;
+        railBarBlend = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+        railBarBlend.target(1f, now);
         closePopover();
         query = "";
         if (search != null) search.clear();
@@ -148,11 +171,12 @@ public final class ClubMenuScreen extends Screen {
     private void rebuildGrid() {
         grid.clear();
         String q = query.toLowerCase(Locale.ROOT);
+        int accent = catAccent(catIndex);
         for (Module m : cats.get(catIndex).modules()) {
             if (!q.isEmpty()
                     && !m.name().toLowerCase(Locale.ROOT).contains(q)
                     && !m.desc().toLowerCase(Locale.ROOT).contains(q)) continue;
-            grid.add(new ModuleTile(m));
+            grid.add(new ModuleTile(m, accent));
         }
     }
 
@@ -341,11 +365,12 @@ public final class ClubMenuScreen extends Screen {
         r.rect(contentX, bodyY, contentW, 1, dv);          // under the search/header — separates the raised header from the content list
         r.rect(winX, winY + winH - footH, winW, 1, dv);    // above footer
 
-        // header — CLUB wordmark centred in the rail cell (dot + text as one group)
+        // header — CLUB wordmark centred in the rail cell (trefoil mark + text as one group)
+        float logoSz = 15f;
         float clubTextW = uiCtx.text().width("CLUB", ty.display().weight(), ty.display().size());
-        float clubX = winX + (railW - (16 + clubTextW)) / 2f;
-        r.roundedRect(clubX, winY + headH / 2f - 4, 8, 8, 2, Tokens.accent().accent());
-        uiCtx.text().draw("CLUB", clubX + 16, winY + (headH - ty.display().lineHeight()) / 2f, stBrand);
+        float clubX = winX + (railW - (logoSz + 7 + clubTextW)) / 2f;
+        IconGlyph.LOGO.draw(uiCtx, clubX, winY + (headH - logoSz) / 2f, logoSz, Tokens.accent().accent());
+        uiCtx.text().draw("CLUB", clubX + logoSz + 7, winY + (headH - ty.display().lineHeight()) / 2f, stBrand);
 
         float fy = winY + winH - footH + (footH - ty.label().lineHeight()) / 2f;
         uiCtx.text().draw("Profile · Default", winX + 18, fy, stFootMut);
@@ -355,16 +380,15 @@ public final class ClubMenuScreen extends Screen {
         float indY = bodyY + (indicator != null ? indicator.value(now) : railYRel(catIndex));
         r.roundedRect(winX + 8, indY + 3, railW - 16, RAIL_ROW - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
 
-        // rail categories (text only, no icons) — label colour eases on hover / active
+        // rail categories — label colour eases on hover / active; icon rides the same ease
         for (int i = 0; i < cats.size(); i++) {
             float yy = railY(i);
             boolean active = i == catIndex;
             boolean hov = mouseX >= winX && mouseX <= winX + railW && mouseY >= yy && mouseY < yy + RAIL_ROW;
             railText[i].target((active || hov) ? 1f : 0f, now);
             int col = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), railText[i].value(now));
-            // leading category icon (procedural, diagonal-free) — colour eases with the label
             float isz = 15f, iconX = winX + 16f;
-            cats.get(i).icon().draw(r, iconX, yy + (RAIL_ROW - isz) / 2f, isz, col, 1.5f);
+            cats.get(i).icon().draw(uiCtx, iconX, yy + (RAIL_ROW - isz) / 2f, isz, col);
             float textX = iconX + isz + 8f, clipR = winX + railW - 14f;
             r.pushClip(textX, yy, clipR - textX, RAIL_ROW);
             uiCtx.text().draw(cats.get(i).name(), textX, yy + (RAIL_ROW - catLh) / 2f,
@@ -376,8 +400,8 @@ public final class ClubMenuScreen extends Screen {
         root.mouseMoved(mouseX, mouseY);
         root.render(uiCtx);
 
-        if (indicator != null)
-            r.rect(winX, indY + 4, 4, RAIL_ROW - 8, Tokens.accent().accent());   // beefier active indicator (slid Y from above)
+        if (indicator != null)   // active indicator bar: CATEGORY colour, easing between hues on switch
+            r.rect(winX, indY + 4, 4, RAIL_ROW - 8, railBarColor(now));
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
@@ -418,10 +442,6 @@ public final class ClubMenuScreen extends Screen {
         stBrand     = TextStyle.of(t.display().weight(), t.display().size(), Tokens.palette().textHi());
         stFootMut   = TextStyle.of(t.label().weight(), t.label().size(),
                 Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), 0.35f));   // a touch more contrast
-        stName      = TextStyle.of(t.heading().weight(), t.heading().size(), Tokens.palette().textHi());
-        stNameOff   = TextStyle.of(t.heading().weight(), t.heading().size(), Tokens.palette().textMuted());
-        stCat       = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textMuted());
-        stCatOn     = TextStyle.of(t.label().weight(), t.label().size(), Tokens.palette().textHi());
     }
 
     @Override public void renderBackground(DrawContext dc, int mx, int my, float d) {
@@ -495,17 +515,25 @@ public final class ClubMenuScreen extends Screen {
 
     // ---- module card ---------------------------------------------------------
 
-    private static final float TILE_H = 46f, TILE_PAD = 12f;
+    // Card anatomy (Stage 11, approved): icon chip + centered state stripe under it + name + ghost glyph.
+    // State lives in COLOUR only (grey <-> category hue via one eased factor) — geometry never jumps.
+    private static final float TILE_H = 58f, TILE_PAD = 12f;
+    private static final float CHIP = 28f, CHIP_RAD = 8f, CHIP_ICON = 16f;
+    private static final float STRIPE_W = 16f, STRIPE_H = 3f, STRIPE_GAP = 4f;
+    private static final float GHOST = 44f, GHOST_BLEED = 10f;   // ghost bleeds past the right edge (clipped)
     private static final int POP_PAD = 8;   // tighter popover gutter — the scrollbar fills the right, so a wide left pad read as empty
 
-    /** Compact module card (name only). LMB = enable/disable (or run the action); RMB = settings popover. */
+    /** Module card: icon chip + centered state stripe + name + ghost underlay.
+     *  LMB = enable/disable (or run the action); RMB = settings popover. */
     private final class ModuleTile extends Component {
         private final Module m;
-        private final Transition onT;    // enabled → accent tint (fill/edge/name), eased
+        private final int accent;        // this category's identity colour (palette A)
+        private final Transition onT;    // enabled → chip/stripe/name/ghost ride one eased factor
         private final Transition hoverT = // hover → tone lift, eased
                 new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
-        ModuleTile(Module m) {
+        ModuleTile(Module m, int accent) {
             this.m = m;
+            this.accent = accent;
             this.onT = new Transition(m.enabled() ? 1f : 0f,
                     Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         }
@@ -516,26 +544,43 @@ public final class ClubMenuScreen extends Screen {
             UiRenderer r = ctx.renderer();
             float now = ctx.time();
             float rad = Tokens.radius().md();
-            onT.target(m.enabled() ? 1f : 0f, now);
+            // action-only cards (HUD Editor) read as available (full colour), never "off"
+            onT.target(m.hasToggle() ? (m.enabled() ? 1f : 0f) : 1f, now);
             hoverT.target(hovered ? 1f : 0f, now);
             float onv = onT.value(now), hv = hoverT.value(now);
 
-            // Fill/edge/name all ride one 0->1 "enabled" factor (onv) + a hover factor (hv) — no instant swap.
-            int base = Tokens.surface().surface();
-            int offFill = Color.lerp(base, Tokens.surface().surfaceHi(), hv);                // off: neutral, hover lifts
-            int onFill  = Color.lerp(base, Tokens.accent().accent(), 0.14f + 0.06f * hv);    // on: accent tint, deeper on hover
-            int fill = Color.lerp(offFill, onFill, onv);
-            int onEdge = Color.withAlpha(Color.lerp(Tokens.accent().accent(), VIOLET, 0.62f), 0xB0);
-            int edge = Color.lerp(Tokens.border().defaultColor(), onEdge, onv);
+            // Card ground stays NEUTRAL — identity/state live in chip, stripe, name and ghost.
+            int fill = Color.lerp(Tokens.surface().surface(), Tokens.surface().surfaceHi(), hv);
+            int edge = Color.lerp(Tokens.border().defaultColor(), Tokens.border().strong(), hv);
             r.roundedRect(x, y, w, h, rad, fill);
+
+            // Ghost underlay: the SAME glyph, large, at whisper alpha, bleeding past the right edge.
+            // Rect clip vs the rounded corner is invisible at this alpha (spec §7 risk — checked).
+            int ghostCol = Color.lerp(Tokens.palette().textDesc(), accent, onv);
+            r.pushClip(x, y, w, h);
+            m.icon().draw(ctx, x + w - GHOST + GHOST_BLEED, y + (h - GHOST) / 2f, GHOST,
+                    Color.scaleAlpha(ghostCol, 0.05f + 0.05f * onv));
+            r.popClip();
+
             r.border(x, y, w, h, rad, Tokens.border().thickness(), edge);
 
-            // action-only cards (HUD Editor) read as available (bright), never "off"
-            float brightv = m.hasToggle() ? onv : 1f;
-            int nameCol = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), brightv);
+            // Icon chip + the state stripe centered under it (one column, geometry constant).
+            float chipX = x + TILE_PAD;
+            float chipY = y + (h - (CHIP + STRIPE_GAP + STRIPE_H)) / 2f;
+            int chipBg = Color.lerp(Color.withAlpha(Tokens.palette().textFaint(), 0x16),
+                                    Color.withAlpha(accent, 0x1F), onv);
+            int iconCol = Color.lerp(Tokens.palette().textDesc(), accent, onv);
+            r.roundedRect(chipX, chipY, CHIP, CHIP, CHIP_RAD, chipBg);
+            m.icon().draw(ctx, chipX + (CHIP - CHIP_ICON) / 2f, chipY + (CHIP - CHIP_ICON) / 2f, CHIP_ICON, iconCol);
+            int stripeCol = Color.lerp(Tokens.border().strong(), accent, onv);
+            r.roundedRect(chipX + (CHIP - STRIPE_W) / 2f, chipY + CHIP + STRIPE_GAP,
+                    STRIPE_W, STRIPE_H, STRIPE_H / 2f, stripeCol);
+
+            int nameCol = Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), onv);
             float nameLh = Tokens.type().heading().lineHeight();
-            r.pushClip(x + TILE_PAD, y, w - 2 * TILE_PAD, TILE_H);
-            ctx.text().draw(m.name(), x + TILE_PAD, y + (TILE_H - nameLh) / 2f,
+            float nameX = chipX + CHIP + TILE_PAD;
+            r.pushClip(nameX, y, x + w - TILE_PAD - nameX, h);
+            ctx.text().draw(m.name(), nameX, y + (h - nameLh) / 2f,
                     TextStyle.of(Tokens.type().heading().weight(), Tokens.type().heading().size(), nameCol));
             r.popClip();
         }
@@ -596,10 +641,10 @@ public final class ClubMenuScreen extends Screen {
             int hoverBorder = Color.lerp(Tokens.border().defaultColor(), Color.withAlpha(Tokens.accent().accent(), 0x99), hv);
             r.border(x, y, w, h, rad, Tokens.border().thickness(), Color.lerp(hoverBorder, Tokens.accent().accent(), fv));
 
-            // leading magnifier glyph (diagonal-free) — tints toward accent on focus, matching the border
+            // leading magnifier glyph — tints toward accent on focus, matching the border
             float isz = 13f;
-            Icon.SEARCH.draw(r, x + pad, y + (h - isz) / 2f, isz,
-                    Color.lerp(Tokens.palette().textMuted(), Tokens.accent().accent(), fv), 1.4f);
+            IconGlyph.SEARCH.draw(ctx, x + pad, y + (h - isz) / 2f, isz,
+                    Color.lerp(Tokens.palette().textMuted(), Tokens.accent().accent(), fv));
             float textX = x + pad + isz + 6f;
 
             float ty0 = y + (h - ty.body().lineHeight()) / 2f;

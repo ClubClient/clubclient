@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- hide vanilla effects: potion flask -->
+  <line x1="9" y1="4.5" x2="15" y2="4.5" stroke-width="2"/>
+  <line x1="10.2" y1="4.5" x2="10.2" y2="8.6" stroke-width="2"/>
+  <line x1="13.8" y1="4.5" x2="13.8" y2="8.6" stroke-width="2"/>
+  <path d="M 10.2 8.6 C 7.2 10.6 5.5 13.2 5.5 15.7 C 5.5 18.3 7.6 20 10 20 L 14 20 C 16.4 20 18.5 18.3 18.5 15.7 C 18.5 13.2 16.8 10.6 13.8 8.6" stroke-width="2"/>
+</svg>

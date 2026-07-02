@@ -28,6 +28,10 @@ public enum IconGlyph {
     SCREEN_STRETCH(0xE011),
     HANDS(0xE012),
     HUD_EDITOR(0xE013),
+    NO_HURT_CAM(0xE014),
+    NO_FIRE_OVERLAY(0xE015),
+    NO_BOBBING(0xE016),
+    HIDE_EFFECTS(0xE017),
     // service
     SEARCH(0xE020),
     /** The CLUB mark — the club card suit (trefoil), solid. Header wordmark + editor watermark. */

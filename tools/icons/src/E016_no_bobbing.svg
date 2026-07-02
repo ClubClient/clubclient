@@ -1,0 +1,5 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- no bobbing: two calm waves -->
+  <path d="M 4 9 C 6 7.4 8 7.4 10 9 C 12 10.6 14 10.6 16 9 C 17.6 7.7 18.9 7.7 20 8.6" stroke-width="2"/>
+  <path d="M 4 15 C 6 13.4 8 13.4 10 15 C 12 16.6 14 16.6 16 15 C 17.6 13.7 18.9 13.7 20 14.6" stroke-width="2"/>
+</svg>

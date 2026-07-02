@@ -1,6 +1,7 @@
 package com.club.ui.hud;
 
 import com.club.ui.Color;
+import com.club.ui.IconGlyph;
 import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.text.TextStyle;
@@ -14,11 +15,11 @@ public final class Decals {
     private static float tw(String s, Typography.Role r) { return Ui.text().width(s, r.weight(), r.size()); }
 
     public static void watermark(UiContext ctx) {
-        var r = ctx.renderer(); var t = ctx.text(); Typography ty = Tokens.type();
+        var t = ctx.text(); Typography ty = Tokens.type();
         int hi = Tokens.palette().textHi(), faint = Tokens.palette().textFaint(), accent = Tokens.accent().accent();
-        r.roundedRect(18, 20, 8, 8, 2, accent);
-        t.draw("CLUB", 32, 16, st(ty.title(), hi));
-        t.draw("v2.5", 32 + tw("CLUB", ty.title()) + 8, 19, st(ty.label(), faint));
+        IconGlyph.LOGO.draw(ctx, 17, 17, 13, accent);   // the CLUB trefoil mark (Stage 11)
+        t.draw("CLUB", 34, 16, st(ty.title(), hi));
+        t.draw("v2.5", 34 + tw("CLUB", ty.title()) + 8, 19, st(ty.label(), faint));
     }
 
     public static void crosshair(UiContext ctx, int w, int h) {
