@@ -236,43 +236,60 @@ public final class ModernText implements UiText {
 
         if (batch.count == 0) return x + advance;
 
-        // Bind atlas, upload uniforms, emit vertices.
-        MsdfAtlas a = registry.atlasById(batch.atlasId);
-        a.ensureTexture();
-
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableCull();
         RenderSystem.setShader(textSupplier);               // cached supplier — no lambda alloc
-        RenderSystem.setShaderTexture(0, a.textureId);
 
-        setUniform1f("PxRange",      a.pxRange);
-        setUniform1f("OutlineWidth", outlineW);
-        setUniformColor("OutlineColor", outlineC);
-        setUniform1f("GlowRange",    glowR);
-        setUniformColor("GlowColor", glowC);
-        setUniform1f("WeightBias",   weightBias);
-
-        // Emit all batch quads into ONE BufferBuilder.
         Matrix4f mat = ctx.getMatrices().peek().getPositionMatrix();
-        BufferBuilder bb = Tessellator.getInstance().begin(
-                VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
-
         int r = batch.r, g = batch.g, b = batch.b, al = batch.al;
         float[] d = batch.data;
-        for (int i = 0, end = batch.count * 8; i < end; i += 8) {
-            float x0 = d[i],     y0 = d[i + 1];
-            float x1 = d[i + 2], y1 = d[i + 3];
-            float u0 = d[i + 4], v0 = d[i + 5];
-            float u1 = d[i + 6], v1 = d[i + 7];
-            // Quad: top-left, bottom-left, bottom-right, top-right (QUADS winding).
-            bb.vertex(mat, x0, y0, 0f).texture(u0, v0).color(r, g, b, al);
-            bb.vertex(mat, x0, y1, 0f).texture(u0, v1).color(r, g, b, al);
-            bb.vertex(mat, x1, y1, 0f).texture(u1, v1).color(r, g, b, al);
-            bb.vertex(mat, x1, y0, 0f).texture(u1, v0).color(r, g, b, al);
-        }
 
-        BufferRenderer.drawWithGlobalProgram(bb.end());
+        // Draw CONTIGUOUS SAME-ATLAS groups. A normal run resolves entirely to one weight atlas
+        // (one group = one draw, as before); the Stage-11 icon seam can interleave the icon atlas
+        // into a text run (e.g. a server entity name carrying PUA glyphs reaches the Target HUD),
+        // and each glyph must sample ITS atlas with ITS PxRange — last-wins binding renders garbage.
+        int start = 0;
+        while (start < batch.count) {
+            int aid = batch.atlas[start];
+            int groupEnd = start + 1;
+            while (groupEnd < batch.count && batch.atlas[groupEnd] == aid) groupEnd++;
+
+            MsdfAtlas a = registry.atlasById(aid);
+            try {
+                a.ensureTexture();
+            } catch (RuntimeException e) {
+                if (registry.isIconAtlas(aid)) {   // icons must never kill text: drop icon quads, disable icons
+                    registry.disableIcons(e);
+                    start = groupEnd;
+                    continue;
+                }
+                throw e;                            // font atlas failure → existing broken/LEGACY path
+            }
+            RenderSystem.setShaderTexture(0, a.textureId);
+            setUniform1f("PxRange",      a.pxRange);
+            setUniform1f("OutlineWidth", outlineW);
+            setUniformColor("OutlineColor", outlineC);
+            setUniform1f("GlowRange",    glowR);
+            setUniformColor("GlowColor", glowC);
+            setUniform1f("WeightBias",   weightBias);
+
+            BufferBuilder bb = Tessellator.getInstance().begin(
+                    VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+            for (int i = start * 8, end = groupEnd * 8; i < end; i += 8) {
+                float x0 = d[i],     y0 = d[i + 1];
+                float x1 = d[i + 2], y1 = d[i + 3];
+                float u0 = d[i + 4], v0 = d[i + 5];
+                float u1 = d[i + 6], v1 = d[i + 7];
+                // Quad: top-left, bottom-left, bottom-right, top-right (QUADS winding).
+                bb.vertex(mat, x0, y0, 0f).texture(u0, v0).color(r, g, b, al);
+                bb.vertex(mat, x0, y1, 0f).texture(u0, v1).color(r, g, b, al);
+                bb.vertex(mat, x1, y1, 0f).texture(u1, v1).color(r, g, b, al);
+                bb.vertex(mat, x1, y0, 0f).texture(u1, v0).color(r, g, b, al);
+            }
+            BufferRenderer.drawWithGlobalProgram(bb.end());
+            start = groupEnd;
+        }
         RenderSystem.enableCull();
 
         batch.reset();
@@ -303,27 +320,26 @@ public final class ModernText implements UiText {
      *
      * <p>Stores raw floats (x0, y0, x1, y1, u0, v0, u1, v1) per glyph in a backing
      * {@code float[]} that grows ×2 on overflow — NO per-glyph allocation once the
-     * array has been sized for the longest line in this session.</p>
+     * array has been sized for the longest line in this session. A parallel per-quad
+     * {@code atlas[]} records each glyph's atlas: normal text resolves to one weight
+     * atlas, but the Stage-11 icon seam may interleave the icon atlas into a run, and
+     * the renderer draws contiguous same-atlas groups.</p>
      *
-     * <p>Stage 1: one atlas per run (layout guarantees this because {@link FontRegistry}
-     * resolves each glyph to a single atlas). {@code atlasId} is set on every
-     * {@link #glyph} call; it will equal the atlas of the last (and only) glyph family.</p>
-     *
-     * <p>BATCHING SEAM: Stage 1 flushes one draw per run (= per line). A future batcher
-     * keeps the GlyphBatch open across multiple runs sharing the same atlasId and flushes
-     * once per frame per atlas → 1 texture bind + 1 shader bind + 1 draw for many lines.
-     * The {@link UiText} API does not change.</p>
+     * <p>BATCHING SEAM: Stage 1 flushes one draw per same-atlas group (= per line for
+     * pure text). A future batcher keeps the GlyphBatch open across multiple runs
+     * sharing an atlas and flushes once per frame per atlas → 1 texture bind +
+     * 1 shader bind + 1 draw for many lines. The {@link UiText} API does not change.</p>
      */
     private static final class GlyphBatch implements GlyphSink {
 
         // 8 floats per quad: x0,y0,x1,y1,u0,v0,u1,v1
         float[] data = new float[1024];
 
+        /** Per-quad atlas index (parallel to {@link #data}, one entry per quad). */
+        int[] atlas = new int[128];
+
         /** Number of complete quads accumulated since the last {@link #begin}. */
         int count;
-
-        /** Atlas index of the most recent glyph — used by the renderer to bind texture. */
-        int atlasId;
 
         /** Unpacked RGBA bytes of the current run color. */
         int r, g, b, al;
@@ -342,13 +358,15 @@ public final class ModernText implements UiText {
         public void glyph(int atlasId,
                           float x0, float y0, float x1, float y1,
                           float u0, float v0, float u1, float v1) {
-            this.atlasId = atlasId;
             int base = count * 8;
             if (base + 8 > data.length) {
-                // Grow backing array ×2 — amortised O(1), zero per-glyph alloc after warm-up.
+                // Grow backing arrays ×2 — amortised O(1), zero per-glyph alloc after warm-up.
                 float[] grown = new float[data.length * 2];
                 System.arraycopy(data, 0, grown, 0, data.length);
                 data = grown;
+                int[] grownA = new int[atlas.length * 2];
+                System.arraycopy(atlas, 0, grownA, 0, atlas.length);
+                atlas = grownA;
             }
             data[base]     = x0;
             data[base + 1] = y0;
@@ -358,6 +376,7 @@ public final class ModernText implements UiText {
             data[base + 5] = v0;
             data[base + 6] = u1;
             data[base + 7] = v1;
+            atlas[count] = atlasId;
             count++;
         }
 

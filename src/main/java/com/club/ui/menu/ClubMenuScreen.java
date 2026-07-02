@@ -534,7 +534,8 @@ public final class ClubMenuScreen extends Screen {
         ModuleTile(Module m, int accent) {
             this.m = m;
             this.accent = accent;
-            this.onT = new Transition(m.enabled() ? 1f : 0f,
+            // action-only cards seed at 1 (always "available") — else every grid rebuild replays a grey->colour fade
+            this.onT = new Transition(m.hasToggle() ? (m.enabled() ? 1f : 0f) : 1f,
                     Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         }
 
@@ -655,13 +656,12 @@ public final class ClubMenuScreen extends Screen {
                 if (pa > 0.001f) ctx.text().draw(placeholder, textX, ty0, TextStyle.of(ty.body().weight(), ty.body().size(),
                         Color.scaleAlpha(Color.lerp(Tokens.palette().textFaint(), Tokens.palette().textMuted(), 0.4f), pa)));
             }
-            r.popClip();
-
-            if (fv > 0.001f) {   // caret: smooth ~1 Hz sine pulse (not a hard blink), scaled by focus
+            if (fv > 0.001f) {   // caret: smooth ~1 Hz sine pulse — inside the clip so a long query can't spill it past the field
                 float blink = 0.15f + 0.85f * (0.5f + 0.5f * (float) Math.sin(now * 2f * (float) Math.PI));
                 float tw = empty ? 0f : ctx.text().width(text, ty.body().weight(), ty.body().size());
                 r.rect(textX + tw + 1f, ty0, 1f, ty.body().lineHeight(), Color.scaleAlpha(Tokens.accent().accent(), fv * blink));
             }
+            r.popClip();
         }
     }
 

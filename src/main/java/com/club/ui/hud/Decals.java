@@ -17,7 +17,7 @@ public final class Decals {
     public static void watermark(UiContext ctx) {
         var t = ctx.text(); Typography ty = Tokens.type();
         int hi = Tokens.palette().textHi(), faint = Tokens.palette().textFaint(), accent = Tokens.accent().accent();
-        IconGlyph.LOGO.draw(ctx, 17, 17, 13, accent);   // the CLUB trefoil mark (Stage 11)
+        IconGlyph.LOGO.draw(ctx, 17, 20.5f, 13, accent);   // trefoil centred on the title's line box (16 + (22-13)/2)
         t.draw("CLUB", 34, 16, st(ty.title(), hi));
         t.draw("v2.5", 34 + tw("CLUB", ty.title()) + 8, 19, st(ty.label(), faint));
     }

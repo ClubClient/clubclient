@@ -72,11 +72,24 @@ public final class FontRegistry implements GlyphSource {
     // -------------------------------------------------------------------------
 
     /**
-     * Returns the atlas for {@code id} (0/1/2). Used by the renderer to bind the
+     * Returns the atlas for {@code id} (0/1/2/3). Used by the renderer to bind the
      * correct texture and read {@code pxRange}.
      */
     public MsdfAtlas atlasById(int id) {
         return atlas(id);
+    }
+
+    /** True if {@code id} is the icon atlas — the renderer keeps ICON failures non-fatal. */
+    public boolean isIconAtlas(int id) { return id == ICONS; }
+
+    /**
+     * Disables icon resolution for the session — called by the renderer when the icon TEXTURE
+     * fails after a successful metrics load (icons.json fine, icons.png missing/corrupt).
+     * Subsequent PUA lookups fall through to the '?' path; text keeps rendering MODERN.
+     */
+    public void disableIcons(Exception cause) {
+        if (!iconsBroken) System.err.println("[club.ui] icon atlas texture unavailable — icons disabled: " + cause);
+        iconsBroken = true;
     }
 
     // -------------------------------------------------------------------------

@@ -11,8 +11,8 @@ import com.club.ui.text.Weight;
  * <p>An icon IS a glyph: it renders through the normal text pipeline (MSDF shader), so it is
  * resolution-independent and tinted by the draw color — one monochrome asset covers every
  * category color, and state colors ease smoothly via {@link Color#lerp}. The ghost underlay is
- * this same glyph drawn large at low alpha. Unlike the procedural {@link Icon}, diagonals are
- * fully supported (no R8 limitation on this path).</p>
+ * this same glyph drawn large at low alpha. Unlike the retired procedural Icon enum, diagonals
+ * are fully supported (no R8 limitation on this path).</p>
  *
  * <p>On the LEGACY backend icons are skipped silently — module names stay readable and no
  * vanilla '?' boxes appear.</p>

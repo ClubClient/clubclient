@@ -217,6 +217,8 @@ public final class IconAtlasGen {
             if (c != 0) { cmd = c; t.nextCmd(); }
             else if (cmd == 'M') cmd = 'L';        // implicit lineto after moveto
             else if (cmd == 'm') cmd = 'l';
+            else if (cmd == 'Z' || cmd == 'z')     // numbers can't follow close-path — fail loud, don't spin
+                throw new IllegalStateException(file + ": numeric data after close-path (Z) — missing command");
             switch (cmd) {
                 case 'M', 'm' -> {
                     if (cur.size() >= 4) out.add(toArr(cur));
