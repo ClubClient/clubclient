@@ -1,0 +1,5 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: absorption — heart inside heart (extra layer) -->
+  <path d="M 12 19 C 5.8 14.6 4.6 10 7.1 7.5 C 9 5.7 11.3 6.5 12 8.4 C 12.7 6.5 15 5.7 16.9 7.5 C 19.4 10 18.2 14.6 12 19 Z" stroke-width="2"/>
+  <path d="M 12 15.6 C 8.6 13 7.9 10.5 9.3 9.1 C 10.3 8.1 11.6 8.6 12 9.7 C 12.4 8.6 13.7 8.1 14.7 9.1 C 16.1 10.5 15.4 13 12 15.6 Z" stroke-width="1.5"/>
+</svg>

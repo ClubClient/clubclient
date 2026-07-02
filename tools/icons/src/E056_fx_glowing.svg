@@ -1,0 +1,5 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: glowing — four-point sparkle + satellite dot -->
+  <path d="M 12 3.8 C 12.7 8.8 15.2 11.3 20.2 12 C 15.2 12.7 12.7 15.2 12 20.2 C 11.3 15.2 8.8 12.7 3.8 12 C 8.8 11.3 11.3 8.8 12 3.8 Z" stroke-width="2"/>
+  <circle cx="18.3" cy="5.7" r="1" fill="solid"/>
+</svg>

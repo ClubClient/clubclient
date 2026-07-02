@@ -1,0 +1,6 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: mining fatigue — pickaxe struck through -->
+  <path d="M 5 10.5 C 8 5.8 16 5.8 19 10.5" stroke-width="2"/>
+  <line x1="12" y1="7" x2="12" y2="19.5" stroke-width="2"/>
+  <line x1="4.5" y1="19.5" x2="19.5" y2="4.5" stroke-width="2"/>
+</svg>

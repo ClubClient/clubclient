@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: hunger — drumstick (meat + bone tips) -->
+  <circle cx="9.6" cy="9.6" r="5.1" stroke-width="2"/>
+  <line x1="13.3" y1="13.3" x2="17.2" y2="17.2" stroke-width="2"/>
+  <circle cx="18.9" cy="16.4" r="1.5" stroke-width="1.7"/>
+  <circle cx="16.4" cy="18.9" r="1.5" stroke-width="1.7"/>
+</svg>

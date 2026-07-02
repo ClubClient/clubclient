@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: haste — pickaxe (head arc + handle) with a spark -->
+  <path d="M 5 10.5 C 8 5.8 16 5.8 19 10.5" stroke-width="2"/>
+  <line x1="12" y1="7" x2="12" y2="19.5" stroke-width="2"/>
+  <line x1="16.6" y1="13.4" x2="18.8" y2="15.6" stroke-width="1.7"/>
+  <line x1="18.8" y1="13.4" x2="16.6" y2="15.6" stroke-width="1.7"/>
+</svg>

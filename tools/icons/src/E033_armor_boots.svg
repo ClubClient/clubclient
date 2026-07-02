@@ -1,0 +1,5 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- armor: boot — shaft + toe, cuff line -->
+  <path d="M 8 5 L 14 5 L 14 12.3 C 16.8 13 19.5 14.6 19.5 16.2 L 19.5 18 L 8 18 Z" stroke-width="2"/>
+  <line x1="8" y1="8.2" x2="14" y2="8.2" stroke-width="1.7"/>
+</svg>

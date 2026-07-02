@@ -35,7 +35,41 @@ public enum IconGlyph {
     // service
     SEARCH(0xE020),
     /** The CLUB mark — the club card suit (trefoil), solid. Header wordmark + editor watermark. */
-    LOGO(0xE021);
+    LOGO(0xE021),
+    // HUD: armor pieces (Stage 14 — replaces vanilla item sprites; tinted by material)
+    ARMOR_HELMET(0xE030),
+    ARMOR_CHEST(0xE031),
+    ARMOR_LEGS(0xE032),
+    ARMOR_BOOTS(0xE033),
+    ARMOR_ELYTRA(0xE034),
+    // HUD: status effects (Stage 14 — icon-only Effects element; tinted by association)
+    FX_SPEED(0xE040),
+    FX_SLOWNESS(0xE041),
+    FX_HASTE(0xE042),
+    FX_MINING_FATIGUE(0xE043),
+    FX_STRENGTH(0xE044),
+    FX_JUMP_BOOST(0xE045),
+    FX_NAUSEA(0xE046),
+    FX_REGENERATION(0xE047),
+    FX_RESISTANCE(0xE048),
+    FX_FIRE_RESISTANCE(0xE049),
+    FX_WATER_BREATHING(0xE04A),
+    FX_INVISIBILITY(0xE04B),
+    FX_BLINDNESS(0xE04C),
+    FX_NIGHT_VISION(0xE04D),
+    FX_HUNGER(0xE04E),
+    FX_POISON(0xE04F),
+    FX_WITHER(0xE050),
+    FX_HEALTH_BOOST(0xE051),
+    FX_ABSORPTION(0xE052),
+    FX_WEAKNESS(0xE053),
+    FX_LEVITATION(0xE054),
+    FX_SLOW_FALLING(0xE055),
+    FX_GLOWING(0xE056),
+    FX_DARKNESS(0xE057),
+    FX_LUCK(0xE058),
+    /** Fallback for effects without a drawn icon (rare/modded) — generic test tube. */
+    FX_GENERIC(0xE059);
 
     public final int codePoint;
     private final String str;

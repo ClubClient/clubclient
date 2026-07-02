@@ -1,0 +1,6 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: night vision — crescent moon + star ticks -->
+  <path d="M 14.8 4.5 C 10.3 5.4 7 9 7 13 C 7 17 10.3 20.1 14.8 20.5 C 11.7 18.4 10.1 15.7 10.1 12.5 C 10.1 9.3 11.7 6.6 14.8 4.5 Z" stroke-width="2"/>
+  <line x1="17.2" y1="7" x2="17.2" y2="10.6" stroke-width="1.7"/>
+  <line x1="15.4" y1="8.8" x2="19" y2="8.8" stroke-width="1.7"/>
+</svg>

@@ -1,0 +1,5 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- armor: chestplate — torso with neck U, waist curve -->
+  <path d="M 6 4.5 L 9 4.5 C 9 7.4 15 7.4 15 4.5 L 18 4.5 L 18 19 L 6 19 Z" stroke-width="2"/>
+  <path d="M 6 12.5 C 8 13.6 16 13.6 18 12.5" stroke-width="1.7"/>
+</svg>

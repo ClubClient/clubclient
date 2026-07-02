@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: generic fallback — test tube with liquid -->
+  <line x1="8.6" y1="4.6" x2="15.4" y2="4.6" stroke-width="2"/>
+  <path d="M 10.1 4.6 L 10.1 15.6 C 10.1 17.6 10.9 18.9 12 18.9 C 13.1 18.9 13.9 17.6 13.9 15.6 L 13.9 4.6" stroke-width="2"/>
+  <line x1="10.1" y1="12.6" x2="13.9" y2="12.6" stroke-width="1.5"/>
+  <circle cx="12" cy="15.6" r="0.9" fill="solid"/>
+</svg>

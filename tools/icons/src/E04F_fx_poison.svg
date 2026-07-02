@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: poison — droplet with a deadly little face -->
+  <path d="M 12 4.2 C 15 8.1 17.4 11 17.4 14.2 C 17.4 17.6 15 19.9 12 19.9 C 9 19.9 6.6 17.6 6.6 14.2 C 6.6 11 9 8.1 12 4.2 Z" stroke-width="2"/>
+  <circle cx="10.3" cy="13.4" r="1" fill="solid"/>
+  <circle cx="13.7" cy="13.4" r="1" fill="solid"/>
+  <line x1="10.9" y1="16.4" x2="13.1" y2="16.4" stroke-width="1.5"/>
+</svg>

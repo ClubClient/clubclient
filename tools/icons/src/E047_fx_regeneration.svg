@@ -1,0 +1,6 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: regeneration — heart with plus -->
+  <path d="M 12 19 C 5.8 14.6 4.6 10 7.1 7.5 C 9 5.7 11.3 6.5 12 8.4 C 12.7 6.5 15 5.7 16.9 7.5 C 19.4 10 18.2 14.6 12 19 Z" stroke-width="2"/>
+  <line x1="12" y1="10.6" x2="12" y2="14.2" stroke-width="1.7"/>
+  <line x1="10.2" y1="12.4" x2="13.8" y2="12.4" stroke-width="1.7"/>
+</svg>

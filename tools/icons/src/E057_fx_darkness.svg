@@ -1,0 +1,5 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- effect: darkness — eclipsed orb (ring + terminator) -->
+  <circle cx="12" cy="12" r="6.8" stroke-width="2"/>
+  <path d="M 9.4 6.5 C 13.6 8.3 13.6 15.7 9.4 17.5" stroke-width="1.7"/>
+</svg>
