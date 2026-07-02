@@ -7,7 +7,6 @@ import com.club.ui.component.UiContextImpl;
 import com.club.ui.hud.ArmorElement;
 import com.club.ui.hud.EffectsElement;
 import com.club.ui.hud.HudCanvas;
-import com.club.ui.hud.HudSprites;
 import com.club.ui.hud.InfoElement;
 import com.club.ui.hud.TargetElement;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
@@ -38,7 +37,6 @@ public final class HudManager {
 
             // V2 HUD (Effects / Target / Info / Armor) — frozen UI stack; the canvas hides disabled/empty elements.
             Ui.beginFrame(ctx);
-            HudSprites.set(ctx);   // Armor draws vanilla sprites through this DrawContext
             UI.setTime((System.nanoTime() - START) / 1_000_000_000f);
             CANVAS.setScreen(mc.getWindow().getScaledWidth(), mc.getWindow().getScaledHeight());
             CANVAS.layoutFromConfig(mc);

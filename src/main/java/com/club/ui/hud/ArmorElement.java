@@ -2,23 +2,30 @@ package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
+import com.club.ui.IconGlyph;
 import com.club.ui.UiContext;
 import com.club.ui.text.TextStyle;
 import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
 import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.item.ArmorItem;
+import net.minecraft.item.ElytraItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 
 /**
- * Armor on the V4 "Chips" language (Stage 13.6): ONE capsule for the whole set — separate
- * per-piece chips read as choppy slivers (owner). Each row inside is [sprite + exact value] with
- * its own LIVE LINE underneath (the in-capsule sibling of the edge bar, echoing the menu card's
- * stripe): state-coloured durability, smooth threshold crossings. Digits stay exact (truth).
- * Vertical rows (default) or horizontal cells. The sprite is the one thing the V2 renderer can't
- * draw, so it goes through the frame's {@link HudSprites} DrawContext. Empty pieces are skipped.
+ * Armor on the V4 "Chips" language (Stage 13.6/14): ONE capsule for the whole set — separate
+ * per-piece chips read as choppy slivers (owner). Each row inside is [piece icon + exact value]
+ * with its own LIVE LINE underneath (the in-capsule sibling of the edge bar, echoing the menu
+ * card's stripe): state-coloured durability, smooth threshold crossings. Digits stay exact (truth).
+ * Vertical rows (default) or horizontal cells. Empty pieces are skipped.
+ *
+ * <p>Stage 14: pieces are OUR SDF icons (helmet/chest/legs/boots/elytra), tinted by MATERIAL
+ * association (diamond cyan, gold amber, netherite mauve…) — vanilla item sprites clashed with the
+ * flat language, and dropping them removes the HUD's last legacy seam (HudSprites is gone; the
+ * element is now pure V2 renderer). The value + line stay neutral/state-coloured — the tint names
+ * the material, it never grades the number. On LEGACY the icon column is skipped (glyphs only).</p>
  */
 public final class ArmorElement extends HudElement {
     private static final int ICON = 16, GAP = 5;             // sprite size; sprite ↔ value gap
@@ -41,6 +48,19 @@ public final class ArmorElement extends HudElement {
     /** In-world: show only when at least one piece is equipped (editor shows a diamond sample). */
     @Override public boolean hasContent(MinecraftClient mc) {
         return !live(mc) || count(pieces(mc)) > 0;
+    }
+
+    // Snapshot of the last non-empty set: when the final piece is removed the canvas fades the
+    // element out — during that fade we draw this frozen frame instead of popping to nothing.
+    private ItemStack[] lastLive;
+
+    /** The stacks to draw: live set, frozen last frame during the exit fade, or the editor sample. */
+    private ItemStack[] stacks(MinecraftClient mc, boolean live) {
+        if (!live) return sampleStacks();
+        ItemStack[] ps = pieces(mc);
+        if (count(ps) == 0) return lastLive != null ? lastLive : ps;
+        lastLive = ps;
+        return ps;
     }
 
     // --- data (ported from legacy hud/ArmorHud) ---
@@ -94,7 +114,7 @@ public final class ArmorElement extends HudElement {
     }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
-        ItemStack[] ps = live ? pieces(mc) : sampleStacks();
+        ItemStack[] ps = stacks(mc, live);
         int count = count(ps);
         if (count == 0) return new int[]{0, 0};
         int cell = cellW(ps, h().armorPercent);
@@ -108,28 +128,27 @@ public final class ArmorElement extends HudElement {
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         Typography ty = Tokens.type();
         float base = ty.body().size();
-        ItemStack[] ps = live ? pieces(mc) : sampleStacks();
+        ItemStack[] ps = stacks(mc, live);
         boolean percent = h().armorPercent;
         boolean vertical = h().armorVertical;
         int cell = cellW(ps, percent);
-        int valW = valueWidth(ps, percent);
         float lh = ty.body().lineHeight();
         TextStyle style = TextStyle.of(Weight.SEMIBOLD, base * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
                 .effect(HudPaint.textShadow(alpha));
-        DrawContext dc = HudSprites.ctx();
 
         // ONE capsule for the whole set — the rows inside carry their own live lines.
         int[] cs = contentSize(mc, live);
         HudPaint.chip(ctx, ox, oy, cs[0] * s, cs[1] * s, HudPaint.CHIP_RAD * s, alpha);
 
         int i = 0;
-        for (ItemStack st : ps) {
+        for (int slot = 0; slot < ps.length; slot++) {
+            ItemStack st = ps[slot];
             if (st.isEmpty()) continue;
             float cx = ox + (PAD_X + (vertical ? 0 : i * (cell + CELL_GAP))) * s;
             float cy = oy + (PAD_Y + (vertical ? i * (ROW_BLOCK + ROW_GAP) : 0)) * s;
             float f = frac(st);
 
-            drawSprite(dc, st, cx, cy, s);
+            icon(slot, st).draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(materialTint(st), alpha));
             // tabular value right-aligned in the shared column: equal-length values are pixel-identical
             String v = value(st, percent);
             float tw = HudText.width(v, Weight.SEMIBOLD, base);
@@ -140,13 +159,31 @@ public final class ArmorElement extends HudElement {
         }
     }
 
-    /** Vanilla item sprite via the frame's DrawContext, matrix-scaled to the element scale. */
-    private static void drawSprite(DrawContext dc, ItemStack st, float x, float y, float scale) {
-        if (dc == null) return;   // no DrawContext this frame (defensive)
-        dc.getMatrices().push();
-        dc.getMatrices().translate(x, y, 0f);
-        dc.getMatrices().scale(scale, scale, 1f);
-        dc.drawItem(st, 0, 0);
-        dc.getMatrices().pop();
+    /** Slot → piece silhouette; elytra gets its own wings in the chest slot. */
+    private static IconGlyph icon(int slot, ItemStack st) {
+        if (st.getItem() instanceof ElytraItem) return IconGlyph.ARMOR_ELYTRA;
+        return switch (slot) {
+            case 0  -> IconGlyph.ARMOR_HELMET;
+            case 1  -> IconGlyph.ARMOR_CHEST;
+            case 2  -> IconGlyph.ARMOR_LEGS;
+            default -> IconGlyph.ARMOR_BOOTS;
+        };
+    }
+
+    /** Icon tint = MATERIAL association (identity only — never grades the durability number). */
+    private static int materialTint(ItemStack st) {
+        if (st.getItem() instanceof ElytraItem) return 0xFFA99EC2;          // phantom-membrane mauve
+        if (!(st.getItem() instanceof ArmorItem ai)) return 0xFFA9B4C4;
+        String m = ai.getMaterial().getKey().map(k -> k.getValue().getPath()).orElse("");
+        return switch (m) {
+            case "leather"   -> 0xFFB39070;
+            case "chainmail" -> 0xFF9AA6B4;
+            case "iron"      -> 0xFFC9D0D8;
+            case "gold"      -> 0xFFE4C87A;
+            case "diamond"   -> 0xFF7CD0DC;
+            case "netherite" -> 0xFFA28A96;
+            case "turtle"    -> 0xFF7FBFA6;
+            default          -> 0xFFA9B4C4;   // unknown/modded — neutral steel
+        };
     }
 }

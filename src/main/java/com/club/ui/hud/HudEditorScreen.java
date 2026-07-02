@@ -160,7 +160,6 @@ public final class HudEditorScreen extends Screen {
 
     @Override public void render(DrawContext dc, int mx, int my, float d) {
         Ui.beginFrame(dc);
-        HudSprites.set(dc);   // Armor draws vanilla sprites through this DrawContext
         var r = Ui.renderer(); Typography ty = Tokens.type();
         if (stHint == null) initStyles();
         r.rect(0, 0, width, height, 0xFF0A0E15);
