@@ -2,39 +2,43 @@ package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
-import com.club.ui.Ui;
+import com.club.ui.IconGlyph;
 import com.club.ui.UiContext;
 import com.club.ui.motion.Reveal;
-import com.club.ui.text.Align;
-import com.club.ui.text.TextStyle;
-import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
-import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
 
 import java.util.HashMap;
 
 /**
- * Active effects on the V4 "Chips" language (Stage 13): each effect is its own capsule
- * ["Name  Time"], and the capsule's LIVE EDGE drains with the remaining time — a glance says
- * "what's about to run out" without reading a single digit; the countdown text stays exact.
- * Edge colour: neutral steel-grey, warming toward amber as the effect nears its end (smooth lerp,
- * never a snap). Vertical stack (default) or a row of capsules ({@code potionHorizontal}).
- * The effect's TOTAL duration isn't stored by the game, so it's tracked as the max duration seen
- * per title (a re-application resets the scale — exactly what the eye expects).
+ * Active effects on the V4 "Chips" language, icon-only (Stage 14): ONE capsule for the whole
+ * stack (mirrors Armor — per-effect chips read as choppy slivers), NO text at all. Each row is
+ * the effect's SDF icon tinted with its association color ({@link EffectStyles}), an amplifier
+ * pip column for II+ (geometry, not numerals), and a LIVE LINE underneath that drains with the
+ * remaining time against the effect's TOTAL duration — the line keeps the effect's own color and
+ * warms toward amber over the last ~30% (smooth, never a snap). The game doesn't store the total,
+ * so it's tracked as the max duration seen per effect+amplifier (re-application resets the scale —
+ * exactly what the eye expects). Vertical stack (default) or a horizontal row of cells.
+ * On LEGACY the icons are skipped (lines still show) — emergency mode only.
  */
 public final class EffectsElement extends HudElement {
-    private static final float CHIP_H = 24f, CHIP_GAP = 4f;   // capsule height / stack gap (unscaled)
-    private static final float PAD_X = 8f, PAD_TOP = 3f;      // shared row metrics (13.4): PAD_X 8 everywhere
-    private static final float BAR_H = 2f;                    // live edge height
-    private static final int   GAP = 12, MIN_TEXT_W = 56;     // name ↔ time min gap; min text width
-    private static final int   NEUTRAL = 0xFF4A5A75;          // calm steel-grey edge (plenty of time left)
+    private static final int ICON = 16;                       // icon content box
+    private static final float PAD_X = 8f, PAD_Y = 5f;        // capsule padding (mirrors Armor)
+    private static final float BAR_H = 2f, BAR_GAP = 2f;      // per-row live line + gap above it
+    private static final float ROW_BLOCK = ICON + BAR_GAP + BAR_H;   // icon + gap + line = 20
+    private static final float ROW_GAP = 5f, CELL_GAP = 12f;  // vertical row spacing / horizontal cell spacing
+    // Amplifier pips (level II and up): a tiny dot column right of the icon — geometry, not text.
+    private static final float DOT = 2f, DOT_GAP = 1.5f, DOT_INSET = 2f;
 
-    // Fade-in per effect (keyed by title): a newly-gained effect eases in instead of popping. Expiring
-    // effects still drop instantly — exit-fade is deferred (the expiring-first list reorders as timers tick).
+    // Fade-in per effect row: a newly-gained effect eases in instead of popping. Expiring effects
+    // still drop instantly — exit-fade is deferred (the expiring-first list reorders as timers tick).
     private final HashMap<String, Reveal> enter = new HashMap<>();
-    // Max duration seen per title = the drain scale's denominator (reset on re-application).
+    // Max duration seen per effect+amplifier = the drain scale's denominator (reset on re-application).
     private final HashMap<String, Integer> maxSeen = new HashMap<>();
+    // Snapshot of the last non-empty stack: when the final effect expires the canvas fades the element
+    // out over ~200ms — during that fade we draw this frozen frame (not the editor sample, not nothing).
+    private Fx[] lastLive;
+    private boolean frozen;   // set by rows() while the frozen frame is showing (rows skip entrance fades)
 
     public EffectsElement() { super("effects"); }
     @Override public String displayName() { return "Effects"; }
@@ -47,7 +51,7 @@ public final class EffectsElement extends HudElement {
     @Override public float cfgScale() { return h().potionScale; }
     @Override public boolean cfgEnabled() { return h().potions; }
 
-    // V4: capsules are drawn per effect in paint(); no shared outer panel.
+    // V4: the capsule is drawn in paint(); no shared outer panel.
     @Override protected float panelPadX() { return 0f; }
     @Override protected float panelPadY() { return 0f; }
     @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
@@ -57,93 +61,118 @@ public final class EffectsElement extends HudElement {
         return !live(mc) || !com.club.hud.PotionHud.effects(mc).isEmpty();
     }
 
-    /** One capsule's data: title, countdown text, remaining/total fraction. */
-    private record Fx(String title, String time, float frac) {}
+    /** One row's data: stable key, icon, association color, amplifier pips, remaining/total fraction. */
+    private record Fx(String key, IconGlyph icon, int color, int dots, float frac) {}
 
     private static final Fx[] SAMPLE = {
-        new Fx("Speed II", "1:24", 0.47f), new Fx("Strength I", "0:42", 0.23f),
+        sample("speed", 1, 0.47f), sample("strength", 0, 0.23f),
     };
+    private static Fx sample(String id, int amp, float frac) {
+        EffectStyles.Style st = EffectStyles.byId(id);
+        return new Fx("sample:" + id, st.icon(), st.color(), pips(amp), frac);
+    }
 
     /** Live effects (expiring first) with drain fractions; representative sample otherwise. */
     private Fx[] rows(MinecraftClient mc, boolean live) {
+        frozen = false;
         if (!live) return SAMPLE;
         var fx = com.club.hud.PotionHud.effects(mc);
-        if (fx.isEmpty()) return SAMPLE;
+        if (fx.isEmpty()) {
+            // exit fade: draw the frozen last frame; scales + entrance fades die with the stack
+            enter.clear(); maxSeen.clear();
+            frozen = true;
+            return lastLive != null ? lastLive : SAMPLE;
+        }
         Fx[] out = new Fx[fx.size()];
         for (int i = 0; i < fx.size(); i++) {
             var e = fx.get(i);
-            String title = com.club.hud.PotionHud.title(e);
+            EffectStyles.Style st = EffectStyles.of(e);
+            // key includes the amplifier: Speed I → Speed II is a NEW row (fresh drain scale + fade)
+            String key = e.getEffectType().getKey().map(k -> k.getValue().toString()).orElse("?")
+                    + "#" + e.getAmplifier();
             float frac;
             if (e.isInfinite()) {
                 frac = 1f;
             } else {
                 int dur = e.getDuration();
-                int max = maxSeen.merge(title, dur, Math::max);   // re-application (dur > seen) resets the scale
+                int max = maxSeen.merge(key, dur, Math::max);   // re-application (dur > seen) resets the scale
                 frac = max > 0 ? (float) dur / max : 0f;
             }
-            out[i] = new Fx(title, com.club.hud.PotionHud.time(e), frac);
+            out[i] = new Fx(key, st.icon(), st.color(), pips(e.getAmplifier()), frac);
         }
+        // Forget scales/fades for effects no longer present, so a re-gained effect starts fresh.
+        enter.keySet().removeIf(k -> !hasRow(out, k));
+        maxSeen.keySet().removeIf(k -> !hasRow(out, k));
+        lastLive = out;
         return out;
     }
 
-    /** Uniform capsule width: pad + (longest name + gap + longest time) + pad. Unscaled. */
-    private float chipW(Fx[] rows) {
-        Typography.Role r = Tokens.type().label();
-        float nameW = 0, timeW = 0;
-        for (Fx row : rows) {
-            nameW = Math.max(nameW, Ui.text().width(row.title(), Weight.SEMIBOLD, r.size()));   // name is heavier
-            timeW = Math.max(timeW, Ui.text().width(row.time(), r.weight(), r.size()));
-        }
-        return 2 * PAD_X + Math.max(MIN_TEXT_W, nameW + GAP + timeW);
+    /** Level I is unmarked; II+ shows its level as pips (capped at 4 — command-level stays sane). */
+    private static int pips(int amp) { return amp >= 1 ? Math.min(amp + 1, 4) : 0; }
+
+    /** Inner cell width: icon + pip column when any visible effect is II+ (uniform across rows). */
+    private int cellW(Fx[] rows) {
+        for (Fx r : rows) if (r.dots() > 0) return Math.round(ICON + DOT_INSET + DOT);
+        return ICON;
     }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
         Fx[] rows = rows(mc, live);
-        int cw = Math.round(chipW(rows));
+        int n = rows.length;
+        if (n == 0) return new int[]{0, 0};
+        int cell = cellW(rows);
         if (h().potionHorizontal)
-            return new int[]{ Math.round(rows.length * cw + (rows.length - 1) * CHIP_GAP), Math.round(CHIP_H) };
-        return new int[]{ cw, Math.round(rows.length * CHIP_H + (rows.length - 1) * CHIP_GAP) };
+            return new int[]{ Math.round(2 * PAD_X + n * cell + (n - 1) * CELL_GAP),
+                              Math.round(2 * PAD_Y + ROW_BLOCK) };
+        return new int[]{ Math.round(2 * PAD_X + cell),
+                          Math.round(2 * PAD_Y + n * ROW_BLOCK + (n - 1) * ROW_GAP) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
-        var t = ctx.text(); Typography ty = Tokens.type();
         float now = ctx.time();
-        int hi = Tokens.palette().textHi(), mut = Tokens.palette().textMuted();
         Fx[] rows = rows(mc, live);
+        if (rows.length == 0) return;
         boolean horizontal = h().potionHorizontal;
-        float cw = chipW(rows);
-        float textInset = (CHIP_H - BAR_H - HudPaint.EDGE_BOT - PAD_TOP - ty.label().lineHeight()) * 0.5f + PAD_TOP;
-        // Forget scales/fades for effects no longer present, so a re-gained effect starts fresh.
-        enter.keySet().removeIf(title -> !hasRow(rows, title));
-        maxSeen.keySet().removeIf(title -> !hasRow(rows, title));
+        int cell = cellW(rows);
+
+        // ONE capsule for the whole stack — the rows inside carry their own live lines.
+        int[] cs = contentSize(mc, live);
+        HudPaint.chip(ctx, ox, oy, cs[0] * s, cs[1] * s, HudPaint.CHIP_RAD * s, alpha);
+
         for (int i = 0; i < rows.length; i++) {
             Fx row = rows[i];
-            Reveal rev = enter.computeIfAbsent(row.title(),
-                    k -> new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate(), now));
-            float a = rev.progress(now) * alpha;               // row entrance × element appear/disappear fade
-            float cx = horizontal ? ox + i * (cw + CHIP_GAP) * s : ox;
-            float cy = horizontal ? oy : oy + i * (CHIP_H + CHIP_GAP) * s;
+            float ra = 1f;                                     // frozen exit frame draws rows at full alpha
+            if (!frozen) {
+                Reveal rev = enter.computeIfAbsent(row.key(),
+                        k -> new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate(), now));
+                ra = rev.progress(now);
+            }
+            float a = ra * alpha;                              // row entrance × element appear/disappear fade
+            float cx = ox + (PAD_X + (horizontal ? i * (cell + CELL_GAP) : 0)) * s;
+            float cy = oy + (PAD_Y + (horizontal ? 0 : i * (ROW_BLOCK + ROW_GAP))) * s;
 
-            HudPaint.chip(ctx, cx, cy, cw * s, CHIP_H * s, HudPaint.CHIP_RAD * s, a);
-            HudPaint.edgeBar(ctx, cx, cy, cw * s, CHIP_H * s, BAR_H, row.frac(), edgeColor(row.frac()), s, a);
-
-            float ry = cy + textInset * s;
-            t.draw(row.title(), cx + PAD_X * s, ry,
-                    TextStyle.of(Weight.SEMIBOLD, ty.label().size() * s, Color.scaleAlpha(hi, a)).effect(HudPaint.textShadow(a)));
-            t.draw(row.time(), cx + (cw - PAD_X) * s, ry,
-                    TextStyle.of(ty.label().weight(), ty.label().size() * s, Color.scaleAlpha(mut, a))
-                            .align(Align.RIGHT).effect(HudPaint.textShadow(a)));
+            row.icon().draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(row.color(), a));
+            if (row.dots() > 0) {
+                float dh = row.dots() * DOT + (row.dots() - 1) * DOT_GAP;
+                float dx = cx + (ICON + DOT_INSET) * s;
+                float dy = cy + (ICON - dh) * 0.5f * s;        // pip column vertically centered on the icon
+                int dot = Color.scaleAlpha(row.color(), a);
+                for (int k = 0; k < row.dots(); k++)
+                    ctx.renderer().roundedRect(dx, dy + k * (DOT + DOT_GAP) * s, DOT * s, DOT * s, DOT * 0.5f * s, dot);
+            }
+            HudPaint.rowBar(ctx, cx, cy + (ICON + BAR_GAP) * s, cell * s, BAR_H,
+                    row.frac(), timeColor(row.frac(), row.color()), s, a);
         }
     }
 
-    /** Calm steel-grey while time remains; warms toward amber over the last ~30% (smooth, no snap). */
-    private static int edgeColor(float f) {
-        if (f >= 0.30f) return NEUTRAL;
-        return Color.lerp(Tokens.palette().stateWarn(), NEUTRAL, Math.max(0f, f) / 0.30f);
+    /** The line keeps the effect's own color while time remains; warms toward amber over the last ~30%. */
+    private static int timeColor(float f, int assoc) {
+        if (f >= 0.30f) return assoc;
+        return Color.lerp(Tokens.palette().stateWarn(), assoc, Math.max(0f, f) / 0.30f);
     }
 
-    private static boolean hasRow(Fx[] rows, String title) {
-        for (Fx row : rows) if (row.title().equals(title)) return true;
+    private static boolean hasRow(Fx[] rows, String key) {
+        for (Fx row : rows) if (row.key().equals(key)) return true;
         return false;
     }
 }
