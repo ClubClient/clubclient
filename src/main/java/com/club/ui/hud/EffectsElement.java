@@ -3,32 +3,39 @@ package com.club.ui.hud;
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
 import com.club.ui.IconGlyph;
+import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.motion.Reveal;
+import com.club.ui.text.TextStyle;
+import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
+import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.entity.effect.StatusEffectInstance;
 
 import java.util.HashMap;
 
 /**
- * Active effects on the V4 "Chips" language, icon-only (Stage 14): ONE capsule for the whole
- * stack (mirrors Armor — per-effect chips read as choppy slivers), NO text at all. Each row is
- * the effect's SDF icon tinted with its association color ({@link EffectStyles}), an amplifier
- * pip column for II+ (geometry, not numerals), and a LIVE LINE underneath that drains with the
- * remaining time against the effect's TOTAL duration — the line keeps the effect's own color and
+ * Active effects on the V4 "Chips" language (Stage 14): ONE capsule for the whole stack (mirrors
+ * Armor — per-effect chips read as choppy slivers). Each row is a compact cluster
+ * [icon&nbsp;&nbsp;II&nbsp;·&nbsp;1:24]: the effect's SDF icon tinted with its association color
+ * ({@link EffectStyles}), the roman level for II+ (muted — a quiet qualifier, level I is
+ * unmarked), a faint dot separator, and the exact countdown (tabular, textHi, right-aligned down
+ * the stack like Armor's values — no effect names). The row's LIVE LINE underneath drains with
+ * the remaining time against the effect's TOTAL duration — it keeps the effect's own color and
  * warms toward amber over the last ~30% (smooth, never a snap). The game doesn't store the total,
  * so it's tracked as the max duration seen per effect+amplifier (re-application resets the scale —
  * exactly what the eye expects). Vertical stack (default) or a horizontal row of cells.
- * On LEGACY the icons are skipped (lines still show) — emergency mode only.
+ * On LEGACY the icons are skipped (times/lines still show) — emergency mode only.
  */
 public final class EffectsElement extends HudElement {
-    private static final int ICON = 16;                       // icon content box
+    private static final int ICON = 16, GAP = 5;              // icon content box; icon ↔ text gap
     private static final float PAD_X = 8f, PAD_Y = 5f;        // capsule padding (mirrors Armor)
     private static final float BAR_H = 2f, BAR_GAP = 2f;      // per-row live line + gap above it
     private static final float ROW_BLOCK = ICON + BAR_GAP + BAR_H;   // icon + gap + line = 20
     private static final float ROW_GAP = 5f, CELL_GAP = 12f;  // vertical row spacing / horizontal cell spacing
-    // Amplifier pips (level II and up): a tiny dot column right of the icon — geometry, not text.
-    private static final float DOT = 2f, DOT_GAP = 1.5f, DOT_INSET = 2f;
+    // The separator between level and time ("какая-нибудь точка") — a faint middle dot, drawn as geometry.
+    private static final float DOT = 2f, DOT_PAD = 2.5f;
 
     // Fade-in per effect row: a newly-gained effect eases in instead of popping. Expiring effects
     // still drop instantly — exit-fade is deferred (the expiring-first list reorders as timers tick).
@@ -61,15 +68,15 @@ public final class EffectsElement extends HudElement {
         return !live(mc) || !com.club.hud.PotionHud.effects(mc).isEmpty();
     }
 
-    /** One row's data: stable key, icon, association color, amplifier pips, remaining/total fraction. */
-    private record Fx(String key, IconGlyph icon, int color, int dots, float frac) {}
+    /** One row's data: stable key, icon, association color, roman level ("" for I), countdown, fraction. */
+    private record Fx(String key, IconGlyph icon, int color, String amp, String time, float frac) {}
 
     private static final Fx[] SAMPLE = {
-        sample("speed", 1, 0.47f), sample("strength", 0, 0.23f),
+        sample("speed", 1, "1:24", 0.47f), sample("strength", 0, "0:42", 0.23f),
     };
-    private static Fx sample(String id, int amp, float frac) {
+    private static Fx sample(String id, int amp, String time, float frac) {
         EffectStyles.Style st = EffectStyles.byId(id);
-        return new Fx("sample:" + id, st.icon(), st.color(), pips(amp), frac);
+        return new Fx("sample:" + id, st.icon(), st.color(), roman(amp), time, frac);
     }
 
     /** Live effects (expiring first) with drain fractions; representative sample otherwise. */
@@ -98,7 +105,7 @@ public final class EffectsElement extends HudElement {
                 int max = maxSeen.merge(key, dur, Math::max);   // re-application (dur > seen) resets the scale
                 frac = max > 0 ? (float) dur / max : 0f;
             }
-            out[i] = new Fx(key, st.icon(), st.color(), pips(e.getAmplifier()), frac);
+            out[i] = new Fx(key, st.icon(), st.color(), roman(e.getAmplifier()), time(e), frac);
         }
         // Forget scales/fades for effects no longer present, so a re-gained effect starts fresh.
         enter.keySet().removeIf(k -> !hasRow(out, k));
@@ -107,13 +114,32 @@ public final class EffectsElement extends HudElement {
         return out;
     }
 
-    /** Level I is unmarked; II+ shows its level as pips (capped at 4 — command-level stays sane). */
-    private static int pips(int amp) { return amp >= 1 ? Math.min(amp + 1, 4) : 0; }
+    /** Level I is unmarked; II+ shows its roman level — the effect's strength, quiet. */
+    private static String roman(int amp) {
+        if (amp < 1) return "";
+        return switch (amp + 1) {
+            case 2 -> "II"; case 3 -> "III"; case 4 -> "IV"; case 5 -> "V";
+            default -> String.valueOf(amp + 1);
+        };
+    }
 
-    /** Inner cell width: icon + pip column when any visible effect is II+ (uniform across rows). */
+    private static String time(StatusEffectInstance e) {
+        if (e.isInfinite()) return "—";   // Onest has no ∞ glyph; em dash reads as "permanent"
+        int t = e.getDuration() / 20, sec = t % 60;
+        return (t / 60) + ":" + (sec < 10 ? "0" : "") + sec;
+    }
+
+    /** Inner cell width: icon + gap + widest [level · time] cluster (times right-align down the stack). */
     private int cellW(Fx[] rows) {
-        for (Fx r : rows) if (r.dots() > 0) return Math.round(ICON + DOT_INSET + DOT);
-        return ICON;
+        Typography ty = Tokens.type();
+        float w = 0;
+        for (Fx r : rows) {
+            float t = HudText.width(r.time(), Weight.SEMIBOLD, ty.body().size());
+            if (!r.amp().isEmpty())
+                t += Ui.text().width(r.amp(), Weight.MEDIUM, ty.label().size()) + 2 * DOT_PAD + DOT;
+            w = Math.max(w, t);
+        }
+        return Math.round(ICON + GAP + w);
     }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
@@ -129,11 +155,18 @@ public final class EffectsElement extends HudElement {
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
+        Typography ty = Tokens.type();
         float now = ctx.time();
         Fx[] rows = rows(mc, live);
         if (rows.length == 0) return;
         boolean horizontal = h().potionHorizontal;
         int cell = cellW(rows);
+        float base = ty.body().size(), ampSize = ty.label().size();
+        float lh = ty.body().lineHeight();
+        float textTop = (ICON - lh) * 0.5f;                    // text block centered on the icon box
+        float ampDy = Ui.text().ascent(Weight.SEMIBOLD, base) - Ui.text().ascent(Weight.MEDIUM, ampSize);
+        // the separator dot sits at the digits' optical middle (~half x-height above the baseline)
+        float dotY = textTop + Ui.text().ascent(Weight.SEMIBOLD, base) - base * 0.28f - DOT * 0.5f;
 
         // ONE capsule for the whole stack — the rows inside carry their own live lines.
         int[] cs = contentSize(mc, live);
@@ -152,13 +185,21 @@ public final class EffectsElement extends HudElement {
             float cy = oy + (PAD_Y + (horizontal ? 0 : i * (ROW_BLOCK + ROW_GAP))) * s;
 
             row.icon().draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(row.color(), a));
-            if (row.dots() > 0) {
-                float dh = row.dots() * DOT + (row.dots() - 1) * DOT_GAP;
-                float dx = cx + (ICON + DOT_INSET) * s;
-                float dy = cy + (ICON - dh) * 0.5f * s;        // pip column vertically centered on the icon
-                int dot = Color.scaleAlpha(row.color(), a);
-                for (int k = 0; k < row.dots(); k++)
-                    ctx.renderer().roundedRect(dx, dy + k * (DOT + DOT_GAP) * s, DOT * s, DOT * s, DOT * 0.5f * s, dot);
+            // countdown right-aligned in the shared column (tabular — a ticking second never jitters)
+            float timeW = HudText.width(row.time(), Weight.SEMIBOLD, base);
+            float timeX = cell - timeW;
+            HudText.draw(ctx, row.time(), cx + timeX * s, cy + textTop * s,
+                    TextStyle.of(Weight.SEMIBOLD, base * s, Color.scaleAlpha(Tokens.palette().textHi(), a))
+                            .effect(HudPaint.textShadow(a)), base, s);
+            if (!row.amp().isEmpty()) {
+                // [II · 1:24] — level hugs its own time, separated by the faint dot
+                float ampW = Ui.text().width(row.amp(), Weight.MEDIUM, ampSize);
+                float dotX = timeX - DOT_PAD - DOT;
+                ctx.renderer().roundedRect(cx + dotX * s, cy + dotY * s, DOT * s, DOT * s, DOT * 0.5f * s,
+                        Color.scaleAlpha(Tokens.palette().textFaint(), a));
+                ctx.text().draw(row.amp(), cx + (dotX - DOT_PAD - ampW) * s, cy + (textTop + ampDy) * s,
+                        TextStyle.of(Weight.MEDIUM, ampSize * s, Color.scaleAlpha(Tokens.palette().textMuted(), a))
+                                .effect(HudPaint.textShadow(a)));
             }
             HudPaint.rowBar(ctx, cx, cy + (ICON + BAR_GAP) * s, cell * s, BAR_H,
                     row.frac(), timeColor(row.frac(), row.color()), s, a);
