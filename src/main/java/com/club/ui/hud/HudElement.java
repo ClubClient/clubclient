@@ -33,8 +33,6 @@ public abstract class HudElement extends Component {
     protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) {
         HudPaint.panel(ctx, x, y, w, h, radius, a);
     }
-    /** One row height for every stacked HUD list (Effects, Armor) — a single vertical grid across the HUD. */
-    public static final int LIST_ROW = 18;
     /** Element appear/disappear fade in [0,1] (Stage 10.3); 1 = fully shown. Set by the canvas in-world. */
     protected float alpha = 1f;
     /** Editor forces representative sample data so every element always has an area (e.g. Armor with no armor
