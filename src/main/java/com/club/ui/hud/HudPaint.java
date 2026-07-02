@@ -33,4 +33,37 @@ final class HudPaint {
     static TextEffect textShadow(float a) {
         return new TextEffect.Shadow(1f, 1f, 1f, Color.scaleAlpha(SHADOW, a));
     }
+
+    // ---- V4 "Chips" (Stage 13) ------------------------------------------------
+
+    /** Chip capsule radius (unscaled) — shape geometry shared by every element. */
+    static final float CHIP_RAD = 9f;
+    /** Edge-bar side inset / bottom margin (unscaled): keeps the pill mathematically inside the
+     *  capsule's rounded corners (the renderer's clip is rectangular, so a full-bleed bar would
+     *  poke past the corner curve). */
+    static final float EDGE_INSET = 4f, EDGE_BOT = 2f;
+
+    /** V4 capsule: borderless translucent ground — definition comes from the edge bar, not a hairline. */
+    static void chip(UiContext ctx, float x, float y, float w, float h, float radius, float a) {
+        if (a <= 0f) return;
+        ctx.renderer().roundedRect(x, y, w, h, radius, Color.scaleAlpha(Tokens.surface().bg2(), 0.55f * a));
+    }
+
+    /**
+     * The chip's LIVE EDGE (Stage 13): a recessed pill track along the capsule's bottom + a
+     * state-coloured fill for {@code frac} of it. All measurable data speaks through this line —
+     * armor durability, effect time draining, Target HP. {@code s} scales geometry; {@code a} fades.
+     */
+    static void edgeBar(UiContext ctx, float chipX, float chipY, float chipW, float chipH,
+                        float barH, float frac, int color, float s, float a) {
+        if (a <= 0f) return;
+        var r = ctx.renderer();
+        float inset = EDGE_INSET * s, bh = barH * s;
+        float bx = chipX + inset, bw = chipW - 2 * inset;
+        float by = chipY + chipH - bh - EDGE_BOT * s;
+        float rr = bh / 2f;
+        r.roundedRect(bx, by, bw, bh, rr, Color.scaleAlpha(Color.scaleAlpha(Tokens.surface().surfaceHi(), 0.6f), a));
+        float f = Math.max(0f, Math.min(1f, frac));
+        if (f > 0f) r.roundedRect(bx, by, Math.max(bh, bw * f), bh, rr, Color.scaleAlpha(color, a));
+    }
 }

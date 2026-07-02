@@ -1,7 +1,6 @@
 package com.club.ui.hud;
 
 import com.club.config.ClubConfig;
-import com.club.ui.Axis;
 import com.club.ui.Color;
 import com.club.ui.Ui;
 import com.club.ui.UiContext;
@@ -12,24 +11,21 @@ import com.club.ui.theme.Tokens;
 import net.minecraft.client.MinecraftClient;
 
 /**
- * Target — the "Hero" element (docs/HUD-LANGUAGE.md §8): the entity under the crosshair, composed to read
- * instantly in PvP while feeling like it belongs to the client (menu language), not a card laid over the game.
- *
- * <p>Locked etalon: a <b>recessive</b> panel (34% {@code bg1}, no border — the border was the "card tell" — plus a
- * whisper-subtle vertical tone gradient so it reads as a surface, not a slab), radius 10, generous padding.
- * Name (18 SemiBold, white) left; HP two-tone right — number bright ({@link #HP_NUM}), unit "HP" dim
- * ({@link #HP_UNIT}); a 4px HP bar below. Hierarchy: name → HP → bar → panel. The bar is the object of motion:
- * a soft low-contrast track, a brighter fill, and a colour that <b>ramps</b> as HP drains — cold steel-blue →
- * purple → orange → red (not a hard switch), so damage feels alive. Digits are never coloured (state = the bar).
+ * Target — V4 "Chips" + variant C (Stage 13, owner-picked): a single capsule whose BOTTOM EDGE is
+ * the HP bar. <b>HP-first hierarchy</b> — the health number (16 SemiBold, bright) leads, the name
+ * follows quieter (13 Medium, muted, truncated with "…" at a FIXED width so the chip never
+ * stretches for long names). In PvP the eye catches the number and the live edge; the name is
+ * secondary. The edge fill hue-ramps as HP drains — cold steel-blue → purple → orange → red
+ * (smooth lerp, never a hard switch). Digits are never coloured (state = the edge).
  */
 public final class TargetElement extends HudElement {
-    private static final float NAME_SIZE = 18f, HP_SIZE = 13f;
-    private static final int   GAP = 14;           // name ↔ HP-group gap (unscaled)
-    private static final float BAR_H = 4f;         // #1 bar heavier — health is the heaviest object
-    private static final int   BAR_TOP = 27;       // ~10px air below the name band
-    private static final int   CONTENT_H = BAR_TOP + (int) BAR_H;
-    private static final float NAME_WEIGHT_BIAS = 0.04f;   // #3 SemiBold a hair thinner (optical) — reads dearer
-    private static final float MIN_W = 92f, MAX_W = 148f;   // firm width cap — long names truncate ("…") instead of stretching
+    private static final float HP_SIZE = 16f, UNIT_SIZE = 12f, NAME_SIZE = 13f;
+    private static final int   GAP = 12;            // HP-group ↔ name gap (unscaled)
+    private static final float PAD_X = 12f, PAD_TOP = 7f;   // chip padding (unscaled)
+    private static final float BAR_H = 3f;          // live edge height
+    private static final int   CONTENT_H = 36;      // full chip height (text band + edge zone)
+    private static final float NAME_MAX_W = 84f;    // FIXED name field — longer names ellipsize here
+    private static final float MIN_W = 96f;
     private static final String UNIT = " HP";
 
     // HP tone C: number a touch brighter than the name-support tone, the "HP" unit dimmer — a micro-hierarchy
@@ -66,10 +62,10 @@ public final class TargetElement extends HudElement {
     @Override public float cfgScale() { return h().targetScale; }
     @Override public boolean cfgEnabled() { return h().target; }
 
-    // Hero panel: bigger radius + generous, deliberate padding (menu language), recessive fill (see drawPanel).
-    @Override protected float panelPadX() { return 15f; }
-    @Override protected float panelPadY() { return 13f; }
-    @Override protected float panelRadius() { return 10f; }
+    // V4: the chip IS the element — no outer panel, no extra padding (the capsule + edge are drawn
+    // in paint(), so the editor drag box frames the capsule exactly).
+    @Override protected float panelPadX() { return 0f; }
+    @Override protected float panelPadY() { return 0f; }
 
     /** Quick scale-pop when the target is acquired or changes (per the "feel" pass). Same easing/token family
      *  as the other HUD motion, so all animations share one speed language. */
@@ -83,13 +79,7 @@ public final class TargetElement extends HudElement {
     }
 
     @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) {
-        if (a <= 0f) return;
-        int base = Tokens.surface().bg1();
-        // ~34% fill, top a hair lighter / bottom a hair darker — so faint the player never "sees" a gradient,
-        // it just stops reading as a flat slab. No border (the #1D2536 hairline is the "menu card" tell).
-        int top = Color.withAlpha(Color.lerp(base, 0xFFFFFFFF, 0.03f), 0x57);
-        int bot = Color.withAlpha(Color.lerp(base, 0xFF000000, 0.03f), 0x57);
-        ctx.renderer().gradient(x, y, w, h, radius, Color.scaleAlpha(top, a), Color.scaleAlpha(bot, a), Axis.VERTICAL);
+        // no-op: the V4 capsule + live edge are drawn in paint() (needs the eased HP fraction)
     }
 
     @Override public int autoX(MinecraftClient mc) { return mc != null ? mc.getWindow().getScaledWidth() / 2 + 16 : -1; }
@@ -106,38 +96,33 @@ public final class TargetElement extends HudElement {
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
-        var r = ctx.renderer(); var t = ctx.text();
+        var t = ctx.text();
         float now = ctx.time();
-        // cur* refreshed in contentSize() this frame. Snap the bar when the target changes; else ease it.
+        // cur* refreshed in contentSize() this frame. Snap the edge when the target changes; else ease it.
         if (!curName.equals(tweenName)) { hpFrac.snap(curFrac, now); tweenName = curName; } else hpFrac.set(curFrac, now);
         float frac = hpFrac.get(now);
 
-        int nameC = Color.scaleAlpha(Tokens.palette().textHi(), alpha);
+        float cw = contentW(), ch = CONTENT_H;
+        HudPaint.chip(ctx, ox, oy, cw * s, ch * s, HudPaint.CHIP_RAD * s, alpha);
+        HudPaint.edgeBar(ctx, ox, oy, cw * s, ch * s, BAR_H, frac, hpColor(frac), s, alpha);
+
         int numC  = Color.scaleAlpha(HP_NUM, alpha);
         int unitC = Color.scaleAlpha(HP_UNIT, alpha);
+        int nameC = Color.scaleAlpha(Tokens.palette().textMuted(), alpha);
 
-        float cw = contentW();
-        float numW  = Ui.text().width(curNum, Weight.MEDIUM, HP_SIZE);
-        float unitW = Ui.text().width(UNIT,   Weight.MEDIUM, HP_SIZE);
-        float hpW   = numW + unitW;
-        // baseline-align the smaller HP text to the name's baseline (premium alignment, not top-aligned)
-        float hpDy = Ui.text().ascent(Weight.SEMIBOLD, NAME_SIZE) - Ui.text().ascent(Weight.MEDIUM, HP_SIZE);
+        float numW  = Ui.text().width(curNum, Weight.SEMIBOLD, HP_SIZE);
+        float unitW = Ui.text().width(UNIT,   Weight.MEDIUM, UNIT_SIZE);
+        // one shared baseline: the HP number leads it; unit and name hang off it (premium alignment)
+        float unitDy = Ui.text().ascent(Weight.SEMIBOLD, HP_SIZE) - Ui.text().ascent(Weight.MEDIUM, UNIT_SIZE);
+        float nameDy = Ui.text().ascent(Weight.SEMIBOLD, HP_SIZE) - Ui.text().ascent(Weight.MEDIUM, NAME_SIZE);
 
-        // name (primary) — left, truncated into the width left after the HP group; optically a touch thinner
-        String name = fitName(curName, cw - GAP - hpW);
-        t.draw(name, ox, oy, TextStyle.of(Weight.SEMIBOLD, NAME_SIZE * s, nameC)
-                .effect(HudPaint.textShadow(alpha)).weightBias(NAME_WEIGHT_BIAS));
-        // HP two-tone — right-aligned group ending at the content edge
-        float numX  = ox + (cw - hpW) * s;
-        float unitX = ox + (cw - unitW) * s;
-        t.draw(curNum, numX, oy + hpDy * s, TextStyle.of(Weight.MEDIUM, HP_SIZE * s, numC).effect(HudPaint.textShadow(alpha)));
-        t.draw(UNIT,   unitX, oy + hpDy * s, TextStyle.of(Weight.MEDIUM, HP_SIZE * s, unitC).effect(HudPaint.textShadow(alpha)));
-
-        // HP bar — the object of motion. Soft low-contrast track + brighter, hue-ramped fill.
-        float barW = cw * s, barY = oy + BAR_TOP * s, barH = BAR_H * s, rr = barH * 0.5f;
-        int track = Color.scaleAlpha(Color.scaleAlpha(Tokens.surface().surfaceHi(), 0.55f), alpha);   // #1 less contrast
-        r.roundedRect(ox, barY, barW, barH, rr, track);
-        if (frac > 0f) r.roundedRect(ox, barY, barW * frac, barH, rr, Color.scaleAlpha(hpColor(frac), alpha));
+        float tx = ox + PAD_X * s, ty = oy + PAD_TOP * s;
+        t.draw(curNum, tx, ty, TextStyle.of(Weight.SEMIBOLD, HP_SIZE * s, numC).effect(HudPaint.textShadow(alpha)));
+        t.draw(UNIT, tx + numW * s, ty + unitDy * s,
+                TextStyle.of(Weight.MEDIUM, UNIT_SIZE * s, unitC).effect(HudPaint.textShadow(alpha)));
+        String name = fitName(curName, NAME_MAX_W);
+        t.draw(name, tx + (numW + unitW + GAP) * s, ty + nameDy * s,
+                TextStyle.of(Weight.MEDIUM, NAME_SIZE * s, nameC).effect(HudPaint.textShadow(alpha)));
     }
 
     /** #5 HP-bar colour ramp as health drains: steel-blue (high) → purple → orange → red (low), smoothly lerped
@@ -150,19 +135,18 @@ public final class TargetElement extends HudElement {
         return Color.lerp(red, ORANGE, Math.max(0f, f) / 0.20f);
     }
 
-    /** Unscaled content width — hug (name + gap + HP), clamped so short names stay tight and long names truncate. */
+    /** Unscaled chip width — hug (pad + HP group + gap + name), the name capped at its FIXED field. */
     private float contentW() {
-        float hpW = Ui.text().width(curNum, Weight.MEDIUM, HP_SIZE) + Ui.text().width(UNIT, Weight.MEDIUM, HP_SIZE);
-        float nameW = Ui.text().width(curName, Weight.SEMIBOLD, NAME_SIZE);
-        float nameMax = MAX_W - GAP - hpW;
-        return Math.max(MIN_W, Math.min(nameW, nameMax) + GAP + hpW);
+        float hpW = Ui.text().width(curNum, Weight.SEMIBOLD, HP_SIZE) + Ui.text().width(UNIT, Weight.MEDIUM, UNIT_SIZE);
+        float nameW = Math.min(Ui.text().width(curName, Weight.MEDIUM, NAME_SIZE), NAME_MAX_W);
+        return Math.max(MIN_W, 2 * PAD_X + hpW + GAP + nameW);
     }
 
     /** Truncate {@code name} with an ellipsis to fit {@code availW} (px, unscaled) at the name style. */
     private String fitName(String name, float availW) {
-        if (Ui.text().width(name, Weight.SEMIBOLD, NAME_SIZE) <= availW) return name;
+        if (Ui.text().width(name, Weight.MEDIUM, NAME_SIZE) <= availW) return name;
         String cut = name;
-        while (cut.length() > 1 && Ui.text().width(cut + "…", Weight.SEMIBOLD, NAME_SIZE) > availW)
+        while (cut.length() > 1 && Ui.text().width(cut + "…", Weight.MEDIUM, NAME_SIZE) > availW)
             cut = cut.substring(0, cut.length() - 1);
         return cut + "…";
     }
