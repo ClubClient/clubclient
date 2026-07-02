@@ -471,11 +471,14 @@ public final class ClubMenuScreen extends Screen {
         return popModule != null && !popClosing && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH;
     }
 
-    /** Starts the reverse-of-open animation; render() really closes once it has fully played out. */
+    /** Starts the reverse-of-open animation; render() really closes once it has fully played out.
+     *  The cursor is re-locked IMMEDIATELY (owner: mouse must vanish instantly) — camera control is
+     *  back while the window fades; clicks are swallowed by the closing guard. */
     private void beginClose() {
         if (closing) return;
         closing = true;
         closePopover();
+        MinecraftClient.getInstance().mouse.lockCursor();
     }
 
     @Override public boolean mouseClicked(double mx, double my, int b) {
