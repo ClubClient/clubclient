@@ -17,8 +17,9 @@ import net.minecraft.client.MinecraftClient;
  * (Coordinates / CPS / BPS are a separate future element.)
  */
 public final class InfoElement extends HudElement {
-    private static final float CHIP_H = 24f, PAD_X = 10f, PAD_TOP = 3f, BAR_H = 2f;
-    private static final int GAP = 7;
+    // Shared row metrics (Stage 13.4 tightening): PAD_X 8 / gaps 5 across every row capsule.
+    private static final float CHIP_H = 24f, PAD_X = 8f, PAD_TOP = 3f, BAR_H = 2f;
+    private static final int GAP = 5;
     /** Width reserved for the value so 59↔240 doesn't resize the capsule every second. */
     private static final String VALUE_RESERVE = "888";
 

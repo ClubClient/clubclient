@@ -21,9 +21,9 @@ import net.minecraft.item.Items;
  * {@link HudSprites} DrawContext (matrix-scaled). Empty pieces are skipped.
  */
 public final class ArmorElement extends HudElement {
-    private static final int ICON = 16, GAP = 7;            // sprite size; sprite ↔ value gap
-    private static final float CHIP_H = 28f, CHIP_GAP = 4f; // capsule height / stack gap (unscaled)
-    private static final float PAD_X = 10f, PAD_TOP = 4f;   // capsule padding (icon band sits high; edge zone below)
+    private static final int ICON = 16, GAP = 5;            // sprite size; sprite ↔ value gap
+    private static final float CHIP_H = 26f, CHIP_GAP = 4f; // capsule height / stack gap (unscaled)
+    private static final float PAD_X = 8f, PAD_TOP = 3f;    // shared row metrics (13.4): PAD_X 8 everywhere
     private static final float BAR_H = 2f;                  // live edge height (rows are quieter than Target's 3px)
 
     public ArmorElement() { super("armor"); }

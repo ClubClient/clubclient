@@ -20,12 +20,12 @@ import net.minecraft.client.MinecraftClient;
  */
 public final class TargetElement extends HudElement {
     private static final float HP_SIZE = 16f, UNIT_SIZE = 12f, NAME_SIZE = 13f;
-    private static final int   GAP = 12;            // HP-group ↔ name gap (unscaled)
-    private static final float PAD_X = 12f, PAD_TOP = 7f;   // chip padding (unscaled)
+    private static final int   GAP = 10;            // HP-group ↔ name gap (unscaled)
+    private static final float PAD_X = 10f, PAD_TOP = 6f;   // hero keeps a touch more air than the 8px rows
     private static final float BAR_H = 3f;          // live edge height
-    private static final int   CONTENT_H = 36;      // full chip height (text band + edge zone)
-    private static final float NAME_MAX_W = 84f;    // FIXED name field — longer names ellipsize here
-    private static final float MIN_W = 96f;
+    private static final int   CONTENT_H = 34;      // full chip height (text band + edge zone)
+    private static final float NAME_MAX_W = 80f;    // FIXED name field — longer names ellipsize here
+    private static final float MIN_W = 92f;
     private static final String UNIT = " HP";
 
     // HP tone C: number a touch brighter than the name-support tone, the "HP" unit dimmer — a micro-hierarchy

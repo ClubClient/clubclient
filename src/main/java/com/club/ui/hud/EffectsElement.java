@@ -25,9 +25,9 @@ import java.util.HashMap;
  */
 public final class EffectsElement extends HudElement {
     private static final float CHIP_H = 24f, CHIP_GAP = 4f;   // capsule height / stack gap (unscaled)
-    private static final float PAD_X = 10f, PAD_TOP = 3f;     // capsule padding
+    private static final float PAD_X = 8f, PAD_TOP = 3f;      // shared row metrics (13.4): PAD_X 8 everywhere
     private static final float BAR_H = 2f;                    // live edge height
-    private static final int   GAP = 14, MIN_TEXT_W = 56;     // name ↔ time min gap; min text width
+    private static final int   GAP = 12, MIN_TEXT_W = 56;     // name ↔ time min gap; min text width
     private static final int   NEUTRAL = 0xFF4A5A75;          // calm steel-grey edge (plenty of time left)
 
     // Fade-in per effect (keyed by title): a newly-gained effect eases in instead of popping. Expiring
