@@ -11,6 +11,18 @@
 > **`Accent.onAccent` добавлен в токены (G4)** → Button PRIMARY-текст = `accent().onAccent()` (§3.7); capture
 > auto-release **не добавляем** — остаётся Stage-3 improvement (§10.2); клавиатура — **widget-scope**: `Space`/`Enter`
 > (Button/Toggle/Checkbox), `Left`/`Right` (Slider) (§2.8). Далее: план M2.2 → реализация.
+>
+> **АМЕНДМЕНТ (2026-07-02), фиксация фактических отступлений от frozen §3:**
+> 1. **Toggle плоский** — accent-градиент + `glow().active()` из §3.8 сняты в `f40c887` (Stage 6) в пользу
+>    плоского языка Variant D (`UI-V2-MENU.md` §4: «без shadow/blur/glow/градиентов»): ON = плоская
+>    `accent()`-заливка через `WidgetPaint.surface`, OFF = `controlTrack`. Снятие glow было предодобрено
+>    (Stage-2 spec §3.3 «вплоть до нуля»); снятие градиента фиксируется этим амендментом — **не «чинить» обратно**.
+> 2. **Неиспользуемые виджеты удалены (2026-07-02):** `Window`, `ModuleCard`, `CategoryItem`, `TextField`,
+>    `Card`, `Panel`, `Keybind`, `Divider` (+ их тесты; + мёртвые `WidgetPaint.elevation()/flatSurface()/`
+>    `clipRounded()/ACCENT_RIM`) — боевое меню (`ui.menu.ClubMenuScreen`) рисует окно/карточки/rail/поиск
+>    экранными композитами и ни один из них не инстанцирует. Живой Widget API: `Label`, `ScrollArea`,
+>    `Button`, `Toggle`, `Checkbox`, `Slider`, `Dropdown` (+ база `Control`, `WidgetPaint`,
+>    `BoolConsumer`/`FloatConsumer`). Восстановление — из git (состояние до этой чистки).
 
 ---
 

@@ -27,8 +27,12 @@
 | 4 | Новые HUD | — |
 | 5 | Перенос существующего функционала, ретайр legacy | — |
 
-**Правило:** существующий `gui/*`, `hud/*`, `Theme`, `ClubFont`, `RenderHelper` **не трогаются до Stage 5**.
-Новый стек живёт в `com.club.ui` параллельно. Никаких косметических правок старого UI до завершения Stage 1.
+> **Статус (2026-07-02):** Stages 1–5 выполнены; далее шли Stage 6/7 (боевое меню `ui.menu.ClubMenuScreen`,
+> legacy `gui/ClubScreen` удалён), Stage 9 (моушн) и Stage 10 (HUD «light structure», legacy `hud/ArmorHud`
+> удалён). Актуальное состояние — `UI-V2-MENU.md` и `HUD-LANGUAGE.md`.
+
+**Правило (историческое, выполнено):** существующий `gui/*`, `hud/*`, `Theme`, `ClubFont`, `RenderHelper`
+**не трогались до Stage 5**. Новый стек жил в `com.club.ui` параллельно; legacy ретайрнут на Stage 5–7.
 
 ## 2. Системные соглашения (общие для всех контрактов)
 

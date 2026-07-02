@@ -47,9 +47,9 @@ element gets the panel for free.
 
 Content/hierarchy is unchanged from today except where noted; each now sits on the shared panel.
 
-- **Target** — `Name` (white, SemiBold title) / `<hp> HP` (muted heading) / a 2px accent HP-fraction line
-  (threshold-lerps toward `stateLow` under 30%). Line spans the panel's inner width. *(HP-bar ease + threshold
-  already shipped in Stage 9.3.)*
+- **Target** — `Name` (white, SemiBold title) / `<hp> HP` (muted heading) / a 4px HP-fraction bar
+  (steel-blue hue-ramp per the locked Hero etalon, HUD-LANGUAGE.md §8 — an earlier draft here said 2px).
+  Bar spans the panel's inner width. *(HP-bar ease already shipped in Stage 9.3.)*
 - **Effects** — a column (or row, per `potionHorizontal`) of `Name  Time` rows: name white, time muted. Panel height
   eases with the effect count; rows fade in on gain *(Stage 9.3)*. No duration line (D4).
 - **Info** — `FPS <n>` and `XYZ <x / y / z>` on the panel. Digits stay as currently rendered (FPS accent / XYZ white);

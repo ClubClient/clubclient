@@ -136,9 +136,11 @@ public class ClubConfig {
     }
 
     /**
-     * Fixes fields that an older config file didn't contain (Gson leaves missing
-     * primitives at 0, which would pin HUDs to the corner). Runs once, then
-     * persists with the current version.
+     * Carries values from older config layouts forward (v3 hand/scale fields) and re-seeds
+     * defaults per version bump. Note: Gson invokes the no-arg constructors here, so fields
+     * ABSENT from the file keep their initializers — the default-seeding blocks are an
+     * explicit safety net for hand-edited/partial files, not a Gson workaround (verified:
+     * absent menuX/infoX deserialize to -1/8, never 0). Runs once, then persists.
      */
     private void migrate() {
         boolean changed = false;
@@ -183,7 +185,7 @@ public class ClubConfig {
             changed = true;
         }
         if (version < 5) {
-            // new V2 Info element defaults (Gson leaves missing primitives at 0 → would pin to corner)
+            // V2 Info element defaults — safety net for hand-edited/partial files (absent fields already keep initializers)
             hud.info = true;
             hud.infoX = 8; hud.infoY = 120; hud.infoScale = 1.0f;
             version = 5;

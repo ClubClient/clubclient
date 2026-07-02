@@ -15,7 +15,8 @@
 | [docs/DESIGN.md](docs/DESIGN.md) | Дизайн-система: цвет, типографика, раскладка, контролы, чеклист ТЗ |
 | [docs/ANIMATIONS.md](docs/ANIMATIONS.md) | Анимации рук (Pose/AnimationType) + визуальные твики вида |
 | [docs/HUDS.md](docs/HUDS.md) | HUD (Armor/Potion/Target), их настройки и редактор позиций |
-| [docs/UI-V2-MENU.md](docs/UI-V2-MENU.md) | **UI V2**: новый стек `com.club.ui`, меню «Variant D», HUD, виджеты, привязка к ClubConfig, dev-кейбинды (H/J/G) — для всех правок нового UI |
+| [docs/UI-V2-MENU.md](docs/UI-V2-MENU.md) | **UI V2**: стек `com.club.ui`, боевое меню (Right Shift, Stage 6+), виджеты, привязка к ClubConfig — для всех правок нового UI |
+| [docs/HUD-LANGUAGE.md](docs/HUD-LANGUAGE.md) | HUD-язык: роли элементов, эталон Hero Target — источник правды для правок HUD |
 
 ## Быстрый старт
 

@@ -186,7 +186,7 @@ public final class ScrollArea extends Container {
         }
         content.layout(x, y - displayOffset, w, contentH);
 
-        // Clip content to the viewport rectangle (flat clip — not rounded, different from Panel/Card).
+        // Clip content to the viewport rectangle (flat clip — not rounded).
         ctx.renderer().pushClip(x, y, w, viewportH);
         content.render(ctx);
         ctx.renderer().popClip();

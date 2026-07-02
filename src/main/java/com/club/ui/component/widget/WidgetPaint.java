@@ -3,48 +3,30 @@ package com.club.ui.component.widget;
 import com.club.ui.Color;
 import com.club.ui.UiContext;
 import com.club.ui.component.Component;
-import com.club.ui.theme.Elevation;
-import com.club.ui.theme.Shadow;
 import com.club.ui.theme.Tokens;
 
 /**
- * Shared render snippets for widgets — the single source of truth for state-visuals and elevation surfaces.
+ * Shared render snippets for widgets — the single source of truth for state-visuals and shared surfaces.
  * Widgets MUST route these through here instead of duplicating the call sequences (composition mandate).
- * Render-only (no logic); correctness verified visually in the dev-gallery.
+ * Render-only (no logic).
  */
 final class WidgetPaint {
     private WidgetPaint() {}
 
-    /** Elevation surface: shadow → rounded fill → border (+ optional glow). Used by Card (level1) / Window (level2). */
-    static void elevation(UiContext ctx, float x, float y, float w, float h, float radius, Elevation.Level lv) {
-        Shadow.Preset sh = lv.shadow();
-        if (sh != null && sh.color() != 0) ctx.renderer().shadow(x, y, w, h, radius, sh.dx(), sh.dy(), sh.blur(), sh.color());
-        ctx.renderer().roundedRect(x, y, w, h, radius, lv.surface());
-        if (lv.border() != 0) ctx.renderer().border(x, y, w, h, radius, Tokens.border().thickness(), lv.border());
-        if (lv.glow() != null) ctx.renderer().glow(x, y, w, h, radius, lv.glow().size(), lv.glow().color());
-    }
-
-    /** Flat grouping surface (no shadow): rounded fill + subtle border. Used by Panel. */
-    static void flatSurface(UiContext ctx, float x, float y, float w, float h, float radius, int fill) {
-        ctx.renderer().roundedRect(x, y, w, h, radius, fill);
-        ctx.renderer().border(x, y, w, h, radius, Tokens.border().thickness(), Tokens.border().subtle());
-    }
-
     // =========================================================================
     // CLUB UI DESIGN LANGUAGE — one source of truth for the whole widget library.
     // Depth is flat: tone-step + 1px hairline (never shadow/glow). Handles are
-    // white pucks. States are uniform: hover lighten/wash, press darken+grow,
-    // focus = offset accent ring. See the class-level doc for the full rule set.
+    // pucks: Toggle = white, Slider = accentHi + onAccent ring (white rejected
+    // for Slider — UI-V2-MENU §3). States are uniform: hover lighten/wash,
+    // press darken+grow, focus = offset accent ring.
     // =========================================================================
 
     /** Handle (knob/puck) radius growth, in px — uniform across Toggle/Slider. */
     static final float HANDLE_HOVER_GROW = 1f;
     static final float HANDLE_PRESS_GROW = 2f;
-    /** Accent rim thickness for white pucks (px). */
-    static final float ACCENT_RIM = 2f;
 
     /** Universal flat surface: rounded fill + 1px hairline. Elevation = the chosen fill/border tone
-     *  ({@code border==0} → no hairline). Panel uses {@link #flatSurface}; Card/Window use this. */
+     *  ({@code border==0} → no hairline). */
     static void surface(UiContext ctx, float x, float y, float w, float h, float radius, int fill, int border) {
         ctx.renderer().roundedRect(x, y, w, h, radius, fill);
         if (border != 0) ctx.renderer().border(x, y, w, h, radius, Tokens.border().thickness(), border);
@@ -101,16 +83,5 @@ final class WidgetPaint {
     static void pressOverlay(UiContext ctx, float x, float y, float w, float h, float radius, float t) {
         if (t <= 0f) return;
         ctx.renderer().roundedRect(x, y, w, h, radius, Color.scaleAlpha(Tokens.interaction().pressOverlay(), t));
-    }
-
-    /**
-     * Clip a rounded region and render {@code content} inside it (pushRoundedClip → render → popClip).
-     * The shared rounded-clip-of-content pattern used by Panel/Card/Window. Alloc-free (Component param,
-     * no lambda). Caller guards null content.
-     */
-    static void clipRounded(UiContext ctx, float x, float y, float w, float h, float radius, Component content) {
-        ctx.renderer().pushRoundedClip(x, y, w, h, radius);
-        content.render(ctx);
-        ctx.renderer().popClip();
     }
 }

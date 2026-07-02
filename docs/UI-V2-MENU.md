@@ -1,104 +1,103 @@
 # Club — UI V2 (menu, HUD, widget system)
 
-> Новый плоский UI-стек `com.club.ui` + меню «Variant D» + HUD. Сейчас это **dev-превью**, подключённое
-> к реальному `ClubConfig`. Старое меню `gui/ClubScreen` (Right Shift) пока остаётся — V2 заменит его на
-> Stage 5. Дизайн утверждён: `spec/UI-V2-DESIGN-CONCEPT.md` + статичные макеты `spec/mockups/`.
+> **Актуализировано 2026-07-02.** Плоский UI-стек `com.club.ui` — **боевой**: меню на Right Shift =
+> `com.club.ui.menu.ClubMenuScreen` (Stage 6), legacy `gui/ClubScreen` удалён (Stage 7, `54cc350`).
+> Dev-превью (`devmenu`/`devhud`/`devgallery`, кейбинды H/J/G, headless-флаги `CLUB_*`) удалены вместе
+> со Stage 5-интеграцией. История ранних решений — в git до `f40c887`.
 
-## 1. Как открыть / посмотреть
+## 1. Как открыть
 
-| Клавиша | Экран | Статус |
-|---|---|---|
-| **H** | `ui.devmenu.ClubMenuScreen` — меню V2 (rail │ сетка карточек │ настройки │ footer) | dev, временно |
-| **J** | `ui.devhud.HudEditorScreen` — редактор HUD | dev, временно |
-| **G** | `ui.devgallery.WidgetGalleryScreen` — лист виджетов | dev, временно |
-| Right Shift | `gui.ClubScreen` — **боевое** старое меню | прод (до Stage 5) |
+| Действие | Результат |
+|---|---|
+| **Right Shift** | `ui.menu.ClubMenuScreen` — боевое меню (rail категорий │ сетка карточек) |
+| Misc → HUD Editor | `ui.hud.HudEditorScreen` — редактор HUD-позиций |
+| ESC | закрыть (единственный способ; крестика/minimize нет — по дизайну) |
 
-**Headless-скриншоты** (без рук, для проверки UI): запусти с env-флагом, экран сам откроется, снимет
-кадры в `run/screenshots/` и остановит клиент:
-```bash
-CLUB_MENU=1   ./gradlew --no-daemon runClient   # меню (+ симуляция кликов: смена категории, выбор карточки)
-CLUB_HUD=1    ./gradlew --no-daemon runClient   # in-game HUD + редактор
-CLUB_GALLERY=1 ./gradlew --no-daemon runClient  # лист виджетов
-```
-(Рендер — реальный движок, не макет. `--no-daemon` нужен, чтобы env-флаг дошёл до форкнутого JVM игры.)
+## 2. Текущее меню (Stage 6+, утверждено)
 
-## 2. Карта файлов (новое)
+- **Компактное draggable-окно** 660×380 (не полноэкранное): перенос **только** за грип-пилюлю 44×5
+  над верхней кромкой; всегда кламп полностью на экран; позиция сохраняется в `ClubConfig.menuX/menuY`
+  (−1 = по центру), запись — один раз на отпускание.
+- **Фон не затемняется и не блюрится** (`renderBackground` пуст): мир виден, настройки применяются live.
+  Blur добавлялся (`d938f55`) и **отменён владельцем** (`49bc69b`) — не возвращать.
+- **Карточки** (`ModuleTile`, приватный класс экрана): только имя, без иконок и тумблеров.
+  **ЛКМ** = вкл/выкл (заливка/кромка/имя едут одним eased-фактором, кромка = accent↔violet);
+  **ПКМ** = плавающий поповер настроек возле карточки (Reveal grow-in/out + ValueTween высоты,
+  контент клипается по eased-высоте; раскрытый Dropdown скрывает соседние строки — ничего не «телепортируется»).
+- **Rail**: текст + процедурная иконка, скользящий индикатор-`Transition`, hover/active цвет ease.
+- **Поиск** (`SearchField`, приватный класс экрана): live-фильтр по имени+описанию модуля.
+- Вход экрана: подъём окна на 12px + fade грипа (без scale, без скрима).
+
+Экранные композиты (`ModuleTile`/`SearchField`/`OptionRow`/`Pane`) — **сознательно приватные** в
+`ClubMenuScreen`, а не виджеты: подгонка под меню важнее переиспользования.
+
+## 3. Карта файлов
 
 ```
 com.club.ui
 ├── Icon                         — процедурные line-иконки (только circle/ring/axis-line/rect — без
-│                                  диагоналей: бэкенд рисует диагональ как bbox). COMBAT/MOVEMENT/RENDER/
-│                                  PLAYER/WORLD/EXPLOIT/HUD/SETTINGS/SEARCH
-├── layout/Grid                  — фикс-колоночная сетка (перенос по строкам)
-├── component/widget/
-│   ├── WidgetPaint              — ЕДИНЫЙ источник визуального языка: surface()/controlTrack()/puck()/
-│   │                              whitePuck()/focusRing()/focusRingCircle()/hoverWash()/pressOverlay()/
-│   │                              clipRounded(); константы HANDLE_*_GROW
-│   ├── ModuleCard               — карточка модуля (иконка + имя + тумблер + desc + счётчик настроек;
-│   │                              состояние через акцент: вкл = верхняя кромка, selected = рамка)
-│   ├── CategoryItem             — строка rail (иконка + лейбл + счётчик; активный фон)
-│   ├── Dropdown                 — клик = следующий вариант (поповер — позже)
-│   ├── Keybind                  — клик → «слушает» → следующая клавиша; ESC снимает
-│   ├── TextField                — поиск (иконка + ввод; нужен фокус)
-│   └── Button/Toggle/Checkbox/Slider/Panel/Card/Window/ScrollArea/Label/Divider — база (M2.2)
-├── devmenu/                     — [ВРЕМЕННО] меню-превью
-│   ├── ClubMenuScreen           — экран: rail/сетка/детали/footer, поиск, скролл, моушн-индикатор
-│   ├── MenuModel                — Category / Mod / Setting (live-bind: getter+setter)
-│   ├── MenuContent              — строит категории ИЗ ClubConfig (двусторонняя привязка + save())
-│   └── MenuBootstrap            — headless-съёмка (CLUB_MENU)
-└── devhud/                      — [ВРЕМЕННО] HUD-превью
-    ├── HudView                  — отрисовка элементов (watermark/arraylist/target/keystrokes/info/effects/toast)
-    ├── HudPreviewScreen         — in-game HUD
-    ├── HudEditorScreen          — редактор (тулбар + ручки выделения + панель свойств)
-    └── HudBootstrap             — headless-съёмка (CLUB_HUD)
+│                                  диагоналей: бэкенд рисует диагональ как bbox)
+├── menu/
+│   ├── ClubMenuScreen           — боевой экран: окно/грип/rail/сетка/поиск/поповер (вся геометрия и ввод)
+│   └── MenuContent              — ЧИСТЫЕ ДАННЫЕ: Category → Module → Setting (sealed), live-bind на
+│                                  ClubConfig (getter + setter, setter вызывает save())
+├── component/widget/            — живые виджеты: Button, Toggle, Checkbox, Slider, Dropdown, Label,
+│                                  ScrollArea (+ база Control, WidgetPaint, BoolConsumer/FloatConsumer)
+└── hud/                         — HudCanvas/HudElement + Target/Effects/Armor/Info, HudEditorScreen,
+                                   HudPaint/HudText/HudSprites/HudSnap/Decals (см. HUD-LANGUAGE.md)
 ```
-`ClubClient` регистрирует кейбинды H/J/G и `*Bootstrap.init()` (всё помечено `[… TEMPORARY, remove before merge]`).
 
-## 3. Дизайн-язык (Variant D)
+**Удалено за неиспользованием (2026-07-02):** виджеты `Window`, `ModuleCard`, `CategoryItem`,
+`TextField`, `Card`, `Panel`, `Keybind`, `Divider` и мёртвые члены `WidgetPaint`
+(`elevation()`/`flatSurface()`/`clipRounded()`/`ACCENT_RIM`) — ни одной продакшн-ссылки: меню рисует
+собственные окно/карточки/rail/поиск на уровне экрана. Нужны снова — восстанавливаются из git
+(последнее состояние: коммит перед этой чисткой).
 
-- **Композиция:** rail категорий (иконка+счётчик, активная подсветка + скользящий акцентный индикатор) │
-  сетка карточек-модулей │ постоянная панель настроек (связана с выбранной карточкой акцентом) │ status-footer.
+## 4. Дизайн-язык (Variant D) — действует
+
+- **Композиция:** rail категорий (иконка + скользящий акцентный индикатор) │ сетка карточек.
+  Постоянной панели настроек нет — настройки в ПКМ-поповере (решение Stage 6).
 - **Глубина — плоская:** только тон-ступени ink-рампы + 1px хайрлайны. **Без shadow/blur/glow/градиентов.**
+  (Toggle тоже плоский — градиент+glow из M2.2 §3.8 сняты, см. амендмент в UI-V2-STAGE2-M2.2-SPEC.md.)
 - **Акцент — только сигнал** («одна акцентная нить»): активная категория, вкл-состояния, заливка слайдера,
   фокус, primary. Из хрома (скроллбар) убран.
 - **Токены:** всё через `Tokens` (palette/surface/accent/border/radius/spacing/type/motion). Менять токены —
   только с согласования (см. память `ui-v2-redesign-direction`).
 - Слайдер-ручка: компактная светло-акцентная (`accentHi`) с тонким тёмным кольцом — НЕ белый «puck» (отклонено).
 
-## 4. Привязка к реальному конфигу
+## 5. Привязка к реальному конфигу
 
-`MenuContent.categories()` строит дерево из `ClubConfig.get()`:
+`MenuContent.build()` строит дерево из `ClubConfig.get()`:
 
 | Категория | Модули → настройки (всё bound на `ClubConfig`) |
 |---|---|
-| **Visual** | Hands (enabled + R/L scale·X·Y·Z), Animations (enabled + Type/Speed/Amplitude), Screen Stretch (enabled + Preset/Black bars) |
-| **View** | No Hurt Cam / No Bobbing / No Fire Overlay (флаги) |
-| **HUD** | Armor (scale/percent/vertical), Potion (scale/horizontal), Target (scale/distance) |
+| **Combat** | Animations (enabled + Type/Speed/Amplitude) |
+| **Visuals** | Screen Stretch (enabled + Preset/Black Bars), No Hurt Cam, No Fire Overlay, No Bobbing |
+| **Player** | Hands (enabled + вкладки Right/Left: Scale·X·Y·Z) |
+| **Misc** | HUD Editor (action), Hide Vanilla Effects |
 
 Каждый `Setting` читает через getter и пишет через setter, который вызывает **`ClubConfig.save()`**. Меню =
 тонкий вид над конфигом, без дублирования состояния. Dropdown-опции — из `AnimationType`/`StretchPreset` (`.label()`).
 
-## 5. Статус и что осталось
+## 6. Статус и что осталось
 
-**Готово и проверено в движке:** меню (rail/сетка/детали/footer/поиск/скролл/выбор/тумблеры), привязка к
-ClubConfig, HUD-система + редактор, моушн (скользящий индикатор rail; рост ручек toggle/slider; анимации
-check/knob). Юнит-тесты зелёные.
+**Готово и проверено:** боевое меню (Stage 6/7), моушн-слой (Stage 9), HUD «light structure» + Armor V2
+(Stage 10), Hero Target эталон (HUD-LANGUAGE.md §8). Юнит-тесты зелёные.
 
 **Осталось / отложено (для будущих чатов):**
 - **Tabular figures** — нужен флаг `tabular` через `UiText → ModernText/LegacyText → TextLayout` (фикс-ширина
-  цифр). Отложено: несколько точек в text-стеке, выигрыш малый (значения и так right-align.
-- **Моушн (опц.):** кросс-фейд контента при смене категории/выбора (требует вынести grid/detail из `root` под
-  отдельный `pushOpacity`).
-- **Stage 5 (интеграция):** заменить `gui/ClubScreen` на V2, подключить HUD к живым данным (FPS/координаты/
-  цель/модули вместо demo), удалить dev-scaffolding (devmenu/devhud/devgallery + кейбинды H/J/G + бутстрапы).
+  цифр). Отложено: несколько точек в text-стеке, выигрыш малый (значения и так right-align;
+  временный шим — `hud/HudText`, расширяет только «1»).
+- **Моушн (опц.):** кросс-фейд контента при смене категории/поиске (лимит: текст не фейдится через
+  `pushOpacity` — только `Color.scaleAlpha`).
 - **Известные лимиты рендера (`backend/ModernBackend`):** `pushRoundedClip` = прямоугольный scissor (радиус
-  игнорируется) → клип контента не скруглён (Window/Panel/Card обходят это формой/инсетами); диагональные
-  линии аппроксимируются bbox → иконки используют только circle/ring/axis-line/rect, галочка чекбокса
-  приблизительная. Это кандидаты на shader-маску/rotated-capsule SDF.
+  игнорируется); диагональные линии аппроксимируются bbox → иконки используют только circle/ring/axis-line/rect,
+  галочка чекбокса приблизительная. Кандидаты на shader-маску/rotated-capsule SDF — станут актуальны,
+  если понадобятся диагональные иконки.
 
-## 6. Как расширять
+## 7. Как расширять
 
-- **Новый модуль/настройка в меню:** добавь в `MenuContent` (`Mod` + `Setting` с get/set на `ClubConfig`).
-- **Новый тип настройки:** добавь подкласс `MenuModel.Setting` с `control()`.
+- **Новый модуль/настройка в меню:** добавь в `MenuContent` (`Module` + `Setting` с get/set на `ClubConfig`).
+- **Новый тип настройки:** новый record в sealed `MenuContent.Setting` + ветка в `ClubMenuScreen.buildControl`.
 - **Новый виджет/состояние:** рисуй через `WidgetPaint` (единый язык), не дублируй последовательности вызовов.
 - **Иконка:** добавь значение в `Icon` (только circle/ring/axis-line/rect/roundedRect).
