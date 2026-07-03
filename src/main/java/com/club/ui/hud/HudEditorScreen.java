@@ -84,13 +84,22 @@ public final class HudEditorScreen extends Screen {
 
     private static final int POP_HEAD = 28, POP_ROW = 26, POP_PAD_B = 8;
     private final java.util.List<Label> popLabels = new java.util.ArrayList<>();
-    private float popNeeded;   // widest [label + control] row → popW grows to fit (3-way segments)
+    private float popNeeded;    // widest [label + control] row → popW grows to fit (3-way segments)
+    private boolean popClosing; // deselected: the popover plays its grow-in in reverse, then drops
+    private HudElement popSel;  // the element the current rows belong to — anchor/title while closing
 
     /** Build the popover's rows (label + control) for the selected element. Per-frame positioning is in positionPopover(). */
     private void rebuildPopover() {
-        popover.clear(); popLabels.clear(); focus.clear(); hasPopover = canvas.selected() != null;
-        if (!hasPopover) return;
         HudElement sel = canvas.selected();
+        if (sel == null) {                 // deselected → reverse the reveal over the LAST rows (render drops them)
+            if (hasPopover) popClosing = true;
+            return;
+        }
+        // Same element rebuilt in place (e.g. the armor Layout switch hiding the Value row): keep the
+        // reveal — popHTween eases to the new height. A new/re-selection replays the grow-in instead.
+        boolean inPlace = sel == popSel && hasPopover && !popClosing;
+        popSel = sel; popClosing = false;
+        popover.clear(); popLabels.clear(); focus.clear(); hasPopover = true;
         popNeeded = 0;
         addRow("Enabled", new Toggle(sel.cfgEnabled()).onChange(v -> { setEnabled(sel, v); save(); }));
         addRow("Size", new Slider(sel.cfgScale(), 0.5f, 2f, 0.05f).onChange(v -> { setScale(sel, v); save(); }));
@@ -109,7 +118,7 @@ public final class HudEditorScreen extends Screen {
         }
         popW = Math.max(178, Math.round(popNeeded) + 24);
         popH = POP_HEAD + popover.children().size() * POP_ROW + POP_PAD_B;
-        popReveal = null;   // replay the grow-in for this (new) selection
+        if (!inPlace) popReveal = null;   // replay the grow-in ONLY for a (re)selection, never mid-edit
     }
 
     private void addRow(String name, Component ctrl) {
@@ -121,11 +130,12 @@ public final class HudEditorScreen extends Screen {
                 Ui.text().width(name, Tokens.type().label().weight(), Tokens.type().label().size()) + 12 + cw);
     }
 
-    /** Re-anchor the popover beside the selected element every frame, so it follows when the element is dragged. */
+    /** Re-anchor the popover beside its element every frame, so it follows when the element is dragged.
+     *  Anchored to {@link #popSel} (not the live selection) — a closing popover keeps its place. */
     private void positionPopover() {
         if (!hasPopover) return;
-        HudElement sel = canvas.selected();
-        if (sel == null) { hasPopover = false; return; }
+        HudElement sel = popSel;
+        if (sel == null) { hasPopover = false; popClosing = false; return; }
         // Anchor to the element's top-left (invariant under scaling) and place the popover ABOVE the element,
         // or BELOW when there's no room above. popX never depends on the element's width, so dragging the Size
         // slider neither shifts the slider (no feedback jitter) nor lets the growing element overlap the popover.
@@ -188,21 +198,30 @@ public final class HudEditorScreen extends Screen {
         // hint, tucked at the very bottom (out of the way of element positioning)
         uiCtx.text().draw("Left-drag to move · Right-click for settings", width / 2f, height - 18, stHint);
 
-        // popover — compact, re-anchored each frame; grows in on selection, content clipped to the eased height
+        // popover — compact, re-anchored each frame; grows in on selection, plays the reveal in
+        // reverse on deselection (dropped only once fully collapsed), content clipped to the eased height
         positionPopover();
         if (hasPopover) {
             float now = uiCtx.time();
             if (popReveal == null) { popReveal = new Reveal(Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate(), now); popHTween.snap(popH, now); }
+            if (popClosing) popReveal.close(now);
             popHTween.set(popH, now);
-            float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
-            r.roundedRect(popX, popY, popW, drawnH, Tokens.radius().md(), Tokens.surface().bg2());
-            r.border(popX, popY, popW, drawnH, Tokens.radius().md(), 1, Tokens.border().defaultColor());
-            r.pushClip(popX, popY, popW, drawnH);
-            r.roundedRect(popX + 12, popY + 11, 6, 6, 2, Tokens.accent().accent());
-            uiCtx.text().draw(titleOf(canvas.selected()), popX + 24, popY + 7, stPop);
-            for (Label l : popLabels) l.render(uiCtx);
-            popover.mouseMoved(mx, my); popover.render(uiCtx);
-            r.popClip();
+            if (popClosing && popReveal.gone(now)) {
+                // fully collapsed → really drop; focus MUST clear too, or the invisible widgets keep
+                // eating Space/arrow keys and silently editing the deselected element
+                hasPopover = false; popClosing = false; popReveal = null;
+                popover.clear(); popLabels.clear(); popSel = null; focus.clear();
+            } else {
+                float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
+                r.roundedRect(popX, popY, popW, drawnH, Tokens.radius().md(), Tokens.surface().bg2());
+                r.border(popX, popY, popW, drawnH, Tokens.radius().md(), 1, Tokens.border().defaultColor());
+                r.pushClip(popX, popY, popW, drawnH);
+                r.roundedRect(popX + 12, popY + 11, 6, 6, 2, Tokens.accent().accent());
+                uiCtx.text().draw(titleOf(popSel), popX + 24, popY + 7, stPop);
+                for (Label l : popLabels) l.render(uiCtx);
+                popover.mouseMoved(mx, my); popover.render(uiCtx);
+                r.popClip();
+            }
         }
     }
 
@@ -222,7 +241,7 @@ public final class HudEditorScreen extends Screen {
     @Override public boolean mouseClicked(double mx, double my, int b) {
         focus.clickFocus(mx, my);
         if (toolbar.mouseClicked(mx, my, b)) { pressOwner = 1; return true; }
-        if (hasPopover && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH) { popover.mouseClicked(mx, my, b); pressOwner = 2; return true; }
+        if (hasPopover && !popClosing && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH) { popover.mouseClicked(mx, my, b); pressOwner = 2; return true; }
         if (canvas.mouseClicked(mx, my, b)) { pressOwner = 3; return true; }
         pressOwner = 0;
         return super.mouseClicked(mx, my, b);
