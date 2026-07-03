@@ -3,6 +3,7 @@ package com.club.ui.hud;
 import com.club.config.ClubConfig;
 import com.club.ui.Color;
 import com.club.ui.IconGlyph;
+import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.text.TextStyle;
 import com.club.ui.text.Weight;
@@ -38,6 +39,8 @@ public final class ArmorElement extends HudElement {
     // Centering the value by lineHeight leaves the DIGITS ~1px above the icon's optical middle
     // (digits have no descender) — owner sees it. Nudge the baseline down.
     private static final float VAL_NUDGE = 1f;
+    /** LINE values sit above the icons — whisper size (owner: label-size 12 read huge there). */
+    private static final float LINE_VAL_SIZE = 10f;
 
     public ArmorElement() { super("armor"); }
     @Override public String displayName() { return "Armor"; }
@@ -126,9 +129,9 @@ public final class ArmorElement extends HudElement {
             int cell = ICON + GAP + valueWidth(ps, percent, ty.body().size());
             return new int[]{ cell, Math.round(count * ROW_BLOCK + (count - 1) * ROW_GAP) };
         }
-        int cell = Math.max(ICON, valueWidth(ps, percent, ty.label().size()));
+        int cell = Math.max(ICON, valueWidth(ps, percent, LINE_VAL_SIZE));
         return new int[]{ Math.round(count * cell + (count - 1) * LINE_GAP),
-                          Math.round(ty.label().lineHeight() + VAL_GAP + ROW_BLOCK) };
+                          Math.round(Ui.text().lineHeight(Weight.SEMIBOLD, LINE_VAL_SIZE) + VAL_GAP + ROW_BLOCK) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
@@ -137,8 +140,8 @@ public final class ArmorElement extends HudElement {
         int layout = layout();
         boolean percent = h().armorPercent;
         boolean line = layout == 1;
-        float vSize = line ? ty.label().size() : ty.body().size();   // LINE: value shrinks to label size
-        float vlh = ty.label().lineHeight();
+        float vSize = line ? LINE_VAL_SIZE : ty.body().size();       // LINE: whisper values above the icons
+        float vlh = Ui.text().lineHeight(Weight.SEMIBOLD, LINE_VAL_SIZE);
         int cell = line ? Math.max(ICON, valueWidth(ps, percent, vSize)) : ICON + GAP + valueWidth(ps, percent, vSize);
         TextStyle style = TextStyle.of(Weight.SEMIBOLD, vSize * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
                 .effect(HudPaint.textShadow(alpha));

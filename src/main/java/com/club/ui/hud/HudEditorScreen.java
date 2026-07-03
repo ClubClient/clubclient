@@ -65,6 +65,10 @@ public final class HudEditorScreen extends Screen {
     private static final float TB_TOGGLE_W = 40, TB_TOGGLE_H = 22, TB_BTN_W = 92, TB_BTN_H = 26,
                               TB_GAP = 12, TB_PAD = 14, TB_LABEL_W = 66;
 
+    // The editor is a dark utility overlay — full-brand fills scream on it (owner: Done/Enabled
+    // "бросаются в глаза"). Controls take a muted brand instead; GHOST for buttons.
+    private static final int QUIET_ACC = 0xFF5F83C2;
+
     private void buildToolbar() {
         toolbar.clear();
         tbH = 40;
@@ -73,11 +77,11 @@ public final class HudEditorScreen extends Screen {
         tbY = 8;
         float toggleX = tbX + TB_PAD + TB_LABEL_W + 8;
         float btnY = tbY + (tbH - TB_BTN_H) / 2f;
-        Toggle grid = new Toggle(canvas.gridSnap()).onChange(canvas::setGridSnap);
+        Toggle grid = new Toggle(canvas.gridSnap()).accent(QUIET_ACC).onChange(canvas::setGridSnap);
         grid.layout(toggleX, tbY + (tbH - TB_TOGGLE_H) / 2f, TB_TOGGLE_W, TB_TOGGLE_H);
         Button reset = new Button("Reset").variant(Button.Variant.GHOST).onClick(this::resetPositions);
         reset.layout(toggleX + TB_TOGGLE_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
-        Button done = new Button("Done").variant(Button.Variant.PRIMARY).onClick(this::close);
+        Button done = new Button("Done").variant(Button.Variant.GHOST).onClick(this::close);
         done.layout(toggleX + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
         toolbar.add(grid); toolbar.add(reset); toolbar.add(done);
     }
@@ -101,7 +105,7 @@ public final class HudEditorScreen extends Screen {
         popSel = sel; popClosing = false;
         popover.clear(); popLabels.clear(); focus.clear(); hasPopover = true;
         popNeeded = 0;
-        addRow("Enabled", new Toggle(sel.cfgEnabled()).onChange(v -> { setEnabled(sel, v); save(); }));
+        addRow("Enabled", new Toggle(sel.cfgEnabled()).accent(QUIET_ACC).onChange(v -> { setEnabled(sel, v); save(); }));
         addRow("Size", new Slider(sel.cfgScale(), 0.5f, 2f, 0.05f).onChange(v -> { setScale(sel, v); save(); }));
         if (sel instanceof EffectsElement) {
             addRow("Layout", new Segmented(new String[]{"Column", "Row"}, h().potionHorizontal ? 1 : 0,
