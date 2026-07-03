@@ -37,6 +37,10 @@ public final class EffectsElement extends HudElement {
     private static final float ROW_GAP = 5f, CELL_GAP = 12f;  // vertical row spacing / horizontal cell spacing
     // The separator between level and time ("какая-нибудь точка") — a faint middle dot, drawn as geometry.
     private static final float DOT = 2f, DOT_PAD = 2.5f;
+    // Countdowns run MEDIUM with a touch of optical thinning — SemiBold digits read chubby/toy-like
+    // next to the pixel icons (owner: "слишком детско"); same voice as Armor's values.
+    private static final Weight TIME_WEIGHT = Weight.MEDIUM;
+    private static final float TIME_BIAS = 0.03f;
 
     // Fade-in per effect row: a newly-gained effect eases in instead of popping. Expiring effects
     // still drop instantly — exit-fade is deferred (the expiring-first list reorders as timers tick).
@@ -138,7 +142,7 @@ public final class EffectsElement extends HudElement {
         Typography ty = Tokens.type();
         float w = 0;
         for (Fx r : rows) {
-            float t = HudText.width(r.time(), Weight.SEMIBOLD, ty.body().size());
+            float t = HudText.width(r.time(), TIME_WEIGHT, ty.body().size());
             if (!r.amp().isEmpty())
                 t += Ui.text().width(r.amp(), Weight.SEMIBOLD, ty.label().size()) + 2 * DOT_PAD + DOT;
             w = Math.max(w, t);
@@ -170,9 +174,9 @@ public final class EffectsElement extends HudElement {
         // text block centered on the icon box, +1px: digits have no descender, so lineHeight
         // centering leaves them optically high against the icon (same nudge as Armor's values)
         float textTop = (ICON - lh) * 0.5f + 1f;
-        float ampDy = Ui.text().ascent(Weight.SEMIBOLD, base) - Ui.text().ascent(Weight.SEMIBOLD, ampSize);
+        float ampDy = Ui.text().ascent(TIME_WEIGHT, base) - Ui.text().ascent(Weight.SEMIBOLD, ampSize);
         // the separator dot sits at the digits' optical middle (~half x-height above the baseline)
-        float dotY = textTop + Ui.text().ascent(Weight.SEMIBOLD, base) - base * 0.28f - DOT * 0.5f;
+        float dotY = textTop + Ui.text().ascent(TIME_WEIGHT, base) - base * 0.28f - DOT * 0.5f;
 
         // ONE capsule for the whole stack — the rows inside carry their own live lines.
         int[] cs = contentSize(mc, live);
@@ -195,11 +199,11 @@ public final class EffectsElement extends HudElement {
                     || !com.club.hud.PixelIcons.draw(row.tex(), cx - s, cy - s, (ICON + 2) * s, 18, row.color(), a))
                 row.icon().draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(row.color(), a));
             // countdown right-aligned in the shared column (tabular — a ticking second never jitters)
-            float timeW = HudText.width(row.time(), Weight.SEMIBOLD, base);
+            float timeW = HudText.width(row.time(), TIME_WEIGHT, base);
             float timeX = cell - timeW;
             HudText.draw(ctx, row.time(), cx + timeX * s, cy + textTop * s,
-                    TextStyle.of(Weight.SEMIBOLD, base * s, Color.scaleAlpha(Tokens.palette().textHi(), a))
-                            .effect(HudPaint.textShadow(a)), base, s);
+                    TextStyle.of(TIME_WEIGHT, base * s, Color.scaleAlpha(Tokens.palette().textHi(), a))
+                            .effect(HudPaint.textShadow(a)).weightBias(TIME_BIAS), base, s);
             if (!row.amp().isEmpty()) {
                 // [II · 1:24] — the level hugs its own time, separated by the faint dot. It speaks
                 // in the effect's association color (it IS the effect's identity — "Speed II"),

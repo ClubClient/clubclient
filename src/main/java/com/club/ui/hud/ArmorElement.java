@@ -95,9 +95,14 @@ public final class ArmorElement extends HudElement {
         // the maximum is implied by the live edge, the chip stays as compact as the percent mode
         return String.valueOf(s.getMaxDamage() - s.getDamage());
     }
+    // Values run MEDIUM with a touch of optical thinning — SemiBold digits read chubby/toy-like
+    // next to the pixel icons (owner: "слишком детско"); Medium+bias is the instrument voice.
+    private static final Weight VAL_WEIGHT = Weight.MEDIUM;
+    private static final float VAL_BIAS = 0.03f;
+
     private int valueWidth(ItemStack[] ps, boolean percent, float size) {
         float w = 0;
-        for (ItemStack s : ps) if (!s.isEmpty()) w = Math.max(w, HudText.width(value(s, percent), Weight.SEMIBOLD, size));
+        for (ItemStack s : ps) if (!s.isEmpty()) w = Math.max(w, HudText.width(value(s, percent), VAL_WEIGHT, size));
         return Math.round(w);
     }
     /** Edge colour — green/amber/red with a smooth crossing at the 0.70 / 0.40 thresholds
@@ -131,7 +136,7 @@ public final class ArmorElement extends HudElement {
         }
         int cell = Math.max(ICON, valueWidth(ps, percent, LINE_VAL_SIZE));
         return new int[]{ Math.round(count * cell + (count - 1) * LINE_GAP),
-                          Math.round(Ui.text().lineHeight(Weight.SEMIBOLD, LINE_VAL_SIZE) + VAL_GAP + ROW_BLOCK) };
+                          Math.round(Ui.text().lineHeight(VAL_WEIGHT, LINE_VAL_SIZE) + VAL_GAP + ROW_BLOCK) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
@@ -141,10 +146,10 @@ public final class ArmorElement extends HudElement {
         boolean percent = h().armorPercent;
         boolean line = layout == 1;
         float vSize = line ? LINE_VAL_SIZE : ty.body().size();       // LINE: whisper values above the icons
-        float vlh = Ui.text().lineHeight(Weight.SEMIBOLD, LINE_VAL_SIZE);
+        float vlh = Ui.text().lineHeight(VAL_WEIGHT, LINE_VAL_SIZE);
         int cell = line ? Math.max(ICON, valueWidth(ps, percent, vSize)) : ICON + GAP + valueWidth(ps, percent, vSize);
-        TextStyle style = TextStyle.of(Weight.SEMIBOLD, vSize * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
-                .effect(HudPaint.textShadow(alpha));
+        TextStyle style = TextStyle.of(VAL_WEIGHT, vSize * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
+                .effect(HudPaint.textShadow(alpha)).weightBias(VAL_BIAS);
 
         int i = 0;
         for (int slot = 0; slot < ps.length; slot++) {
@@ -152,7 +157,7 @@ public final class ArmorElement extends HudElement {
             if (st.isEmpty()) continue;
             float f = frac(st);
             String v = value(st, percent);
-            float tw = HudText.width(v, Weight.SEMIBOLD, vSize);
+            float tw = HudText.width(v, VAL_WEIGHT, vSize);
 
             float iconX, iconY;
             if (line) {
@@ -208,7 +213,7 @@ public final class ArmorElement extends HudElement {
             case "iron"      -> 0xFFD8DEE6;
             case "gold"      -> 0xFFF2CE72;
             case "diamond"   -> 0xFF7FE0E6;
-            case "netherite" -> 0xFF9A7E8E;   // muted purple-gray: darker, de-pinked (owner round 2)
+            case "netherite" -> 0xFF8C7AA0;   // VIOLET, not rose (owner round 3) — blue-leaning purple
             case "turtle"    -> 0xFF8FD0AC;
             default          -> 0xFFAEB9C9;   // unknown/modded — neutral steel
         };
