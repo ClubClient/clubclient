@@ -89,6 +89,18 @@ public final class ClubMenuScreen extends Screen {
     // Rail accent bar: eases between CATEGORY colours on switch (identity colour — Stage 11 palette A)
     private int railBarFrom;
     private Transition railBarBlend;
+    // Stage-22 wells (passe-partout composition): shallow category tray + deep content well.
+    // Zones separate by panel EDGES and depth — every hairline divider is gone.
+    private float railWX, railWY, railWW, railWH;   // the shallow tray (hugs the category list)
+    private float wellX, wellY, wellW, wellH;       // the deep content well
+    // Ambient halo behind the window: spreads + falling alphas (slight downward drift baked in)
+    private static final float[] HALO_SPREAD = {3f, 7f, 13f, 22f, 34f};
+    private static final int[]   HALO_ALPHA  = {0x2C, 0x22, 0x18, 0x0F, 0x08};
+    /** Footer version whisper — balances the profile chip on the content well's right axis. */
+    private static final String VERSION = net.fabricmc.loader.api.FabricLoader.getInstance()
+            .getModContainer("club")
+            .map(c -> "Club " + c.getMetadata().getVersion().getFriendlyString())
+            .orElse("Club");
 
     // ---- search reflow (Stage 21, owner's choreography) -----------------------------------------
     // Motion is keyed by Module so it SURVIVES grid rebuilds: fast typing retargets the SAME
@@ -136,7 +148,7 @@ public final class ClubMenuScreen extends Screen {
     private final ValueTween popHTween =
             new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
 
-    private float winX, winY, winW, winH, bodyY, bodyH, contentX, contentW, railW, headH, footH;
+    private float winX, winY, winW, winH, bodyY, bodyH, headH, footH;
 
     // Fixed centred window (owner decision 2026-07-02): dragging + grip removed — the menu always
     // sits dead centre. Compact 660 width kept (owner): 4 columns fit via SMALLER cards, not a
@@ -153,7 +165,7 @@ public final class ClubMenuScreen extends Screen {
     private void openHudEditor() { MinecraftClient.getInstance().setScreen(new HudEditorScreen(this)); }
 
     @Override protected void init() {
-        railW = 178; headH = 48; footH = 40;   // taller header so the search bar isn't glued to the top edge
+        headH = 48; footH = 36;   // footer slimmed with its divider gone (Stage 22)
         query = ""; popModule = null; popCol = null; openDrop = null; pressOwner = 0;
         search = new SearchField("Search modules").onChange(q -> { query = q; rebuildGrid(GridRebuild.SEARCH); layoutAll(); });
         gridScroll = new ScrollArea(grid);
@@ -191,7 +203,7 @@ public final class ClubMenuScreen extends Screen {
 
     // Indicator tracks the row offset RELATIVE to bodyY, so it never lags behind the window when it's dragged /
     // rises on open (it only eases when the category actually changes).
-    private float railYRel(int i) { return 8 + i * RAIL_ROW; }
+    private float railYRel(int i) { return 10 + i * RAIL_ROW; }   // tray top (+2) + tray padding (+8)
     private float railY(int i) { return bodyY + railYRel(i); }   // absolute row position (rows + hit-test)
 
     // ---- state ---------------------------------------------------------------
@@ -412,15 +424,23 @@ public final class ClubMenuScreen extends Screen {
         winX = (width - winW) / 2f;                     // always dead centre (no drag, no saved position)
         winY = (height - winH) / 2f + entranceYOff;
         bodyY = winY + headH; bodyH = winH - headH - footH;
-        contentX = winX + railW; contentW = winW - railW;
 
         root.layout(0, 0, width, height);
 
+        // Stage-22 wells: the shallow tray hugs the category list; the deep well owns the rest.
+        // 16px of breathing between them (owner: two figures, not one), 12px to the frame edges.
+        railWX = winX + 12; railWY = bodyY + 2; railWW = 172;
+        railWH = 16 + cats.size() * RAIL_ROW;
+        wellX = railWX + railWW + 16; wellY = bodyY + 2;
+        wellW = winX + winW - 12 - wellX;
+        wellH = bodyH - 2 - 6;
+
         float searchW = 200, searchH = 32;
-        search.layout(contentX + contentW - 16 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);   // header row, top-right
+        // the search's RIGHT edge lands exactly on the content well's right line (header on the grid)
+        search.layout(winX + winW - 12 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);
 
         // fixed 4-column grid (like the reference board) — sparse rows are fine for now
-        float gridW = contentW - 24;
+        float gridW = wellW - 24;
         grid.cols(GRID_COLS);
 
         // One name size per category (11.7): the largest size <= NAME_BASE at which the LONGEST
@@ -438,7 +458,7 @@ public final class ClubMenuScreen extends Screen {
         }
         cardNameSize = fit;
 
-        if (gridScroll != null) gridScroll.layout(contentX + 12, bodyY + 6, gridW, bodyH - 6 - 12);
+        if (gridScroll != null) gridScroll.layout(wellX + 12, wellY + 12, gridW, wellH - 24);
 
         if (popModule != null) positionPopover();
     }
@@ -469,46 +489,65 @@ public final class ClubMenuScreen extends Screen {
         // No background scrim: the world stays fully visible so settings apply live (e.g. adjust a hand slider
         // and watch the hand move behind/around the window).
 
-        // three-tone depth: header/frame lightest (surface) > rail medium (bg2) > content darkest (bg1)
-        r.roundedRect(winX, winY, winW, winH, lg, Tokens.surface().surface());   // top layer — header/footer/frame (lightest)
-        r.rect(winX, bodyY, railW, bodyH, Tokens.surface().bg2());               // categories rail (medium)
-        r.rect(contentX, bodyY, contentW, bodyH, Tokens.surface().bg1());        // content/functions (darkest — deepest list panel)
+        // Ambient halo BEHIND the window (Stage 22): a stack of expanding rounded rects with
+        // falling alpha — the window detaches from the world instead of reading as a cropped
+        // rectangle. Not UI depth (that stays banned) — separation from the game world.
+        for (int i = HALO_SPREAD.length - 1; i >= 0; i--) {
+            float s = HALO_SPREAD[i];
+            r.roundedRect(winX - s, winY - s + s * 0.3f, winW + 2 * s, winH + 2 * s, lg + s,
+                    Color.withAlpha(0xFF000000, HALO_ALPHA[i]));
+        }
 
-        int dv = Tokens.border().defaultColor();
-        r.rect(winX + railW, winY, 1, winH - footH, dv);   // CLUB/rail | content — full height
-        r.rect(winX, bodyY, railW, 1, dv);                 // under CLUB — gives the category list a top edge
-        r.rect(contentX, bodyY, contentW, 1, dv);          // under the search/header — separates the raised header from the content list
-        r.rect(winX, winY + winH - footH, winW, 1, dv);    // above footer
+        // Passe-partout (Stage 22): ONE frame tone + two wells whose edges do the separating —
+        // shallow category tray (Δ≈1 tone step), deep content well (Δ≈3). Zero hairline dividers.
+        float md = Tokens.radius().md();
+        r.roundedRect(winX, winY, winW, winH, lg, Tokens.surface().surface());
+        r.roundedRect(railWX, railWY, railWW, railWH, md, Tokens.surface().wellShallow());
+        r.roundedRect(wellX, wellY, wellW, wellH, md, Tokens.surface().well());
 
-        // header — CLUB wordmark centred in the rail cell (trefoil mark + text as one group)
+        // header — CLUB wordmark centred on the category tray's axis (the header sits on the grid)
         float logoSz = 15f;
         float clubTextW = uiCtx.text().width("CLUB", ty.display().weight(), ty.display().size());
-        float clubX = winX + (railW - (logoSz + 7 + clubTextW)) / 2f;
+        float clubX = railWX + (railWW - (logoSz + 7 + clubTextW)) / 2f;
         IconGlyph.LOGO.draw(uiCtx, clubX, winY + (headH - logoSz) / 2f, logoSz,
                 Color.scaleAlpha(Tokens.accent().accent(), ep));
         uiCtx.text().draw("CLUB", clubX + logoSz + 7, winY + (headH - ty.display().lineHeight()) / 2f,
                 TextStyle.of(ty.display().weight(), ty.display().size(), Color.scaleAlpha(Tokens.palette().textHi(), ep)));
 
-        float fy = winY + winH - footH + (footH - ty.label().lineHeight()) / 2f;
-        uiCtx.text().draw("Profile · Default", winX + 18, fy,
+        // footer — the profile chip (the future switcher: mark + name + chevron) on the tray axis,
+        // a version whisper on the content well's right line. No caption floating in a void.
+        float fooY = winY + winH - footH;
+        float chipCy = fooY + footH / 2f;
+        r.roundedRect(railWX, chipCy - 8, 16, 16, 8, Color.withAlpha(Tokens.accent().accent(), 0x24));
+        IconGlyph.LOGO.draw(uiCtx, railWX + 3.5f, chipCy - 8 + 3.5f, 9,
+                Color.scaleAlpha(Tokens.accent().accent(), ep));
+        float profX = railWX + 16 + 8;
+        uiCtx.text().draw("Default", profX, chipCy - ty.label().lineHeight() / 2f,
                 TextStyle.of(ty.label().weight(), ty.label().size(), Color.scaleAlpha(stFootMutCol, ep)));
+        float profW = uiCtx.text().width("Default", ty.label().weight(), ty.label().size());
+        int chevCol = Color.scaleAlpha(Tokens.palette().textFaint(), ep);
+        float chvX = profX + profW + 7, chvY = chipCy - 2;
+        for (int i = 0; i < 4; i++) r.rect(chvX + i, chvY + i, 7 - 2 * i, 1, chevCol);   // tiny ▾
+        float verW = uiCtx.text().width(VERSION, ty.label().weight(), 11.5f);
+        uiCtx.text().draw(VERSION, winX + winW - 12 - verW, chipCy - uiCtx.text().lineHeight(ty.label().weight(), 11.5f) / 2f,
+                TextStyle.of(ty.label().weight(), 11.5f, Color.scaleAlpha(Tokens.palette().textDesc(), ep)));
 
         // rail: the active-row highlight pill slides with the accent indicator (drawn once, under the text)
         if (indicator != null) indicator.target(railYRel(catIndex), now);
         float indY = bodyY + (indicator != null ? indicator.value(now) : railYRel(catIndex));
-        r.roundedRect(winX + 8, indY + 3, railW - 16, RAIL_ROW - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
+        r.roundedRect(railWX + 8, indY + 3, railWW - 16, RAIL_ROW - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
 
-        // rail categories — label colour eases on hover / active; icon rides the same ease
+        // rail categories inside the tray — label colour eases on hover / active; icon rides the same ease
         for (int i = 0; i < cats.size(); i++) {
             float yy = railY(i);
             boolean active = i == catIndex;
-            boolean hov = mouseX >= winX && mouseX <= winX + railW && mouseY >= yy && mouseY < yy + RAIL_ROW;
+            boolean hov = mouseX >= railWX && mouseX <= railWX + railWW && mouseY >= yy && mouseY < yy + RAIL_ROW;
             railText[i].target((active || hov) ? 1f : 0f, now);
             int col = Color.scaleAlpha(
                     Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), railText[i].value(now)), ep);
-            float isz = 15f, iconX = winX + 16f;
+            float isz = 15f, iconX = railWX + 20f;
             cats.get(i).icon().draw(uiCtx, iconX, yy + (RAIL_ROW - isz) / 2f, isz, col);
-            float textX = iconX + isz + 8f, clipR = winX + railW - 14f;
+            float textX = iconX + isz + 8f, clipR = railWX + railWW - 10f;
             r.pushClip(textX, yy, clipR - textX, RAIL_ROW);
             uiCtx.text().draw(cats.get(i).name(), textX, yy + (RAIL_ROW - catLh) / 2f,
                     TextStyle.of(ty.label().weight(), ty.label().size(), col));
@@ -527,7 +566,7 @@ public final class ClubMenuScreen extends Screen {
         noteFade.target(noteOn ? 1f : 0f, now);
         float noteA = noteFade.value(now);
         if (noteA > 0.001f) {
-            uiCtx.text().draw("No matching modules", contentX + contentW / 2f, bodyY + bodyH / 2f - ty.body().lineHeight() / 2f,
+            uiCtx.text().draw("No matching modules", wellX + wellW / 2f, wellY + wellH / 2f - ty.body().lineHeight() / 2f,
                     TextStyle.of(ty.body().weight(), ty.body().size(),
                             Color.scaleAlpha(Tokens.palette().textMuted(), screenAlpha * noteA)).align(Align.CENTER));
         }
@@ -536,8 +575,7 @@ public final class ClubMenuScreen extends Screen {
         // the grid already, so they paint here, inside the same scroll viewport clip. Pruned once
         // fully dissolved. Never receive input (not in the component tree).
         if (!leaving.isEmpty()) {
-            float lgW = contentW - 24;
-            r.pushClip(contentX + 12, bodyY + 6, lgW, bodyH - 6 - 12);
+            r.pushClip(wellX + 12, wellY + 12, wellW - 24, wellH - 24);
             for (var it = leaving.entrySet().iterator(); it.hasNext(); ) {
                 var en = it.next();
                 en.getValue().render(uiCtx);
@@ -550,8 +588,8 @@ public final class ClubMenuScreen extends Screen {
             r.popClip();
         }
 
-        if (indicator != null)   // active indicator bar: CATEGORY colour, easing between hues on switch
-            r.rect(winX, indY + 4, 4, RAIL_ROW - 8, railBarColor(now));
+        if (indicator != null)   // active indicator bar: CATEGORY colour, hugging the tray's left edge
+            r.roundedRect(railWX, indY + 4, 4, RAIL_ROW - 8, 2f, railBarColor(now));
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
@@ -619,8 +657,8 @@ public final class ClubMenuScreen extends Screen {
         if (insidePop(mx, my)) {
             popScroll.mouseClicked(mx, my, 0); pressOwner = 1; return true;   // RMB behaves as LMB inside; never closes
         }
-        if (b == 0 && mx >= winX && mx <= winX + railW && my >= bodyY + 8 && my < bodyY + 8 + cats.size() * RAIL_ROW) {
-            int i = (int) ((my - (bodyY + 8)) / RAIL_ROW);
+        if (b == 0 && mx >= railWX && mx <= railWX + railWW && my >= bodyY + 10 && my < bodyY + 10 + cats.size() * RAIL_ROW) {
+            int i = (int) ((my - (bodyY + 10)) / RAIL_ROW);
             if (i >= 0 && i < cats.size()) { if (i != catIndex) setCategory(i); return true; }
         }
         if (root.mouseClicked(mx, my, b)) { pressOwner = 2; return true; }
@@ -657,7 +695,12 @@ public final class ClubMenuScreen extends Screen {
         if (k == GLFW_KEY_TAB) { if ((mods & GLFW_MOD_SHIFT) != 0) focus.previous(); else focus.next(); return true; }
         return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
     }
-    @Override public boolean charTyped(char c, int mods) { return focus.charTyped(c, mods) || super.charTyped(c, mods); }
+    @Override public boolean charTyped(char c, int mods) {
+        // "/" jumps into the search (the keycap hint in the field advertises it); consumed so the
+        // slash itself never lands in the query
+        if (c == '/' && search != null && !search.isFocused() && !closing) { focus.focus(search); return true; }
+        return focus.charTyped(c, mods) || super.charTyped(c, mods);
+    }
 
     @Override public boolean shouldCloseOnEsc() { return false; }
     @Override public boolean shouldPause() { return false; }
@@ -794,9 +837,13 @@ public final class ClubMenuScreen extends Screen {
 
             // 11.8: states pulled further apart — OFF sits low and quiet (faint everything), ON is
             // unmistakable: category-tinted ground + tinted edge + full-colour chip/stripe/name/ghost.
-            int fill = Color.lerp(Color.lerp(Tokens.surface().surface(), Tokens.surface().surfaceHi(), hv),
+            // Stage 22: base lifted one tone step (surfaceHi ground, strong edge) — the old surface
+            // base sank into the deep content well.
+            int fillHov = Color.lerp(Tokens.surface().surfaceHi(), 0xFFFFFFFF, 0.05f);
+            int fill = Color.lerp(Color.lerp(Tokens.surface().surfaceHi(), fillHov, hv),
                                   accent, 0.055f * onv);
-            int edge = Color.lerp(Color.lerp(Tokens.border().defaultColor(), Tokens.border().strong(), hv),
+            int edgeHov = Color.lerp(Tokens.border().strong(), 0xFFFFFFFF, 0.16f);
+            int edge = Color.lerp(Color.lerp(Tokens.border().strong(), edgeHov, hv),
                                   accent, 0.35f * onv);
             r.roundedRect(x, y, w, h, rad, Color.scaleAlpha(fill, ta));
 
@@ -886,16 +933,30 @@ public final class ClubMenuScreen extends Screen {
             float fv = focusT.value(now), hv = hoverT.value(now);
 
             int acc = catAccent(catIndex);   // 11.9: search highlight speaks the current category's colour
-            r.roundedRect(x, y, w, h, rad, Tokens.surface().bg1());
-            // border eases default -> accent@0x99 (hover) -> accent (focus)
-            int hoverBorder = Color.lerp(Tokens.border().defaultColor(), Color.withAlpha(acc, 0x99), hv);
-            r.border(x, y, w, h, rad, Tokens.border().thickness(), Color.lerp(hoverBorder, acc, fv));
+            // Stage 22: the field joins the WELL family — well tone, borderless at rest (the
+            // accent border eases in on hover/focus only), a whisper of inner light on the top
+            // edge (recessed polish, not glow).
+            r.roundedRect(x, y, w, h, rad, Tokens.surface().well());
+            r.rect(x + rad, y + 1, w - 2 * rad, 1, Color.withAlpha(Tokens.accent().accent(), 0x0D));
+            int bAlpha = Math.min(255, Math.round(0x66 * hv * (1f - fv) + 0xFF * fv));
+            if (bAlpha > 2) r.border(x, y, w, h, rad, Tokens.border().thickness(), Color.withAlpha(acc, bAlpha));
 
             // leading magnifier glyph — tints toward the category accent on focus, matching the border
             float isz = 13f;
             IconGlyph.SEARCH.draw(ctx, x + pad, y + (h - isz) / 2f, isz,
                     Color.scaleAlpha(Color.lerp(Tokens.palette().textMuted(), acc, fv), screenAlpha));
             float textX = x + pad + isz + 6f;
+
+            // "/" key hint (focuses the field in-game) — dissolves on focus, hidden while a query exists
+            float ka = (1f - fv) * (empty ? 1f : 0f) * screenAlpha;
+            if (ka > 0.001f) {
+                float kb = 18f, kx = x + w - 7f - kb, ky = y + (h - kb) / 2f;
+                r.roundedRect(kx, ky, kb, kb, 5f, Color.withAlpha(acc, Math.round(0x12 * ka)));
+                r.border(kx, ky, kb, kb, 5f, 1f, Color.scaleAlpha(Tokens.border().strong(), ka));
+                float slw = ctx.text().width("/", ty.label().weight(), 11f);
+                ctx.text().draw("/", kx + (kb - slw) / 2f, ky + (kb - ctx.text().lineHeight(ty.label().weight(), 11f)) / 2f,
+                        TextStyle.of(ty.label().weight(), 11f, Color.scaleAlpha(Tokens.palette().textFaint(), ka)));
+            }
 
             float ty0 = y + (h - ty.body().lineHeight()) / 2f;
             r.pushClip(textX, y, x + w - pad - textX, h);
