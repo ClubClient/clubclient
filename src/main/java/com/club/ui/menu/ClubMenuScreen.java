@@ -69,7 +69,9 @@ public final class ClubMenuScreen extends Screen {
     private final long startNanos = System.nanoTime();
 
     private final List<Category> cats = MenuContent.build(this::openHudEditor);
-    private int catIndex = 0;
+    // The selected category survives close/reopen within the session (owner: no reset to Combat).
+    private static int lastCatIndex = 0;
+    private int catIndex = lastCatIndex;
     private String query = "";
 
     private final Pane root = new Pane();
@@ -93,8 +95,9 @@ public final class ClubMenuScreen extends Screen {
     // transitions mid-flight — the interface flows, it never restarts. Phases: exits fade+shrink
     // from 0ms; survivors re-aim at +40ms; enters fade+grow at +70ms. The window/grid container
     // itself never moves (no jelly). Category open staggers enters 17ms/card; search NEVER staggers.
-    private static final float EXIT_DUR = 0.13f, ENTER_DUR = 0.17f, MOVE_DUR = 0.20f;
-    private static final float MOVE_DELAY = 0.04f, ENTER_DELAY = 0.07f, CAT_STAGGER = 0.017f;
+    // ~20% slower than the first cut (owner: «буквально чуток медленнее»).
+    private static final float EXIT_DUR = 0.15f, ENTER_DUR = 0.20f, MOVE_DUR = 0.24f;
+    private static final float MOVE_DELAY = 0.05f, ENTER_DELAY = 0.08f, CAT_STAGGER = 0.02f;
     private static final float TILE_SCALE_FROM = 0.97f;   // enter 0.97→1; exit mirrors it
     private final java.util.HashMap<Module, TileMotion> tileMotion = new java.util.HashMap<>();
     // Cards that stopped matching keep painting HERE while they dissolve (they left the grid already).
@@ -151,14 +154,14 @@ public final class ClubMenuScreen extends Screen {
     @Override protected void init() {
         railW = 178; headH = 48; footH = 40;   // taller header so the search bar isn't glued to the top edge
         query = ""; popModule = null; popCol = null; openDrop = null; pressOwner = 0;
-        search = new SearchField("Search modules").onChange(q -> { query = q; rebuildGrid(true); layoutAll(); });
+        search = new SearchField("Search modules").onChange(q -> { query = q; rebuildGrid(GridRebuild.SEARCH); layoutAll(); });
         gridScroll = new ScrollArea(grid);
         root.clear();
         root.add(search);
         root.add(gridScroll);
         focus.clear();
         focus.register(search);
-        rebuildGrid();
+        rebuildGrid(GridRebuild.OPEN);
         layoutAll();
         indicator = new Transition(railYRel(catIndex), Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         railText = new Transition[cats.size()];
@@ -195,42 +198,48 @@ public final class ClubMenuScreen extends Screen {
     private void setCategory(int i) {
         float now = uiCtx.time();
         railBarFrom = railBarColor(now);   // ease the bar from wherever its colour currently is
-        catIndex = i;
+        catIndex = i; lastCatIndex = i;
         railBarBlend = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         railBarBlend.target(1f, now);
         closePopover();
         query = "";
         if (search != null) search.clear();
-        rebuildGrid();
+        rebuildGrid(GridRebuild.CATEGORY);
         layoutAll();
     }
 
-    private void rebuildGrid() { rebuildGrid(false); }
+    /** Grid rebuild flavours: menu OPEN (cards ride the window entrance, no per-card animation),
+     *  CATEGORY switch (instant swap + 20ms/card cascade), live SEARCH (the Stage-21 reflow). */
+    private enum GridRebuild { OPEN, CATEGORY, SEARCH }
 
-    /** Rebuilds the card grid. {@code searchReflow} = live typing: the Stage-21 choreography
-     *  (exit / re-aim / enter phases, retarget-safe). Otherwise (menu open, category switch) the
-     *  set swaps instantly and the new cards cascade in with a 17ms/card stagger. */
-    private void rebuildGrid(boolean searchReflow) {
+    private void rebuildGrid(GridRebuild mode) {
         float now = uiCtx.time();
         String q = query.toLowerCase(Locale.ROOT);
         int accent = catAccent(catIndex);
         java.util.List<Module> match = new java.util.ArrayList<>();
         for (Module m : cats.get(catIndex).modules()) {
-            if (!q.isEmpty()
-                    && !m.name().toLowerCase(Locale.ROOT).contains(q)
-                    && !m.desc().toLowerCase(Locale.ROOT).contains(q)) continue;
+            // name-only match: description matches were invisible to the user and read as bugs
+            // (owner: "screen" surfacing No Hurt Cam — its DESC mentions the screen shake)
+            if (!q.isEmpty() && !m.name().toLowerCase(Locale.ROOT).contains(q)) continue;
             match.add(m);
         }
 
-        if (!searchReflow) {
-            // fresh set — no cross-animation; the enters cascade one after another (owner: only here)
+        if (mode != GridRebuild.SEARCH) {
+            // fresh set — no cross-animation. CATEGORY cascades the enters (owner: only here);
+            // OPEN shows the cards at once, riding the whole-window entrance fade as before
+            // (a cascade during the window rise read as a glitch).
             tileMotion.clear(); leaving.clear();
             grid.clear();
             int i = 0;
             for (Module m : match) {
                 TileMotion tm = new TileMotion();
-                tm.fade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
-                tm.showDelay = i++ * CAT_STAGGER;
+                if (mode == GridRebuild.CATEGORY) {
+                    tm.fade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
+                    tm.showDelay = i++ * CAT_STAGGER;
+                } else {
+                    tm.fade = new Transition(1f, ENTER_DUR, Tokens.motion().easings().decelerate());
+                    tm.shown = true;
+                }
                 tileMotion.put(m, tm);
                 grid.add(new ModuleTile(m, accent));
             }
@@ -509,6 +518,15 @@ public final class ClubMenuScreen extends Screen {
         root.mouseMoved(mouseX, mouseY);
         root.render(uiCtx);
 
+        // Empty search: a quiet centred note instead of a silent void (drawn after the leaving
+        // cards have mostly dissolved, so the two never overlap-shout).
+        if (!query.isEmpty() && grid.children().isEmpty()) {
+            float noteA = leaving.isEmpty() ? 1f : 0.35f;   // soften while exits still play
+            uiCtx.text().draw("No matching modules", contentX + contentW / 2f, bodyY + bodyH / 2f - ty.body().lineHeight() / 2f,
+                    TextStyle.of(ty.body().weight(), ty.body().size(),
+                            Color.scaleAlpha(Tokens.palette().textMuted(), screenAlpha * noteA)).align(Align.CENTER));
+        }
+
         // Stage-21 reflow: cards that stopped matching dissolve over their old spots — they left
         // the grid already, so they paint here, inside the same scroll viewport clip. Pruned once
         // fully dissolved. Never receive input (not in the component tree).
@@ -729,27 +747,32 @@ public final class ClubMenuScreen extends Screen {
                 if (tm.showAt < 0f) tm.showAt = now + tm.showDelay;   // resolve vs the live ui clock
                 if (!tm.shown && now >= tm.showAt) { tm.shown = true; tm.fade.target(1f, now); }
                 ta = tm.fade.value(now);
+                // Positions ease in WINDOW space: the entrance rise (and any window recentre) moves
+                // cards rigidly with the frame — easing screen coords made them lag/chase the window
+                // ("подпрыгивают" after open). Only slot-to-slot moves animate.
+                float relX = x - winX, relY = y - winY;
                 float ex, ey;
                 if (tm.leaving) {
-                    ex = tm.bx; ey = tm.by; w = tm.bw; h = tm.bh;
+                    ex = winX + tm.bx; ey = winY + tm.by; w = tm.bw; h = tm.bh;
                     hovered = false;   // a dissolving card must not keep its hover lift
                 } else {
                     if (!tm.hasPos) {   // first sighting — snap, never fly in from nowhere
-                        tm.px = new Transition(x, MOVE_DUR, Tokens.motion().easings().standard());
-                        tm.py = new Transition(y, MOVE_DUR, Tokens.motion().easings().standard());
-                        tm.tx = x; tm.ty = y; tm.hasPos = true;
+                        tm.px = new Transition(relX, MOVE_DUR, Tokens.motion().easings().standard());
+                        tm.py = new Transition(relY, MOVE_DUR, Tokens.motion().easings().standard());
+                        tm.tx = relX; tm.ty = relY; tm.hasPos = true;
                     } else if (tm.movePending) {
-                        if (now >= tm.moveAt) {   // the +40ms phase — survivors re-aim now
+                        if (now >= tm.moveAt) {   // the +50ms phase — survivors re-aim now
                             tm.movePending = false;
-                            tm.tx = x; tm.ty = y;
-                            tm.px.target(x, now); tm.py.target(y, now);
+                            tm.tx = relX; tm.ty = relY;
+                            tm.px.target(relX, now); tm.py.target(relY, now);
                         }
-                    } else if (tm.tx != x || tm.ty != y) {   // resize etc. — re-aim immediately
-                        tm.tx = x; tm.ty = y;
-                        tm.px.target(x, now); tm.py.target(y, now);
+                    } else if (tm.tx != relX || tm.ty != relY) {   // grid change outside search — re-aim
+                        tm.tx = relX; tm.ty = relY;
+                        tm.px.target(relX, now); tm.py.target(relY, now);
                     }
-                    ex = tm.px.value(now); ey = tm.py.value(now);
-                    tm.bx = ex; tm.by = ey; tm.bw = w; tm.bh = h;   // fresh stage for a future dissolve
+                    tm.bx = tm.px.value(now); tm.by = tm.py.value(now);   // window-relative visual spot
+                    tm.bw = w; tm.bh = h;
+                    ex = winX + tm.bx; ey = winY + tm.by;
                 }
                 float sc = TILE_SCALE_FROM + (1f - TILE_SCALE_FROM) * Math.min(1f, ta);
                 float sw = w * sc, sh = h * sc;
