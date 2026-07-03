@@ -11,9 +11,9 @@ public final class FocusManager {
     public void clear() { setIndex(-1); focusables.clear(); }
     public Component focused() { return index < 0 ? null : focusables.get(index); }
 
-    public void focus(Component c) { setIndex(focusables.indexOf(c)); }
-    public void next()     { if (!focusables.isEmpty()) setIndex((index + 1 + focusables.size()) % focusables.size()); }
-    public void previous() { if (!focusables.isEmpty()) setIndex((index - 1 + focusables.size()) % focusables.size()); }
+    public void focus(Component c) { setIndex(focusables.indexOf(c), false); }
+    public void next()     { if (!focusables.isEmpty()) setIndex((index + 1 + focusables.size()) % focusables.size(), true); }
+    public void previous() { if (!focusables.isEmpty()) setIndex((index - 1 + focusables.size()) % focusables.size(), true); }
 
     public boolean keyPressed(int key, int scan, int mods) {
         Component f = focused();
@@ -26,13 +26,19 @@ public final class FocusManager {
     public void clickFocus(double mx, double my) {
         for (int i = focusables.size() - 1; i >= 0; i--) {
             Component c = focusables.get(i);
-            if (c.visible && c.enabled && c.contains(mx, my)) { setIndex(i); return; }
+            if (c.visible && c.enabled && c.contains(mx, my)) { setIndex(i, false); return; }
         }
-        setIndex(-1);
+        setIndex(-1, false);
     }
-    private void setIndex(int i) {
+    private void setIndex(int i) { setIndex(i, false); }
+    /** {@code keyboard} → the focused control wears the ring halo (:focus-visible); clicks don't. */
+    private void setIndex(int i, boolean keyboard) {
         if (index >= 0 && index < focusables.size()) focusables.get(index).focused = false;
         index = i;
-        if (index >= 0) focusables.get(index).focused = true;
+        if (index >= 0) {
+            Component c = focusables.get(index);
+            c.focused = true;
+            c.focusVisible = keyboard;
+        }
     }
 }

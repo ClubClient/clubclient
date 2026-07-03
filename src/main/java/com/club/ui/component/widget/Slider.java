@@ -184,7 +184,7 @@ public final class Slider extends Container {
 
             // Focus ring + knob: a compact light-accent knob with a thin dark ring — reads integrated
             // with the fill (not a foreign white puck), defined on both fill and groove. Flat.
-            if (Slider.this.isFocused()) WidgetPaint.focusRingCircle(ctx, knobX, cy, kr, WidgetPaint.acc(accent));
+            if (Slider.this.isFocusVisible()) WidgetPaint.focusRingCircle(ctx, knobX, cy, kr, WidgetPaint.acc(accent));
             WidgetPaint.puck(ctx, knobX, cy, kr, WidgetPaint.accHi(accent), Tokens.accent().onAccent(),
                     Tokens.border().thickness());
         }

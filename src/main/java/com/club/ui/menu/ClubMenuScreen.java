@@ -102,6 +102,7 @@ public final class ClubMenuScreen extends Screen {
     private final java.util.HashMap<Module, TileMotion> tileMotion = new java.util.HashMap<>();
     // Cards that stopped matching keep painting HERE while they dissolve (they left the grid already).
     private final java.util.LinkedHashMap<Module, ModuleTile> leaving = new java.util.LinkedHashMap<>();
+    private Transition noteFade;   // "No matching modules" — single smooth fade in/out
 
     /** One card's motion across rebuilds: eased position + fade (the 0.97→1 scale rides the fade). */
     private static final class TileMotion {
@@ -518,10 +519,14 @@ public final class ClubMenuScreen extends Screen {
         root.mouseMoved(mouseX, mouseY);
         root.render(uiCtx);
 
-        // Empty search: a quiet centred note instead of a silent void (drawn after the leaving
-        // cards have mostly dissolved, so the two never overlap-shout).
-        if (!query.isEmpty() && grid.children().isEmpty()) {
-            float noteA = leaving.isEmpty() ? 1f : 0.35f;   // soften while exits still play
+        // Empty search: a quiet centred note. One SMOOTH fade — it waits for the dissolving cards
+        // to finish, then eases in (stepped alpha read as a glitch); retargets to 0 the moment
+        // anything matches again.
+        boolean noteOn = !query.isEmpty() && grid.children().isEmpty() && leaving.isEmpty();
+        if (noteFade == null) noteFade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
+        noteFade.target(noteOn ? 1f : 0f, now);
+        float noteA = noteFade.value(now);
+        if (noteA > 0.001f) {
             uiCtx.text().draw("No matching modules", contentX + contentW / 2f, bodyY + bodyH / 2f - ty.body().lineHeight() / 2f,
                     TextStyle.of(ty.body().weight(), ty.body().size(),
                             Color.scaleAlpha(Tokens.palette().textMuted(), screenAlpha * noteA)).align(Align.CENTER));
@@ -644,8 +649,10 @@ public final class ClubMenuScreen extends Screen {
     }
     @Override public boolean keyPressed(int k, int scan, int mods) {
         // The menu closes on the SAME key that opens it (owner decision 2026-07-02) — with the
-        // reverse-of-open animation. ESC only closes the settings popover, never the menu.
-        if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)) { beginClose(); return true; }
+        // reverse-of-open animation, but NOT while typing in the search (the bound letter must
+        // type, not close). ESC only closes the settings popover, never the menu.
+        if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)
+                && !(search != null && search.isFocused())) { beginClose(); return true; }
         if (k == GLFW_KEY_ESCAPE && popModule != null) { closePopover(); return true; }
         if (k == GLFW_KEY_TAB) { if ((mods & GLFW_MOD_SHIFT) != 0) focus.previous(); else focus.next(); return true; }
         return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);

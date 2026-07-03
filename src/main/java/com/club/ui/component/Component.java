@@ -7,6 +7,10 @@ public abstract class Component {
     protected float x, y, w, h;
     public boolean enabled = true, visible = true;
     protected boolean hovered, pressed, focused;
+    /** True only when focus arrived via the KEYBOARD (Tab) — mouse-click focus never wears the
+     *  ring halo (:focus-visible semantics; a clicked control flashing a double outline read as
+     *  a glitch). Set by FocusManager alongside {@link #focused}. */
+    boolean focusVisible;
 
     /** Intrinsic desired size given available space. Leaf widgets override. */
     public Size measure(float availW, float availH) { return new Size(0, 0); }
@@ -30,6 +34,8 @@ public abstract class Component {
     public boolean isHovered() { return hovered; }
     public boolean isPressed() { return pressed; }
     public boolean isFocused() { return focused; }
+    /** Focused via keyboard — the only state that shows the focus-ring halo. */
+    public boolean isFocusVisible() { return focused && focusVisible; }
 
     public float xLeft()  { return x; }
     public float yTop()   { return y; }

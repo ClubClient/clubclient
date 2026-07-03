@@ -80,7 +80,7 @@ final class WidgetPaint {
 
     /** {@link #focusRing} with an explicit ring colour (category-accent overrides, Stage 11.9). */
     static void focusRing(UiContext ctx, Component c, float radius, int color) {
-        if (!c.isFocused()) return;
+        if (!c.isFocusVisible()) return;   // keyboard focus only — clicked controls don't wear the halo
         ctx.renderer().border(c.xLeft() - FOCUS_GAP, c.yTop() - FOCUS_GAP,
                 c.width() + FOCUS_GAP * 2f, c.height() + FOCUS_GAP * 2f, radius + FOCUS_GAP,
                 Tokens.interaction().focusRingWidth(), color);
