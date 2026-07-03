@@ -132,6 +132,8 @@ public final class ClubMenuScreen extends Screen {
         float showAt = -1f;     //   rebuilds can run before the ui clock ticks (init)
         boolean shown;
         float hideAt = -1f;     // exit gate: the dissolve starts once time passes this (exit cascade)
+        boolean scaleIn = true; // search language: fade+scale; category cascades are FADE-ONLY
+                                //   (the 0.97→1 pop per card read as popcorn — owner)
         float moveAt;           // survivor gate: position re-aims only after this (+40ms phase)
         boolean movePending;
         boolean leaving;
@@ -227,6 +229,17 @@ public final class ClubMenuScreen extends Screen {
         layoutAll();
     }
 
+    /** Name matching (name-only since 21.2): short queries (&lt;3 chars) anchor to WORD STARTS —
+     *  "n" means the No-* family, not "scree[n]" (owner); 3+ chars fall back to substring so
+     *  fragments like "stret" still hit "Screen Stretch". */
+    private static boolean nameMatches(String name, String q) {
+        if (q.length() >= 3) return name.contains(q);
+        if (name.startsWith(q)) return true;
+        for (int sp = name.indexOf(' '); sp >= 0; sp = name.indexOf(' ', sp + 1))
+            if (name.startsWith(q, sp + 1)) return true;
+        return false;
+    }
+
     /** Grid rebuild flavours: menu OPEN (cards ride the window entrance, no per-card animation),
      *  CATEGORY switch (instant swap + 20ms/card cascade), live SEARCH (the Stage-21 reflow). */
     private enum GridRebuild { OPEN, CATEGORY, SEARCH }
@@ -237,9 +250,7 @@ public final class ClubMenuScreen extends Screen {
         int accent = catAccent(catIndex);
         java.util.List<Module> match = new java.util.ArrayList<>();
         for (Module m : cats.get(catIndex).modules()) {
-            // name-only match: description matches were invisible to the user and read as bugs
-            // (owner: "screen" surfacing No Hurt Cam — its DESC mentions the screen shake)
-            if (!q.isEmpty() && !m.name().toLowerCase(Locale.ROOT).contains(q)) continue;
+            if (!q.isEmpty() && !nameMatches(m.name().toLowerCase(Locale.ROOT), q)) continue;
             match.add(m);
         }
 
@@ -255,6 +266,7 @@ public final class ClubMenuScreen extends Screen {
                 if (mode == GridRebuild.CATEGORY) {
                     tm.fade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
                     tm.showDelay = i++ * CAT_STAGGER;
+                    tm.scaleIn = false;   // quiet cascade: fade only, no per-card pop
                 } else {
                     tm.fade = new Transition(1f, ENTER_DUR, Tokens.motion().easings().decelerate());
                     tm.shown = true;
@@ -275,7 +287,7 @@ public final class ClubMenuScreen extends Screen {
             TileMotion tm = tileMotion.get(t.m);
             if (tm == null || tm.leaving) continue;
             if (!tm.hasPos) { tileMotion.remove(t.m); continue; }   // never rendered — nothing to dissolve
-            tm.leaving = true; tm.shown = true; tm.movePending = false;
+            tm.leaving = true; tm.shown = true; tm.movePending = false; tm.scaleIn = true;   // exits always mirror the search scale
             tm.fade = new Transition(tm.fade.value(now), EXIT_DUR, Tokens.motion().easings().standard());
             exits.add(tm);
             leaving.put(t.m, t);
@@ -839,7 +851,7 @@ public final class ClubMenuScreen extends Screen {
                     tm.bw = w; tm.bh = h;
                     ex = winX + tm.bx; ey = winY + tm.by;
                 }
-                float sc = TILE_SCALE_FROM + (1f - TILE_SCALE_FROM) * Math.min(1f, ta);
+                float sc = tm.scaleIn ? TILE_SCALE_FROM + (1f - TILE_SCALE_FROM) * Math.min(1f, ta) : 1f;
                 float sw = w * sc, sh = h * sc;
                 x = ex + (w - sw) / 2f; y = ey + (h - sh) / 2f; w = sw; h = sh;
                 if (ta <= 0.001f) return;   // pre-delay or fully dissolved — nothing to draw
