@@ -88,6 +88,34 @@ public final class ClubMenuScreen extends Screen {
     private int railBarFrom;
     private Transition railBarBlend;
 
+    // ---- search reflow (Stage 21, owner's choreography) -----------------------------------------
+    // Motion is keyed by Module so it SURVIVES grid rebuilds: fast typing retargets the SAME
+    // transitions mid-flight — the interface flows, it never restarts. Phases: exits fade+shrink
+    // from 0ms; survivors re-aim at +40ms; enters fade+grow at +70ms. The window/grid container
+    // itself never moves (no jelly). Category open staggers enters 17ms/card; search NEVER staggers.
+    private static final float EXIT_DUR = 0.13f, ENTER_DUR = 0.17f, MOVE_DUR = 0.20f;
+    private static final float MOVE_DELAY = 0.04f, ENTER_DELAY = 0.07f, CAT_STAGGER = 0.017f;
+    private static final float TILE_SCALE_FROM = 0.97f;   // enter 0.97→1; exit mirrors it
+    private final java.util.HashMap<Module, TileMotion> tileMotion = new java.util.HashMap<>();
+    // Cards that stopped matching keep painting HERE while they dissolve (they left the grid already).
+    private final java.util.LinkedHashMap<Module, ModuleTile> leaving = new java.util.LinkedHashMap<>();
+
+    /** One card's motion across rebuilds: eased position + fade (the 0.97→1 scale rides the fade). */
+    private static final class TileMotion {
+        Transition px, py;      // eased position — created snapped on first sighting (no fly-in)
+        Transition fade;        // 0→1 enter / →0 exit; recreated per direction (durations differ),
+                                //   always seeded from the current value → turn-arounds stay smooth
+        float tx, ty;           // last applied position target
+        boolean hasPos;
+        float showDelay;        // enter delay (stagger / +70ms phase), resolved on first render —
+        float showAt = -1f;     //   rebuilds can run before the ui clock ticks (init)
+        boolean shown;
+        float moveAt;           // survivor gate: position re-aims only after this (+40ms phase)
+        boolean movePending;
+        boolean leaving;
+        float bx, by, bw, bh;   // last visual box — the frozen stage for a dissolving card
+    }
+
     // settings popover (RMB), anchored to a card
     private Module popModule;
     private Column popCol;
@@ -123,7 +151,7 @@ public final class ClubMenuScreen extends Screen {
     @Override protected void init() {
         railW = 178; headH = 48; footH = 40;   // taller header so the search bar isn't glued to the top edge
         query = ""; popModule = null; popCol = null; openDrop = null; pressOwner = 0;
-        search = new SearchField("Search modules").onChange(q -> { query = q; rebuildGrid(); layoutAll(); });
+        search = new SearchField("Search modules").onChange(q -> { query = q; rebuildGrid(true); layoutAll(); });
         gridScroll = new ScrollArea(grid);
         root.clear();
         root.add(search);
@@ -177,14 +205,68 @@ public final class ClubMenuScreen extends Screen {
         layoutAll();
     }
 
-    private void rebuildGrid() {
-        grid.clear();
+    private void rebuildGrid() { rebuildGrid(false); }
+
+    /** Rebuilds the card grid. {@code searchReflow} = live typing: the Stage-21 choreography
+     *  (exit / re-aim / enter phases, retarget-safe). Otherwise (menu open, category switch) the
+     *  set swaps instantly and the new cards cascade in with a 17ms/card stagger. */
+    private void rebuildGrid(boolean searchReflow) {
+        float now = uiCtx.time();
         String q = query.toLowerCase(Locale.ROOT);
         int accent = catAccent(catIndex);
+        java.util.List<Module> match = new java.util.ArrayList<>();
         for (Module m : cats.get(catIndex).modules()) {
             if (!q.isEmpty()
                     && !m.name().toLowerCase(Locale.ROOT).contains(q)
                     && !m.desc().toLowerCase(Locale.ROOT).contains(q)) continue;
+            match.add(m);
+        }
+
+        if (!searchReflow) {
+            // fresh set — no cross-animation; the enters cascade one after another (owner: only here)
+            tileMotion.clear(); leaving.clear();
+            grid.clear();
+            int i = 0;
+            for (Module m : match) {
+                TileMotion tm = new TileMotion();
+                tm.fade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
+                tm.showDelay = i++ * CAT_STAGGER;
+                tileMotion.put(m, tm);
+                grid.add(new ModuleTile(m, accent));
+            }
+            return;
+        }
+
+        // live search — phase 1 (0ms): cards that stopped matching start dissolving in place
+        for (var c : grid.children()) {
+            ModuleTile t = (ModuleTile) c;
+            if (match.contains(t.m)) continue;
+            TileMotion tm = tileMotion.get(t.m);
+            if (tm == null || tm.leaving) continue;
+            if (!tm.hasPos) { tileMotion.remove(t.m); continue; }   // never rendered — nothing to dissolve
+            tm.leaving = true; tm.shown = true; tm.movePending = false;
+            Transition f = new Transition(tm.fade.value(now), EXIT_DUR, Tokens.motion().easings().standard());
+            f.target(0f, now);
+            tm.fade = f;
+            leaving.put(t.m, t);
+        }
+        grid.clear();
+        for (Module m : match) {
+            TileMotion tm = tileMotion.get(m);
+            if (tm == null) {                     // brand new match — fade+grow in at +70ms
+                tm = new TileMotion();
+                tm.fade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
+                tm.showDelay = ENTER_DELAY;
+                tileMotion.put(m, tm);
+            } else if (tm.leaving) {              // matched again mid-exit — turn around, no restart
+                tm.leaving = false; tm.shown = true;
+                Transition f = new Transition(tm.fade.value(now), ENTER_DUR, Tokens.motion().easings().decelerate());
+                f.target(1f, now);
+                tm.fade = f;
+                leaving.remove(m);
+            } else if (tm.hasPos) {               // survivor — glides to its new slot after +40ms
+                tm.movePending = true; tm.moveAt = now + MOVE_DELAY;
+            }
             grid.add(new ModuleTile(m, accent));
         }
     }
@@ -427,6 +509,24 @@ public final class ClubMenuScreen extends Screen {
         root.mouseMoved(mouseX, mouseY);
         root.render(uiCtx);
 
+        // Stage-21 reflow: cards that stopped matching dissolve over their old spots — they left
+        // the grid already, so they paint here, inside the same scroll viewport clip. Pruned once
+        // fully dissolved. Never receive input (not in the component tree).
+        if (!leaving.isEmpty()) {
+            float lgW = contentW - 24;
+            r.pushClip(contentX + 12, bodyY + 6, lgW, bodyH - 6 - 12);
+            for (var it = leaving.entrySet().iterator(); it.hasNext(); ) {
+                var en = it.next();
+                en.getValue().render(uiCtx);
+                TileMotion tm = tileMotion.get(en.getKey());
+                if (tm == null || tm.fade.value(now) <= 0.001f) {
+                    it.remove();
+                    tileMotion.remove(en.getKey());
+                }
+            }
+            r.popClip();
+        }
+
         if (indicator != null)   // active indicator bar: CATEGORY colour, easing between hues on switch
             r.rect(winX, indY + 4, 4, RAIL_ROW - 8, railBarColor(now));
 
@@ -619,6 +719,44 @@ public final class ClubMenuScreen extends Screen {
             UiRenderer r = ctx.renderer();
             float now = ctx.time();
             float rad = Tokens.radius().md();
+
+            // Stage-21 reflow: draw at the EASED position, box-scaled 0.97→1 by the fade. Bounds are
+            // mutated for this frame only (layoutAll re-assigns them next frame), so input follows
+            // the visual card. A dissolving card is frozen at its last visual box.
+            TileMotion tm = tileMotion.get(m);
+            float ta = 1f;
+            if (tm != null) {
+                if (tm.showAt < 0f) tm.showAt = now + tm.showDelay;   // resolve vs the live ui clock
+                if (!tm.shown && now >= tm.showAt) { tm.shown = true; tm.fade.target(1f, now); }
+                ta = tm.fade.value(now);
+                float ex, ey;
+                if (tm.leaving) {
+                    ex = tm.bx; ey = tm.by; w = tm.bw; h = tm.bh;
+                    hovered = false;   // a dissolving card must not keep its hover lift
+                } else {
+                    if (!tm.hasPos) {   // first sighting — snap, never fly in from nowhere
+                        tm.px = new Transition(x, MOVE_DUR, Tokens.motion().easings().standard());
+                        tm.py = new Transition(y, MOVE_DUR, Tokens.motion().easings().standard());
+                        tm.tx = x; tm.ty = y; tm.hasPos = true;
+                    } else if (tm.movePending) {
+                        if (now >= tm.moveAt) {   // the +40ms phase — survivors re-aim now
+                            tm.movePending = false;
+                            tm.tx = x; tm.ty = y;
+                            tm.px.target(x, now); tm.py.target(y, now);
+                        }
+                    } else if (tm.tx != x || tm.ty != y) {   // resize etc. — re-aim immediately
+                        tm.tx = x; tm.ty = y;
+                        tm.px.target(x, now); tm.py.target(y, now);
+                    }
+                    ex = tm.px.value(now); ey = tm.py.value(now);
+                    tm.bx = ex; tm.by = ey; tm.bw = w; tm.bh = h;   // fresh stage for a future dissolve
+                }
+                float sc = TILE_SCALE_FROM + (1f - TILE_SCALE_FROM) * Math.min(1f, ta);
+                float sw = w * sc, sh = h * sc;
+                x = ex + (w - sw) / 2f; y = ey + (h - sh) / 2f; w = sw; h = sh;
+                if (ta <= 0.001f) return;   // pre-delay or fully dissolved — nothing to draw
+            }
+
             // action-only cards (HUD Editor) read as available (full colour), never "off"
             onT.target(m.hasToggle() ? (m.enabled() ? 1f : 0f) : 1f, now);
             hoverT.target(hovered ? 1f : 0f, now);
@@ -630,7 +768,7 @@ public final class ClubMenuScreen extends Screen {
                                   accent, 0.055f * onv);
             int edge = Color.lerp(Color.lerp(Tokens.border().defaultColor(), Tokens.border().strong(), hv),
                                   accent, 0.35f * onv);
-            r.roundedRect(x, y, w, h, rad, fill);
+            r.roundedRect(x, y, w, h, rad, Color.scaleAlpha(fill, ta));
 
             // Ghost underlay: the SAME glyph, cropped by the card — size, drift, bleed and alpha vary
             // per module so the pattern never reads as stamped. Near-invisible OFF, present ON.
@@ -638,10 +776,10 @@ public final class ClubMenuScreen extends Screen {
             int ghostCol = Color.lerp(Tokens.palette().textDesc(), accent, onv);
             r.pushClip(x, y, w, h);
             m.icon().draw(ctx, x + w - ghostSz + ghostBleed, y + (h - ghostSz) / 2f + ghostYOff, ghostSz,
-                    Color.scaleAlpha(ghostCol, (ghostA + 0.05f * onv) * screenAlpha));
+                    Color.scaleAlpha(ghostCol, (ghostA + 0.05f * onv) * screenAlpha * ta));
             r.popClip();
 
-            r.border(x, y, w, h, rad, Tokens.border().thickness(), edge);
+            r.border(x, y, w, h, rad, Tokens.border().thickness(), Color.scaleAlpha(edge, ta));
 
             // Icon chip + the state stripe centered under it (one column, geometry constant).
             float chipX = x + TILE_PAD;
@@ -649,12 +787,12 @@ public final class ClubMenuScreen extends Screen {
             int chipBg = Color.lerp(Color.withAlpha(Tokens.palette().textFaint(), 0x12),
                                     Color.withAlpha(accent, 0x30), onv);
             int iconCol = Color.lerp(Tokens.palette().textFaint(), accent, onv);
-            r.roundedRect(chipX, chipY, CHIP, CHIP, CHIP_RAD, chipBg);
+            r.roundedRect(chipX, chipY, CHIP, CHIP, CHIP_RAD, Color.scaleAlpha(chipBg, ta));
             m.icon().draw(ctx, chipX + (CHIP - CHIP_ICON) / 2f, chipY + (CHIP - CHIP_ICON) / 2f, CHIP_ICON,
-                    Color.scaleAlpha(iconCol, screenAlpha));
+                    Color.scaleAlpha(iconCol, screenAlpha * ta));
             int stripeCol = Color.lerp(Tokens.border().strong(), accent, onv);
             r.roundedRect(chipX + (CHIP - STRIPE_W) / 2f, chipY + CHIP + STRIPE_GAP,
-                    STRIPE_W, STRIPE_H, STRIPE_H / 2f, stripeCol);
+                    STRIPE_W, STRIPE_H, STRIPE_H / 2f, Color.scaleAlpha(stripeCol, ta));
 
             // Name: uniform per-category size (cardNameSize, auto-fit in layoutAll) — never truncated.
             // OFF drops to textDesc (not textMuted) so the on/off gap is obvious at a glance.
@@ -663,7 +801,7 @@ public final class ClubMenuScreen extends Screen {
             float nameLh = ctx.text().lineHeight(Tokens.type().heading().weight(), ns);
             float nameX = chipX + CHIP + NAME_GAP;
             ctx.text().draw(m.name(), nameX, y + (h - nameLh) / 2f,
-                    TextStyle.of(Tokens.type().heading().weight(), ns, Color.scaleAlpha(nameCol, screenAlpha)));
+                    TextStyle.of(Tokens.type().heading().weight(), ns, Color.scaleAlpha(nameCol, screenAlpha * ta)));
         }
 
         @Override public boolean mouseClicked(double mx, double my, int b) {
