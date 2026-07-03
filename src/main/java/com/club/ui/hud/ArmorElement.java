@@ -15,24 +15,23 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 
 /**
- * Armor on the V4 "Chips" language (Stage 13.6/14): ONE capsule for the whole set — separate
- * per-piece chips read as choppy slivers (owner). Each row inside is [piece icon + exact value]
- * with its own LIVE LINE underneath (the in-capsule sibling of the edge bar, echoing the menu
- * card's stripe): state-coloured durability, smooth threshold crossings. Digits stay exact (truth).
- * Vertical rows (default) or horizontal cells. Empty pieces are skipped.
+ * Armor (Stage 15): MASSIVE solid piece icons tinted by MATERIAL association (diamond cyan, gold
+ * amber, netherite mauve…), each with an exact value and a LIVE LINE directly under the ICON —
+ * the same stripe-under-icon gesture as the menu cards, so it reads as that piece's gauge, never
+ * as a divider (owner: full-width lines read as element separators). NO capsule in-world — clear
+ * icons don't need a ground (owner pt. 4); the editor still shows the rounded placeholder box.
+ * Digits stay exact (truth); the tint names the material, it never grades the number.
  *
- * <p>Stage 14: pieces are OUR SDF icons (helmet/chest/legs/boots/elytra), tinted by MATERIAL
- * association (diamond cyan, gold amber, netherite mauve…) — vanilla item sprites clashed with the
- * flat language, and dropping them removes the HUD's last legacy seam (HudSprites is gone; the
- * element is now pure V2 renderer). The value + line stay neutral/state-coloured — the tint names
- * the material, it never grades the number. On LEGACY the icon column is skipped (glyphs only).</p>
+ * <p>Three layouts ({@code armorLayout}): 0 = vertical rows [icon value], 1 = horizontal cells,
+ * 2 = LINE — icons in a row, only the state line under each (no digits; the most compact view).
+ * Empty pieces are skipped. On LEGACY the icon glyphs are skipped (values/lines remain).</p>
  */
 public final class ArmorElement extends HudElement {
-    private static final int ICON = 16, GAP = 5;             // sprite size; sprite ↔ value gap
-    private static final float PAD_X = 8f, PAD_Y = 5f;       // capsule padding
-    private static final float BAR_H = 2f, BAR_GAP = 2f;     // per-row live line + gap above it
-    private static final float ROW_BLOCK = ICON + BAR_GAP + BAR_H;   // sprite + gap + line = 20
+    private static final int ICON = 16, GAP = 5;             // icon size; icon ↔ value gap
+    private static final float BAR_H = 2f, BAR_GAP = 2f;     // per-piece live line + gap above it
+    private static final float ROW_BLOCK = ICON + BAR_GAP + BAR_H;   // icon + gap + line = 20
     private static final float ROW_GAP = 5f, CELL_GAP = 12f; // vertical row spacing / horizontal cell spacing
+    private static final float LINE_GAP = 7f;                // icon spacing in the LINE layout
 
     public ArmorElement() { super("armor"); }
     @Override public String displayName() { return "Armor"; }
@@ -103,58 +102,58 @@ public final class ArmorElement extends HudElement {
         return low;
     }
 
-    // V4: capsules are drawn per piece in paint(); no shared outer panel.
+    // Stage 15: no ground at all in-world (clear massive icons carry themselves); editor keeps its box.
     @Override protected float panelPadX() { return 0f; }
     @Override protected float panelPadY() { return 0f; }
     @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
 
-    /** Inner cell width: sprite + gap + value column (uniform → values right-align down the stack). */
-    private int cellW(ItemStack[] ps, boolean percent) {
-        return Math.round(ICON + GAP + valueWidth(ps, percent));
+    /** One piece's footprint: icon (+ gap + value column outside the LINE layout). */
+    private int cellW(ItemStack[] ps) {
+        return h().armorLayout == 2 ? ICON : Math.round(ICON + GAP + valueWidth(ps, h().armorPercent));
     }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
         ItemStack[] ps = stacks(mc, live);
         int count = count(ps);
         if (count == 0) return new int[]{0, 0};
-        int cell = cellW(ps, h().armorPercent);
-        if (h().armorVertical)
-            return new int[]{ Math.round(2 * PAD_X + cell),
-                              Math.round(2 * PAD_Y + count * ROW_BLOCK + (count - 1) * ROW_GAP) };
-        return new int[]{ Math.round(2 * PAD_X + count * cell + (count - 1) * CELL_GAP),
-                          Math.round(2 * PAD_Y + ROW_BLOCK) };
+        int layout = h().armorLayout;
+        int cell = cellW(ps);
+        float gap = layout == 2 ? LINE_GAP : CELL_GAP;
+        if (layout == 0)
+            return new int[]{ cell, Math.round(count * ROW_BLOCK + (count - 1) * ROW_GAP) };
+        return new int[]{ Math.round(count * cell + (count - 1) * gap), Math.round(ROW_BLOCK) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         Typography ty = Tokens.type();
         float base = ty.body().size();
         ItemStack[] ps = stacks(mc, live);
+        int layout = h().armorLayout;
         boolean percent = h().armorPercent;
-        boolean vertical = h().armorVertical;
-        int cell = cellW(ps, percent);
+        int cell = cellW(ps);
+        float gap = layout == 2 ? LINE_GAP : CELL_GAP;
         float lh = ty.body().lineHeight();
         TextStyle style = TextStyle.of(Weight.SEMIBOLD, base * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
                 .effect(HudPaint.textShadow(alpha));
-
-        // ONE capsule for the whole set — the rows inside carry their own live lines.
-        int[] cs = contentSize(mc, live);
-        HudPaint.chip(ctx, ox, oy, cs[0] * s, cs[1] * s, HudPaint.CHIP_RAD * s, alpha);
 
         int i = 0;
         for (int slot = 0; slot < ps.length; slot++) {
             ItemStack st = ps[slot];
             if (st.isEmpty()) continue;
-            float cx = ox + (PAD_X + (vertical ? 0 : i * (cell + CELL_GAP))) * s;
-            float cy = oy + (PAD_Y + (vertical ? i * (ROW_BLOCK + ROW_GAP) : 0)) * s;
+            float cx = ox + (layout == 0 ? 0 : i * (cell + gap)) * s;
+            float cy = oy + (layout == 0 ? i * (ROW_BLOCK + ROW_GAP) : 0) * s;
             float f = frac(st);
 
             icon(slot, st).draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(materialTint(st), alpha));
-            // tabular value right-aligned in the shared column: equal-length values are pixel-identical
-            String v = value(st, percent);
-            float tw = HudText.width(v, Weight.SEMIBOLD, base);
-            HudText.draw(ctx, v, cx + (cell - tw) * s, cy + (ICON - lh) * 0.5f * s, style, base, s);
-            // the row's live line — durability, state-coloured
-            HudPaint.rowBar(ctx, cx, cy + (ICON + BAR_GAP) * s, cell * s, BAR_H, f, stateColor(f), s, alpha);
+            if (layout != 2) {
+                // tabular value right-aligned in the shared column: equal-length values are pixel-identical
+                String v = value(st, percent);
+                float tw = HudText.width(v, Weight.SEMIBOLD, base);
+                HudText.draw(ctx, v, cx + (cell - tw) * s, cy + (ICON - lh) * 0.5f * s, style, base, s);
+            }
+            // the piece's live line — UNDER THE ICON only (its gauge, echoing the menu card stripe;
+            // spanning the whole cell read as an element divider)
+            HudPaint.rowBar(ctx, cx, cy + (ICON + BAR_GAP) * s, ICON * s, BAR_H, f, stateColor(f), s, alpha);
             i++;
         }
     }

@@ -203,7 +203,9 @@ public final class EffectsElement extends HudElement {
                         TextStyle.of(Weight.SEMIBOLD, ampSize * s, Color.scaleAlpha(row.color(), a))
                                 .effect(HudPaint.textShadow(a)));
             }
-            HudPaint.rowBar(ctx, cx, cy + (ICON + BAR_GAP) * s, cell * s, BAR_H,
+            // the effect's live line — UNDER THE ICON only (its gauge, echoing the menu card stripe;
+            // spanning the whole cell read as an element divider — owner)
+            HudPaint.rowBar(ctx, cx, cy + (ICON + BAR_GAP) * s, ICON * s, BAR_H,
                     row.frac(), timeColor(row.frac(), row.color()), s, a);
         }
     }

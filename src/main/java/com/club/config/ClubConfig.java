@@ -79,7 +79,7 @@ public class ClubConfig {
         public float potionScale = 1.0f;
         public float targetScale = 1.0f;
         public Float scale; // legacy global scale (pre-v3) — carried into the three above by migrate()
-        public boolean armorVertical = false;  // armor as a column instead of a row
+        public int armorLayout = 0;   // 0 = vertical rows, 1 = horizontal cells, 2 = line (icons + bars, no digits)
         public boolean potionHorizontal = false; // potions as a row instead of a column
         public boolean hideVanillaEffects = true; // hide the vanilla status-effect HUD overlay
         // V2 HUD: coordinates/FPS readout (new in v5)
