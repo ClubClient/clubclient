@@ -1,6 +1,12 @@
 # Club — HUD Elements & Settings
 
-> Всё для дальнейшей работы с **HUD** (Armor / Potion / Target), их настройками и редактором позиций.
+> **УСТАРЕЛО (2026-07-03).** HUD полностью переписан на V2 в Stage 13–19: язык «Chips» + дуотон
+> ванильных текстур. **Источник правды — `docs/HUD-LANGUAGE.md`** (амендменты Stage 13–19);
+> код: `com.club.ui.hud.*` (элементы + редактор) и `com.club.hud.{HudManager, PixelIcons}`
+> (`PotionHud`/`TargetHud` — только данные). Всё ниже — историческая справка о легаси-HUD:
+> `hud/ArmorHud`, `hud/HudStyle`, `gui/HudEditorScreen`, `ClubFont`, точки состояния и
+> `armorVertical` удалены. Актуальные поля: `armorLayout` (0 Column / 1 Line), `potionHorizontal`,
+> `info*` (v5); миграция — `ClubConfig.migrate`, текущая версия конфига v5.
 
 ## 1. Принципы HUD (из ТЗ)
 

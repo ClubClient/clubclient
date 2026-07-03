@@ -24,19 +24,19 @@
 
 ```
 com.club
-├── ClubMod / ClubClient            — инициализация; кейбинд Right Shift → ClubScreen
+├── ClubMod / ClubClient            — инициализация; кейбинд Right Shift → ui.menu.ClubMenuScreen;
+│                                     reload-листенер дуотон-иконок (PixelIcons)
 ├── config/ClubConfig               — модель настроек + load/save/migrate (Gson)
-├── gui/
-│   ├── ClubScreen                  — главное меню (вкладки/список/панель)  → DESIGN.md
-│   ├── HudEditorScreen             — редактор позиций HUD                  → HUDS.md
-│   ├── Theme                       — цвет/spacing токены                   → DESIGN.md
-│   ├── Icons                       — только функциональные line-иконки (chevron, brandDot)
-│   └── components/                 — SliderWidget, DropdownWidget, ToggleWidget, SegmentedWidget, ButtonC
-├── util/
-│   ├── ClubFont                    — роли шрифтов Inter (cat/name/hud/list/desc/small)  → DESIGN.md
-│   ├── RenderHelper                — rounded rect, градиенты, glow, hairline, radialGlow
-│   └── Mth                         — clamp/lerp/smooth/snap
-├── hud/                            — HudManager + ArmorHud/PotionHud/TargetHud + HudStyle  → HUDS.md
+├── ui/                             — V2 UI-стек (MSDF/SDF)  → UI-V2-MENU.md
+│   ├── backend/                    — MODERN/LEGACY рендер, шейдеры, атласы (единственное место low-level GL)
+│   ├── component/ + widget/        — Component-дерево; Button/Toggle/Checkbox/Slider/Label/ScrollArea
+│   ├── layout/ · motion/ · text/ · theme/ — размеры; Transition/Reveal/ValueTween; TextStyle; Tokens (ClubDark)
+│   ├── menu/                       — ClubMenuScreen + MenuContent (боевое меню)  → UI-V2-MENU.md
+│   ├── hud/                        — элементы HUD + HudCanvas + HudEditorScreen  → HUD-LANGUAGE.md
+│   └── IconGlyph                   — SDF-иконки (PUA; HUD-глифы = фоллбек дуотона)
+├── util/Mth                        — clamp/lerp/smooth/snap
+├── hud/                            — HudManager (диспетчер) + PixelIcons (дуотон ванильных текстур,
+│                                     DrawContext-шов) + PotionHud/TargetHud (data-only)
 ├── modules/
 │   ├── animations/                 — AnimationType / Pose / AnimationModule  → ANIMATIONS.md
 │   ├── hands/HandsModule           — масштаб/смещение рук
@@ -46,38 +46,44 @@ com.club
     ├── MixinLivingEntity           — масштаб длительности свинга (speed)
     ├── MixinGameRenderer           — NoHurtCam / NoBobbing / screen-stretch проекция
     ├── MixinInGameHud              — скрыть ванильный оверлей эффектов
-    └── MixinInGameOverlayRenderer  — NoFireOverlay
+    ├── MixinInGameOverlayRenderer  — NoFireOverlay
+    └── MouseAccessor               — cursorLocked для закрытия меню (ловушка Mouse.lockCursor)
 ```
 
-Ресурсы: `assets/club/font/inter_*.ttf` + `club_*.json` (провайдеры), `assets/club/lang/*`,
-`fabric.mod.json`, `club.mixins.json`.
+Ресурсы: `assets/club/ui/font/msdf` (MSDF-атлас текста), `assets/club/ui/icon/msdf/icons.{png,json}`
+(SDF-иконки, генератор в buildSrc), `assets/club/shaders/core/ui_*`, `assets/club/lang/*`,
+`fabric.mod.json`, `club.mixins.json`. (TTF-исходники шрифтов — в `tools/fonts/`, в джар не идут.)
 
 ## 4. Точки входа
 
 - `ClubMod` (main) — общая инициализация.
-- `ClubClient` (client) — `ClubConfig.load()`, `HudManager.init()`, регистрация кейбинда
-  `key.club.open_menu` (Right Shift), тик-хендлер открывает `ClubScreen`.
-- Меню закрывается **только по ESC** (стандартный `Screen`); кнопок окна нет.
+- `ClubClient` (client) — `Ui.init()` (шейдеры V2 — строго до стартового resource reload),
+  `ClubConfig.load()`, `HudManager.init()`, reload-листенер `PixelIcons`, кейбинд
+  `key.club.open_menu` (Right Shift), тик-хендлер открывает `ui.menu.ClubMenuScreen`.
+- Right Shift **открывает и закрывает** меню; закрытие — обратная анимация + мгновенный сырой
+  GLFW-граб курсора и `MouseAccessor.cursorLocked` (НЕ `Mouse.lockCursor()` — в 1.21.1 он
+  вызывает `setScreen(null)` и убивает анимацию). ESC закрывает только поповер.
 
 ## 5. Конфиг (ClubConfig)
 
 - Файл: `.minecraft/config/club_settings.json` (в дев-режиме — `run/config/...`), Gson pretty-print.
 - Грузится один раз на старте; **сохраняется немедленно при каждом изменении из GUI** (`ClubConfig.save()`).
-- `version` + `migrate()` — миграция старых файлов (текущая v4: добавлены мастер-тумблеры модулей).
-  При добавлении полей — поднимай `version` и добавляй ветку в `migrate`.
+- `version` + `migrate()` — миграция старых файлов (текущая v5: v4 — мастер-тумблеры модулей,
+  v5 — поля Info HUD `info/infoX/infoY/infoScale`). При добавлении полей — поднимай `version`
+  и добавляй ветку в `migrate`.
 - Секции: `hands`, `animations`, `screenStretch`, флаги `noHurtCam/noFireOverlay/noBobbing`, `hud`.
 
 ## 6. Функциональные области (куда смотреть)
 
 | Область | Доки | Ключевые файлы |
 |--------|------|----------------|
-| Внешний вид (меню, цвет, шрифты, контролы) | [DESIGN.md](DESIGN.md) | `gui/Theme`, `util/ClubFont`, `gui/ClubScreen`, `gui/components/*` |
+| Внешний вид (меню, цвет, шрифты, контролы) | [UI-V2-MENU.md](UI-V2-MENU.md) (философия — [DESIGN.md](DESIGN.md)) | `ui/theme/Tokens`, `ui/menu/*`, `ui/component/widget/*` |
 | Анимации рук + твики вида | [ANIMATIONS.md](ANIMATIONS.md) | `modules/animations/*`, `mixin/MixinHeldItemRenderer`, `mixin/MixinGameRenderer` |
-| HUD и их настройки | [HUDS.md](HUDS.md) | `hud/*`, `gui/HudEditorScreen`, `ClubConfig.Hud` |
+| HUD и их настройки | [HUD-LANGUAGE.md](HUD-LANGUAGE.md) | `ui/hud/*`, `hud/PixelIcons`, `ClubConfig.Hud` |
 
 ## 7. Соглашения
 
 - UI-лейблы — **English** (HANDS, ANIMATIONS, …); ответы/чат пользователю — **на русском**.
 - Никакого мусора в UI: путей конфига, debug-координат, серых филлер-подписей.
-- Цвета/размеры — через токены `Theme`/`ClubFont`, не хардкодом.
+- Цвета/размеры — через токены `ui/theme/Tokens` (тема ClubDark), не хардкодом.
 - Премиальный, плоский, минималистичный стиль: без glass/blur/тяжёлых теней/декор-иконок.

@@ -15,8 +15,8 @@ import net.minecraft.client.gui.DrawContext;
 
 /**
  * Registers and dispatches the Club HUD: the V2 HUD canvas (Effects / Target / Info / Armor) on the frozen
- * UI render stack. Armor draws its vanilla sprites through the {@link HudSprites} DrawContext seam. The
- * elements read the same {@link ClubConfig.Hud} positions/scales as the editor and hide when disabled or empty.
+ * UI render stack. Icons draw through the {@link PixelIcons} DrawContext seam (duotone vanilla textures).
+ * The elements read the same {@link ClubConfig.Hud} positions/scales as the editor and hide when disabled or empty.
  */
 public final class HudManager {
     private HudManager() {}
@@ -35,7 +35,7 @@ public final class HudManager {
 
             drawBlackBars(ctx, mc);
 
-            // V2 HUD (Effects / Target / Info / Armor) — frozen UI stack; the canvas hides disabled/empty elements.
+            // V2 HUD (Effects / Target / Info / Armor); duotone icons draw through the PixelIcons DrawContext seam.
             Ui.beginFrame(ctx);
             PixelIcons.set(ctx);   // duotone icons draw through this DrawContext
             UI.setTime((System.nanoTime() - START) / 1_000_000_000f);

@@ -19,6 +19,9 @@
   окно НЕ расширять; `ClubConfig.menuX/menuY` удалены — старые ключи в json игнорируются).
   Сетка — **ровно 4 колонки** (разреженные ряды — нормально); ячейка ~108px. Открытие: подъём окна
   12px; закрытие: та же анимация в обратную сторону, реальный `setScreen(null)` — по её завершении.
+  Курсор и камера возвращаются МГНОВЕННО при нажатии: сырой GLFW-граб + `MouseAccessor.cursorLocked`
+  + `KeyBinding.updatePressedStates` — НЕ `Mouse.lockCursor()` (ловушка 1.21.1: он вызывает
+  `setScreen(null)` и убивает анимацию закрытия).
 - **Имя карточки не обрезается никогда** — вместо этого его размер авто-подгоняется: один общий
   размер на категорию = максимальный (≤12px, пол 9px), при котором влезает самое длинное имя
   категории (`cardNameSize` в `layoutAll`; MSDF даёт резкость на любом размере). Компоновка
@@ -57,10 +60,13 @@ com.club.ui
 │   ├── ClubMenuScreen           — боевой экран: окно/грип/rail/сетка/поиск/поповер (вся геометрия и ввод)
 │   └── MenuContent              — ЧИСТЫЕ ДАННЫЕ: Category → Module → Setting (sealed), live-bind на
 │                                  ClubConfig (getter + setter, setter вызывает save())
-├── component/widget/            — живые виджеты: Button, Toggle, Checkbox, Slider, Dropdown, Label,
-│                                  ScrollArea (+ база Control, WidgetPaint, BoolConsumer/FloatConsumer)
+├── component/widget/            — живые виджеты: Button, Toggle, Checkbox, Slider, Label,
+│                                  ScrollArea (+ база Control, WidgetPaint, BoolConsumer/FloatConsumer);
+│                                  Dropdown удалён (2026-07-03) — выборы = тихий Segmented (редактор)
+│                                  и OptionRow-список (меню)
 └── hud/                         — HudCanvas/HudElement + Target/Effects/Armor/Info, HudEditorScreen,
-                                   HudPaint/HudText/HudSprites/HudSnap/Decals (см. HUD-LANGUAGE.md)
+                                   HudPaint/HudText/HudSnap/Decals/EffectStyles (+ com.club.hud.PixelIcons —
+                                   DrawContext-шов дуотон-иконок) — см. HUD-LANGUAGE.md
 ```
 
 **Удалено за неиспользованием (2026-07-02):** виджеты `Window`, `ModuleCard`, `CategoryItem`,
@@ -97,8 +103,10 @@ com.club.ui
 
 ## 6. Статус и что осталось
 
-**Готово и проверено:** боевое меню (Stage 6/7), моушн-слой (Stage 9), HUD «light structure» + Armor V2
-(Stage 10), Hero Target эталон (HUD-LANGUAGE.md §8). Юнит-тесты зелёные.
+**Готово и проверено:** боевое меню (Stage 6/7), моушн-слой (Stage 9), иконки/карточки/лого (Stage 11),
+gui-move + toggle-close (Stage 12), HUD — язык V4 «Chips» + дуотон-иконки PixelIcons (Stage 13–19,
+см. амендменты HUD-LANGUAGE.md; Stage 10 «light structure» и эталон Hero Target §8 — отставлены).
+Юнит-тесты зелёные.
 
 **Осталось / отложено (для будущих чатов):**
 - **Tabular figures** — нужен флаг `tabular` через `UiText → ModernText/LegacyText → TextLayout` (фикс-ширина

@@ -1,7 +1,6 @@
 package com.club.ui.hud;
 
 import com.club.ui.Color;
-import com.club.ui.Ui;
 import com.club.ui.UiContext;
 import com.club.ui.component.Component;
 import com.club.ui.layout.Size;
@@ -21,18 +20,16 @@ public abstract class HudElement extends Component {
     public final String id;
     protected HudElement(String id) { this.id = id; }
 
-    // Shared "light structure" geometry (Stage 10). Elements inherit the same padded flat ground + soft corner
-    // by default, but a role may override the panel treatment (e.g. TargetElement's recessive "Hero" panel).
+    // Element ground hooks. Since the V4 "Chips" language (Stage 13+) no element draws a shared
+    // backdrop here — capsules/grounds are painted inside paint() per role — so the default is bare.
     /** Horizontal inner padding (unscaled). Override per role. */
     protected float panelPadX() { return 6f; }
     /** Vertical inner padding (unscaled). Override per role. */
     protected float panelPadY() { return 6f; }
     /** Panel corner radius (unscaled). Override per role. */
     protected float panelRadius() { return 6f; }
-    /** Draw the element's backdrop (already scaled/positioned). Default = shared light-structure panel. */
-    protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) {
-        HudPaint.panel(ctx, x, y, w, h, radius, a);
-    }
+    /** Draw the element's backdrop (already scaled/positioned). Default: none (V4 — grounds live in paint()). */
+    protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
     /** Element appear/disappear fade in [0,1] (Stage 10.3); 1 = fully shown. Set by the canvas in-world. */
     protected float alpha = 1f;
     /** Editor forces representative sample data so every element always has an area (e.g. Armor with no armor

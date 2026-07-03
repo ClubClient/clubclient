@@ -96,10 +96,4 @@ final class WidgetPaint {
     static void pressOverlay(UiContext ctx, float x, float y, float w, float h, float radius) {
         ctx.renderer().roundedRect(x, y, w, h, radius, Tokens.interaction().pressOverlay());
     }
-
-    /** Press overlay scaled by progress t∈[0,1] — for controls that ease their press (e.g. Dropdown). */
-    static void pressOverlay(UiContext ctx, float x, float y, float w, float h, float radius, float t) {
-        if (t <= 0f) return;
-        ctx.renderer().roundedRect(x, y, w, h, radius, Color.scaleAlpha(Tokens.interaction().pressOverlay(), t));
-    }
 }

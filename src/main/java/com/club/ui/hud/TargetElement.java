@@ -12,7 +12,7 @@ import net.minecraft.client.MinecraftClient;
 
 /**
  * Target — V4 "Chips" + variant C (Stage 13, owner-picked): a single capsule whose BOTTOM EDGE is
- * the HP bar. <b>HP-first hierarchy</b> — the health number (16 SemiBold, bright) leads, the name
+ * the HP bar. <b>HP-first hierarchy</b> — the health number (18 SemiBold since Stage 19, bright) leads, the name
  * follows quieter (13 Medium, muted, truncated with "…" at a FIXED width so the chip never
  * stretches for long names). In PvP the eye catches the number and the live edge; the name is
  * secondary. The edge fill hue-ramps as HP drains — cold steel-blue → purple → orange → red

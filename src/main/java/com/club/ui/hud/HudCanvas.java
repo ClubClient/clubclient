@@ -59,7 +59,6 @@ public final class HudCanvas extends Container {
     public void clearSelection() { if (selected != null) { selected = null; onSelectionChanged.run(); } }
     public int guideX() { return guideX; }
     public int guideY() { return guideY; }
-    public List<HudElement> elements() { return elements; }
 
     public void layoutFromConfig(MinecraftClient mc) { for (HudElement e : elements) e.layoutFromConfig(mc); }
 

@@ -63,10 +63,9 @@ public final class EffectsElement extends HudElement {
     @Override public float cfgScale() { return h().potionScale; }
     @Override public boolean cfgEnabled() { return h().potions; }
 
-    // V4: the capsule is drawn in paint(); no shared outer panel.
+    // V4: the capsule is drawn in paint(); no extra padding around it.
     @Override protected float panelPadX() { return 0f; }
     @Override protected float panelPadY() { return 0f; }
-    @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
 
     /** In-world: show only when there are real effects (no sample fallback outside the editor). */
     @Override public boolean hasContent(MinecraftClient mc) {

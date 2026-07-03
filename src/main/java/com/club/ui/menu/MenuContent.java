@@ -15,7 +15,7 @@ import java.util.function.IntSupplier;
 /**
  * Pure DATA description of the Club menu (Stage 6): categories → modules → settings, each bound to the
  * real {@link ClubConfig} through getter/setter/reset function refs. This layer builds NO widgets — the
- * {@link ClubMenuScreen} turns these descriptors into Toggle/Slider/Dropdown/Button and wires their
+ * {@link ClubMenuScreen} turns these descriptors into Toggle/Slider/option-list/Button rows and wires their
  * callbacks back to the setters here. Categories/names/descriptions and value ranges mirror the original
  * legacy menu exactly.
  */

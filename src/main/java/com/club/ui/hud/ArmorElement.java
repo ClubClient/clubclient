@@ -117,10 +117,9 @@ public final class ArmorElement extends HudElement {
         return low;
     }
 
-    // Stage 15: no ground at all in-world (clear massive icons carry themselves); editor keeps its box.
+    // Stage 15: no ground at all in-world (clear icons carry themselves); editor keeps its box.
     @Override protected float panelPadX() { return 0f; }
     @Override protected float panelPadY() { return 0f; }
-    @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
 
     /** 0 = column, 1 = line; old configs may hold 2 (the retired horizontal-cells view) — clamp. */
     private int layout() { return Math.min(1, Math.max(0, h().armorLayout)); }

@@ -95,7 +95,7 @@ public final class ClubMenuScreen extends Screen {
     private int tabIndex;
     private Transition segSlide;    // segmented-tab pill position — outer, so it survives popover rebuilds
     private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
-    private float popX, popY, popW, popH, popAX, popAY, popAW, popAH;
+    private float popX, popY, popW, popH, popAX, popAY, popAH;
     private int pressOwner;
     // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
     // (dropdown expand, tab switch). Content is clipped to the eased height so any resize reveals smoothly.
@@ -203,7 +203,7 @@ public final class ClubMenuScreen extends Screen {
     // ---- popover -------------------------------------------------------------
 
     private void openPopover(Module m, float ax, float ay, float aw, float ah) {
-        popModule = m; popAX = ax; popAY = ay; popAW = aw; popAH = ah; tabIndex = 0; openDrop = null;
+        popModule = m; popAX = ax; popAY = ay; popAH = ah; tabIndex = 0; openDrop = null;
         popClosing = false; popReveal = null;   // render() plays the grow-in on the first frame
         segSlide = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         rebuildPopover();
@@ -687,7 +687,6 @@ public final class ClubMenuScreen extends Screen {
 
         SearchField(String placeholder) { this.placeholder = placeholder; }
         SearchField onChange(Consumer<String> cb) { this.onChange = cb; return this; }
-        String text() { return text; }
         void clear() { text = ""; }
 
         @Override public Size measure(float aw, float ah) {

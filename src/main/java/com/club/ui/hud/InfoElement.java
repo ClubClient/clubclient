@@ -36,7 +36,6 @@ public final class InfoElement extends HudElement {
     // Whisper: no ground at all.
     @Override protected float panelPadX() { return 0f; }
     @Override protected float panelPadY() { return 0f; }
-    @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
 
     private static String fps(MinecraftClient mc, boolean live) { return (live && mc != null ? mc.getCurrentFps() : 240) + ""; }
 
