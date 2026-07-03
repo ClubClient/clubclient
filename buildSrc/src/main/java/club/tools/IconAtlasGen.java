@@ -29,8 +29,10 @@ import java.util.regex.Pattern;
  *
  * <p>SVG subset (author icons within it): elements {@code path}, {@code circle}, {@code line},
  * {@code rect}; path commands {@code M m L l H h V v C c Q q Z z}; {@code stroke-width} attr
- * (default 2), round caps/joins implied; {@code fill="solid"} on circle/rect makes them filled.
- * ViewBox is fixed at 24x24. Anything else throws — fail loud at generation time.</p>
+ * (default 2), round caps/joins implied; {@code fill="solid"} on circle/rect/path makes them
+ * filled — on a path the even-odd rule applies across its subpaths, so an inner subpath punches
+ * a HOLE (negative-space detail). ViewBox is fixed at 24x24. Anything else throws — fail loud
+ * at generation time.</p>
  */
 public final class IconAtlasGen {
     private IconAtlasGen() {}
@@ -182,14 +184,27 @@ public final class IconAtlasGen {
         NodeList paths = doc.getElementsByTagName("path");
         for (int i = 0; i < paths.getLength(); i++) {
             Element el = (Element) paths.item(i);
-            if (filled(el)) throw new IllegalStateException(f.getName() + ": filled <path> unsupported — use strokes/circles/rects");
-            float hw = strokeW(el) / 2f;
             List<float[]> polys = flattenPath(el.getAttribute("d"), f.getName());
-            prims.add((x, y) -> {
-                float d = Float.MAX_VALUE;
-                for (float[] p : polys) d = Math.min(d, polylineDist(x, y, p));
-                return d - hw;
-            });
+            if (filled(el)) {
+                // Solid body: boundary distance signed by the even-odd rule across ALL subpaths,
+                // so an inner subpath punches a hole (negative-space detail in massive icons).
+                prims.add((x, y) -> {
+                    float d = Float.MAX_VALUE;
+                    boolean in = false;
+                    for (float[] p : polys) {
+                        d = Math.min(d, polylineDist(x, y, p));
+                        if (evenOdd(x, y, p)) in = !in;
+                    }
+                    return in ? -d : d;
+                });
+            } else {
+                float hw = strokeW(el) / 2f;
+                prims.add((x, y) -> {
+                    float d = Float.MAX_VALUE;
+                    for (float[] p : polys) d = Math.min(d, polylineDist(x, y, p));
+                    return d - hw;
+                });
+            }
         }
         if (prims.isEmpty()) throw new IllegalStateException(f.getName() + ": no supported elements");
         return prims;
@@ -295,6 +310,17 @@ public final class IconAtlasGen {
         for (int i = 0; i + 3 < pts.length; i += 2)
             d = Math.min(d, segDist(x, y, pts[i], pts[i + 1], pts[i + 2], pts[i + 3]));
         return d;
+    }
+
+    /** Even-odd point-in-polygon (ray cast). Works for Z-closed and open point lists (wraps last→first). */
+    static boolean evenOdd(float x, float y, float[] p) {
+        boolean in = false;
+        int n = p.length / 2;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+            float xi = p[2 * i], yi = p[2 * i + 1], xj = p[2 * j], yj = p[2 * j + 1];
+            if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) in = !in;
+        }
+        return in;
     }
 
     static float segDist(float px, float py, float ax, float ay, float bx, float by) {
