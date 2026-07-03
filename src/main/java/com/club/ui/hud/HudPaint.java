@@ -20,6 +20,9 @@ final class HudPaint {
     private static final float FILL = 0.5f;
     /** Soft dark text backing (~60% black). */
     private static final int SHADOW = Color.withAlpha(0xFF000000, 0x99);
+    /** Lighter backing (~35%) for text sitting on the raw world without a capsule (Armor values) —
+     *  the full-strength shadow read as a dirty black outline there (owner). */
+    private static final int SHADOW_SOFT = Color.withAlpha(0xFF000000, 0x59);
 
     /** Draws the element's ground. {@code a} in [0,1] fades the whole panel (element appear/disappear). */
     static void panel(UiContext ctx, float x, float y, float w, float h, float radius, float a) {
@@ -32,6 +35,11 @@ final class HudPaint {
     /** Soft dark text shadow, faded by {@code a} to match the text alpha (appear/disappear). */
     static TextEffect textShadow(float a) {
         return new TextEffect.Shadow(1f, 1f, 1f, Color.scaleAlpha(SHADOW, a));
+    }
+
+    /** The lighter world-backing variant (see {@link #SHADOW_SOFT}). */
+    static TextEffect textShadowSoft(float a) {
+        return new TextEffect.Shadow(1f, 1f, 1f, Color.scaleAlpha(SHADOW_SOFT, a));
     }
 
     // ---- V4 "Chips" (Stage 13) ------------------------------------------------

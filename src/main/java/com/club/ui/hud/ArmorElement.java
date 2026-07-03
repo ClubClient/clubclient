@@ -8,7 +8,6 @@ import com.club.ui.UiContext;
 import com.club.ui.text.TextStyle;
 import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
-import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.item.ArmorItem;
 import net.minecraft.item.ElytraItem;
@@ -41,6 +40,8 @@ public final class ArmorElement extends HudElement {
     private static final float VAL_NUDGE = 1f;
     /** LINE values sit above the icons — whisper size (owner: label-size 12 read huge there). */
     private static final float LINE_VAL_SIZE = 10f;
+    /** COLUMN values — 12 instead of body 13: digits poked past the icons' height (owner). */
+    private static final float COL_VAL_SIZE = 12f;
 
     public ArmorElement() { super("armor"); }
     @Override public String displayName() { return "Armor"; }
@@ -128,10 +129,9 @@ public final class ArmorElement extends HudElement {
         ItemStack[] ps = stacks(mc, live);
         int count = count(ps);
         if (count == 0) return new int[]{0, 0};
-        Typography ty = Tokens.type();
         boolean percent = h().armorPercent;
         if (layout() == 0) {
-            int cell = ICON + GAP + valueWidth(ps, percent, ty.body().size());
+            int cell = ICON + GAP + valueWidth(ps, percent, COL_VAL_SIZE);
             return new int[]{ cell, Math.round(count * ROW_BLOCK + (count - 1) * ROW_GAP) };
         }
         int cell = Math.max(ICON, valueWidth(ps, percent, LINE_VAL_SIZE));
@@ -140,16 +140,16 @@ public final class ArmorElement extends HudElement {
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
-        Typography ty = Tokens.type();
         ItemStack[] ps = stacks(mc, live);
         int layout = layout();
         boolean percent = h().armorPercent;
         boolean line = layout == 1;
-        float vSize = line ? LINE_VAL_SIZE : ty.body().size();       // LINE: whisper values above the icons
+        float vSize = line ? LINE_VAL_SIZE : COL_VAL_SIZE;
         float vlh = Ui.text().lineHeight(VAL_WEIGHT, LINE_VAL_SIZE);
         int cell = line ? Math.max(ICON, valueWidth(ps, percent, vSize)) : ICON + GAP + valueWidth(ps, percent, vSize);
+        // soft world shadow — no capsule under Armor, and the full shadow read as a black outline
         TextStyle style = TextStyle.of(VAL_WEIGHT, vSize * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
-                .effect(HudPaint.textShadow(alpha)).weightBias(VAL_BIAS);
+                .effect(HudPaint.textShadowSoft(alpha)).weightBias(VAL_BIAS);
 
         int i = 0;
         for (int slot = 0; slot < ps.length; slot++) {
@@ -171,7 +171,7 @@ public final class ArmorElement extends HudElement {
                 iconX = ox;
                 iconY = oy + i * (ROW_BLOCK + ROW_GAP) * s;
                 HudText.draw(ctx, v, ox + (cell - tw) * s,
-                        iconY + ((ICON - ty.body().lineHeight()) * 0.5f + VAL_NUDGE) * s, style, vSize, s);
+                        iconY + ((ICON - Ui.text().lineHeight(VAL_WEIGHT, vSize)) * 0.5f + VAL_NUDGE) * s, style, vSize, s);
             }
             // duotone vanilla item icon (Stage 17, owner pick A); SDF silhouette is the fallback
             if (!com.club.hud.PixelIcons.draw(itemTexture(st), iconX, iconY, ICON * s, 16, materialTint(st), alpha))
