@@ -147,9 +147,6 @@ public final class ArmorElement extends HudElement {
         float vSize = line ? LINE_VAL_SIZE : COL_VAL_SIZE;
         float vlh = Ui.text().lineHeight(VAL_WEIGHT, LINE_VAL_SIZE);
         int cell = line ? Math.max(ICON, valueWidth(ps, percent, vSize)) : ICON + GAP + valueWidth(ps, percent, vSize);
-        // soft world shadow — no capsule under Armor, and the full shadow read as a black outline
-        TextStyle style = TextStyle.of(VAL_WEIGHT, vSize * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
-                .effect(HudPaint.textShadowSoft(alpha)).weightBias(VAL_BIAS);
 
         int i = 0;
         for (int slot = 0; slot < ps.length; slot++) {
@@ -158,6 +155,13 @@ public final class ArmorElement extends HudElement {
             float f = frac(st);
             String v = value(st, percent);
             float tw = HudText.width(v, VAL_WEIGHT, vSize);
+            int tint = materialTint(st);
+            // The value carries a WHISPER of its piece's material (30% blend): pure white read as a
+            // sterile foreign layer over the pixel icons (owner). Soft world shadow — no capsule,
+            // and the full shadow read as a black outline.
+            TextStyle style = TextStyle.of(VAL_WEIGHT, vSize * s,
+                    Color.scaleAlpha(Color.lerp(Tokens.palette().textHi(), tint, 0.30f), alpha))
+                    .effect(HudPaint.textShadowSoft(alpha)).weightBias(VAL_BIAS);
 
             float iconX, iconY;
             if (line) {
@@ -174,8 +178,8 @@ public final class ArmorElement extends HudElement {
                         iconY + ((ICON - Ui.text().lineHeight(VAL_WEIGHT, vSize)) * 0.5f + VAL_NUDGE) * s, style, vSize, s);
             }
             // duotone vanilla item icon (Stage 17, owner pick A); SDF silhouette is the fallback
-            if (!com.club.hud.PixelIcons.draw(itemTexture(st), iconX, iconY, ICON * s, 16, materialTint(st), alpha))
-                icon(slot, st).draw(ctx, iconX, iconY, ICON * s, Color.scaleAlpha(materialTint(st), alpha));
+            if (!com.club.hud.PixelIcons.draw(itemTexture(st), iconX, iconY, ICON * s, 16, tint, alpha))
+                icon(slot, st).draw(ctx, iconX, iconY, ICON * s, Color.scaleAlpha(tint, alpha));
             // the piece's live line — UNDER THE ICON only (its gauge, echoing the menu card stripe;
             // spanning the whole cell read as an element divider)
             HudPaint.rowBar(ctx, iconX, iconY + (ICON + BAR_GAP) * s, ICON * s, BAR_H, f, stateColor(f), s, alpha);

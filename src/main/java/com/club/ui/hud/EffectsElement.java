@@ -198,11 +198,13 @@ public final class EffectsElement extends HudElement {
             if (row.tex() == null
                     || !com.club.hud.PixelIcons.draw(row.tex(), cx - s, cy - s, (ICON + 2) * s, 18, row.color(), a))
                 row.icon().draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(row.color(), a));
-            // countdown right-aligned in the shared column (tabular — a ticking second never jitters)
+            // countdown right-aligned in the shared column (tabular — a ticking second never jitters);
+            // like Armor's values it carries a whisper of its effect's color (25%) — no sterile white
             float timeW = HudText.width(row.time(), TIME_WEIGHT, base);
             float timeX = cell - timeW;
             HudText.draw(ctx, row.time(), cx + timeX * s, cy + textTop * s,
-                    TextStyle.of(TIME_WEIGHT, base * s, Color.scaleAlpha(Tokens.palette().textHi(), a))
+                    TextStyle.of(TIME_WEIGHT, base * s,
+                            Color.scaleAlpha(Color.lerp(Tokens.palette().textHi(), row.color(), 0.25f), a))
                             .effect(HudPaint.textShadow(a)).weightBias(TIME_BIAS), base, s);
             if (!row.amp().isEmpty()) {
                 // [II · 1:24] — the level hugs its own time, separated by the faint dot. It speaks
