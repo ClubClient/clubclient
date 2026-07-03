@@ -93,12 +93,11 @@ public final class ClubMenuScreen extends Screen {
     // Zones separate by panel EDGES and depth — every hairline divider is gone.
     private float railWX, railWY, railWW, railWH;   // the shallow tray (hugs the category list)
     private float wellX, wellY, wellW, wellH;       // the deep content well
-    // Ambient halo behind the window: MANY thin equal-alpha rings — coarse layers read as banded
-    // "broken border" rings on a bright sky (owner). 14 × 2px @ 0x05 stack to ~27% at the edge
-    // and fall off linearly with no visible step.
-    private static final int HALO_LAYERS = 14;
+    // Ambient halo behind the window: thin 2px rings with QUADRATIC falloff — dense right at the
+    // window edge, whispering out fast (equal alphas fell off linearly and read as "a big dark
+    // buffer" around the window — owner). Cumulative ≈21% at the edge, ≈5% by 12px out.
     private static final float HALO_STEP = 2f;
-    private static final int HALO_LAYER_ALPHA = 0x05;
+    private static final int[] HALO_ALPHAS = {9, 8, 7, 6, 5, 4, 3, 3, 2, 2, 2, 1, 1, 1};
     /** Footer version whisper — balances the profile chip on the content well's right axis. */
     private static final String VERSION = net.fabricmc.loader.api.FabricLoader.getInstance()
             .getModContainer("club")
@@ -113,8 +112,8 @@ public final class ClubMenuScreen extends Screen {
     // ~20% slower than the first cut (owner: «буквально чуток медленнее»).
     private static final float EXIT_DUR = 0.15f, ENTER_DUR = 0.20f, MOVE_DUR = 0.24f;
     private static final float MOVE_DELAY = 0.05f, ENTER_DELAY = 0.08f, CAT_STAGGER = 0.02f;
-    /** Exits cascade one after another (owner) — each leaving card starts 30ms after the previous. */
-    private static final float EXIT_STAGGER = 0.03f;
+    /** Exits cascade one after another (owner, round 2: slower — «чтобы кайфово») — 50ms per card. */
+    private static final float EXIT_STAGGER = 0.05f;
     private static final float TILE_SCALE_FROM = 0.97f;   // enter 0.97→1; exit mirrors it
     private final java.util.HashMap<Module, TileMotion> tileMotion = new java.util.HashMap<>();
     // Cards that stopped matching keep painting HERE while they dissolve (they left the grid already).
@@ -496,13 +495,12 @@ public final class ClubMenuScreen extends Screen {
         // No background scrim: the world stays fully visible so settings apply live (e.g. adjust a hand slider
         // and watch the hand move behind/around the window).
 
-        // Ambient halo BEHIND the window (Stage 22): many thin equal-alpha rings accumulate into
-        // a smooth linear falloff (no banding) — the window detaches from the world instead of
-        // reading as a cropped rectangle. Not UI depth (that stays banned) — world separation.
-        for (int i = HALO_LAYERS; i >= 1; i--) {
+        // Ambient halo BEHIND the window (Stage 22): thin rings, quadratic falloff — a shadow that
+        // HUGS the window and dissipates fast, not a dark buffer. World separation, not UI depth.
+        for (int i = HALO_ALPHAS.length; i >= 1; i--) {
             float s = i * HALO_STEP;
             r.roundedRect(winX - s, winY - s + s * 0.3f, winW + 2 * s, winH + 2 * s, lg + s,
-                    Color.withAlpha(0xFF000000, HALO_LAYER_ALPHA));
+                    Color.withAlpha(0xFF000000, HALO_ALPHAS[i - 1]));
         }
 
         // Passe-partout (Stage 22): ONE frame tone + two wells whose edges do the separating —
