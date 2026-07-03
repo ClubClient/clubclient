@@ -111,7 +111,9 @@ public final class ClubMenuScreen extends Screen {
     // itself never moves (no jelly). Category open staggers enters 17ms/card; search NEVER staggers.
     // ~20% slower than the first cut (owner: «буквально чуток медленнее»).
     private static final float EXIT_DUR = 0.22f, ENTER_DUR = 0.20f, MOVE_DUR = 0.24f;
-    private static final float MOVE_DELAY = 0.05f, ENTER_DELAY = 0.08f, CAT_STAGGER = 0.02f;
+    private static final float MOVE_DELAY = 0.05f, ENTER_DELAY = 0.08f, CAT_STAGGER = 0.03f;
+    /** Category enters RISE into place (6px drift, translation not scale) — a bare fade read flat. */
+    private static final float CAT_DRIFT = 6f;
     /** Exit cascade (owner, round 3): 75ms per card, receding FROM THE TAIL — the last card in
      *  the grid dissolves first and the wave walks back toward the start. */
     private static final float EXIT_STAGGER = 0.075f;
@@ -134,6 +136,7 @@ public final class ClubMenuScreen extends Screen {
         float hideAt = -1f;     // exit gate: the dissolve starts once time passes this (exit cascade)
         boolean scaleIn = true; // search language: fade+scale; category cascades are FADE-ONLY
                                 //   (the 0.97→1 pop per card read as popcorn — owner)
+        boolean driftIn;        // category language: the card rises 6px into place as it fades in
         float moveAt;           // survivor gate: position re-aims only after this (+40ms phase)
         boolean movePending;
         boolean leaving;
@@ -266,7 +269,8 @@ public final class ClubMenuScreen extends Screen {
                 if (mode == GridRebuild.CATEGORY) {
                     tm.fade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
                     tm.showDelay = i++ * CAT_STAGGER;
-                    tm.scaleIn = false;   // quiet cascade: fade only, no per-card pop
+                    tm.scaleIn = false;   // no per-card scale pop (popcorn) —
+                    tm.driftIn = true;    //   the card RISES into place instead
                 } else {
                     tm.fade = new Transition(1f, ENTER_DUR, Tokens.motion().easings().decelerate());
                     tm.shown = true;
@@ -850,6 +854,7 @@ public final class ClubMenuScreen extends Screen {
                     tm.bx = tm.px.value(now); tm.by = tm.py.value(now);   // window-relative visual spot
                     tm.bw = w; tm.bh = h;
                     ex = winX + tm.bx; ey = winY + tm.by;
+                    if (tm.driftIn) ey += (1f - Math.min(1f, ta)) * CAT_DRIFT;   // rise into place
                 }
                 float sc = tm.scaleIn ? TILE_SCALE_FROM + (1f - TILE_SCALE_FROM) * Math.min(1f, ta) : 1f;
                 float sw = w * sc, sh = h * sc;
