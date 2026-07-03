@@ -110,11 +110,10 @@ public final class HudEditorScreen extends Screen {
             addRow("Range", new Slider(h().targetDistance, 3f, 32f, 1f)
                     .onChange(v -> { h().targetDistance = Math.round(v); save(); }));
         } else if (sel instanceof ArmorElement) {
-            addRow("Layout", new Segmented(new String[]{"Column", "Row", "Line"}, h().armorLayout,
-                    i -> { h().armorLayout = i; save(); rebuildPopover(); }));
-            if (h().armorLayout != 2)   // the Line view has no digits — Value doesn't apply
-                addRow("Value", new Segmented(new String[]{"Percent", "Count"}, h().armorPercent ? 0 : 1,
-                        i -> { h().armorPercent = (i == 0); save(); }));
+            addRow("Layout", new Segmented(new String[]{"Column", "Line"}, Math.min(1, h().armorLayout),
+                    i -> { h().armorLayout = i; save(); }));
+            addRow("Value", new Segmented(new String[]{"Percent", "Count"}, h().armorPercent ? 0 : 1,
+                    i -> { h().armorPercent = (i == 0); save(); }));
         }
         popW = Math.max(178, Math.round(popNeeded) + 24);
         popH = POP_HEAD + popover.children().size() * POP_ROW + POP_PAD_B;

@@ -22,16 +22,18 @@ import net.minecraft.item.Items;
  * icons don't need a ground (owner pt. 4); the editor still shows the rounded placeholder box.
  * Digits stay exact (truth); the tint names the material, it never grades the number.
  *
- * <p>Three layouts ({@code armorLayout}): 0 = vertical rows [icon value], 1 = horizontal cells,
- * 2 = LINE — icons in a row, only the state line under each (no digits; the most compact view).
- * Empty pieces are skipped. On LEGACY the icon glyphs are skipped (values/lines remain).</p>
+ * <p>Two layouts ({@code armorLayout}, owner Stage 18 — the old horizontal-cells view is retired):
+ * 0 = COLUMN, rows of [icon  value] with the gauge under each icon; 1 = LINE, icons in a row with
+ * the exact value ABOVE each icon (label size, centered) and the gauge below — value stays
+ * available in both (Percent/Count). Empty pieces are skipped. On LEGACY the icon glyphs are
+ * skipped (values/lines remain).</p>
  */
 public final class ArmorElement extends HudElement {
-    private static final int ICON = 16, GAP = 5;             // icon size; icon ↔ value gap
+    private static final int ICON = 16, GAP = 5;             // icon size; icon ↔ value gap (COLUMN)
     private static final float BAR_H = 2f, BAR_GAP = 2f;     // per-piece live line + gap above it
     private static final float ROW_BLOCK = ICON + BAR_GAP + BAR_H;   // icon + gap + line = 20
-    private static final float ROW_GAP = 5f, CELL_GAP = 12f; // vertical row spacing / horizontal cell spacing
-    private static final float LINE_GAP = 7f;                // icon spacing in the LINE layout
+    private static final float ROW_GAP = 5f;                 // COLUMN row spacing
+    private static final float LINE_GAP = 8f, VAL_GAP = 2f;  // LINE cell spacing; value ↔ icon gap
 
     public ArmorElement() { super("armor"); }
     @Override public String displayName() { return "Armor"; }
@@ -86,8 +88,8 @@ public final class ArmorElement extends HudElement {
         // the maximum is implied by the live edge, the chip stays as compact as the percent mode
         return String.valueOf(s.getMaxDamage() - s.getDamage());
     }
-    private int valueWidth(ItemStack[] ps, boolean percent) {
-        float size = Tokens.type().body().size(), w = 0;
+    private int valueWidth(ItemStack[] ps, boolean percent, float size) {
+        float w = 0;
         for (ItemStack s : ps) if (!s.isEmpty()) w = Math.max(w, HudText.width(value(s, percent), Weight.SEMIBOLD, size));
         return Math.round(w);
     }
@@ -107,55 +109,63 @@ public final class ArmorElement extends HudElement {
     @Override protected float panelPadY() { return 0f; }
     @Override protected void drawPanel(UiContext ctx, float x, float y, float w, float h, float radius, float a) { }
 
-    /** One piece's footprint: icon (+ gap + value column outside the LINE layout). */
-    private int cellW(ItemStack[] ps) {
-        return h().armorLayout == 2 ? ICON : Math.round(ICON + GAP + valueWidth(ps, h().armorPercent));
-    }
+    /** 0 = column, 1 = line; old configs may hold 2 (the retired horizontal-cells view) — clamp. */
+    private int layout() { return Math.min(1, Math.max(0, h().armorLayout)); }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
         ItemStack[] ps = stacks(mc, live);
         int count = count(ps);
         if (count == 0) return new int[]{0, 0};
-        int layout = h().armorLayout;
-        int cell = cellW(ps);
-        float gap = layout == 2 ? LINE_GAP : CELL_GAP;
-        if (layout == 0)
+        Typography ty = Tokens.type();
+        boolean percent = h().armorPercent;
+        if (layout() == 0) {
+            int cell = ICON + GAP + valueWidth(ps, percent, ty.body().size());
             return new int[]{ cell, Math.round(count * ROW_BLOCK + (count - 1) * ROW_GAP) };
-        return new int[]{ Math.round(count * cell + (count - 1) * gap), Math.round(ROW_BLOCK) };
+        }
+        int cell = Math.max(ICON, valueWidth(ps, percent, ty.label().size()));
+        return new int[]{ Math.round(count * cell + (count - 1) * LINE_GAP),
+                          Math.round(ty.label().lineHeight() + VAL_GAP + ROW_BLOCK) };
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         Typography ty = Tokens.type();
-        float base = ty.body().size();
         ItemStack[] ps = stacks(mc, live);
-        int layout = h().armorLayout;
+        int layout = layout();
         boolean percent = h().armorPercent;
-        int cell = cellW(ps);
-        float gap = layout == 2 ? LINE_GAP : CELL_GAP;
-        float lh = ty.body().lineHeight();
-        TextStyle style = TextStyle.of(Weight.SEMIBOLD, base * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
+        boolean line = layout == 1;
+        float vSize = line ? ty.label().size() : ty.body().size();   // LINE: value shrinks to label size
+        float vlh = ty.label().lineHeight();
+        int cell = line ? Math.max(ICON, valueWidth(ps, percent, vSize)) : ICON + GAP + valueWidth(ps, percent, vSize);
+        TextStyle style = TextStyle.of(Weight.SEMIBOLD, vSize * s, Color.scaleAlpha(Tokens.palette().textHi(), alpha))
                 .effect(HudPaint.textShadow(alpha));
 
         int i = 0;
         for (int slot = 0; slot < ps.length; slot++) {
             ItemStack st = ps[slot];
             if (st.isEmpty()) continue;
-            float cx = ox + (layout == 0 ? 0 : i * (cell + gap)) * s;
-            float cy = oy + (layout == 0 ? i * (ROW_BLOCK + ROW_GAP) : 0) * s;
             float f = frac(st);
+            String v = value(st, percent);
+            float tw = HudText.width(v, Weight.SEMIBOLD, vSize);
 
-            // duotone vanilla item icon (Stage 17, owner pick A); SDF silhouette is the fallback
-            if (!com.club.hud.PixelIcons.draw(itemTexture(st), cx, cy, ICON * s, 16, materialTint(st), alpha))
-                icon(slot, st).draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(materialTint(st), alpha));
-            if (layout != 2) {
-                // tabular value right-aligned in the shared column: equal-length values are pixel-identical
-                String v = value(st, percent);
-                float tw = HudText.width(v, Weight.SEMIBOLD, base);
-                HudText.draw(ctx, v, cx + (cell - tw) * s, cy + (ICON - lh) * 0.5f * s, style, base, s);
+            float iconX, iconY;
+            if (line) {
+                // LINE: [value] over [icon] over [gauge], each piece one centered column
+                float cellX = ox + i * (cell + LINE_GAP) * s;
+                HudText.draw(ctx, v, cellX + (cell - tw) * 0.5f * s, oy, style, vSize, s);
+                iconX = cellX + (cell - ICON) * 0.5f * s;
+                iconY = oy + (vlh + VAL_GAP) * s;
+            } else {
+                // COLUMN: [icon  value] rows, tabular values right-aligned down the stack
+                iconX = ox;
+                iconY = oy + i * (ROW_BLOCK + ROW_GAP) * s;
+                HudText.draw(ctx, v, ox + (cell - tw) * s, iconY + (ICON - ty.body().lineHeight()) * 0.5f * s, style, vSize, s);
             }
+            // duotone vanilla item icon (Stage 17, owner pick A); SDF silhouette is the fallback
+            if (!com.club.hud.PixelIcons.draw(itemTexture(st), iconX, iconY, ICON * s, 16, materialTint(st), alpha))
+                icon(slot, st).draw(ctx, iconX, iconY, ICON * s, Color.scaleAlpha(materialTint(st), alpha));
             // the piece's live line — UNDER THE ICON only (its gauge, echoing the menu card stripe;
             // spanning the whole cell read as an element divider)
-            HudPaint.rowBar(ctx, cx, cy + (ICON + BAR_GAP) * s, ICON * s, BAR_H, f, stateColor(f), s, alpha);
+            HudPaint.rowBar(ctx, iconX, iconY + (ICON + BAR_GAP) * s, ICON * s, BAR_H, f, stateColor(f), s, alpha);
             i++;
         }
     }

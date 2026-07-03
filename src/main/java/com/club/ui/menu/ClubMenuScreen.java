@@ -472,11 +472,13 @@ public final class ClubMenuScreen extends Screen {
     }
 
     /** Starts the reverse-of-open animation; render() really closes once it has fully played out.
-     *  The cursor is hidden IMMEDIATELY (owner: mouse must vanish instantly) via a raw GLFW grab —
-     *  NOT {@code Mouse.lockCursor()}, which in 1.21.1 calls {@code setScreen(null)} internally and
+     *  The cursor is hidden AND the camera is live IMMEDIATELY (owner: both must return at the
+     *  keypress): a raw GLFW grab + the {@code cursorLocked} flag via accessor — NOT
+     *  {@code Mouse.lockCursor()}, which in 1.21.1 calls {@code setScreen(null)} internally and
      *  would kill the screen before the reverse animation renders a single frame (the Stage 12.2
-     *  regression). Mouse-look resumes at the real close (~0.28s later), when render()'s
-     *  {@code setScreen(null)} runs the full vanilla lock path; clicks are swallowed meanwhile. */
+     *  regression). {@code Mouse.tick()} gates mouse-look purely on the flag, so look works while
+     *  the window fades; render()'s real {@code setScreen(null)} then no-ops through vanilla's
+     *  already-locked guard. Clicks are swallowed by the closing guard meanwhile. */
     private void beginClose() {
         if (closing) return;
         closing = true;
@@ -484,6 +486,8 @@ public final class ClubMenuScreen extends Screen {
         MinecraftClient mc = MinecraftClient.getInstance();
         InputUtil.setCursorParameters(mc.getWindow().getHandle(), GLFW_CURSOR_DISABLED,
                 mc.getWindow().getWidth() / 2.0, mc.getWindow().getHeight() / 2.0);
+        ((com.club.mixin.MouseAccessor) mc.mouse).club$setCursorLocked(true);
+        KeyBinding.updatePressedStates();   // vanilla lockCursor does this too — keys stay coherent
     }
 
     @Override public boolean mouseClicked(double mx, double my, int b) {

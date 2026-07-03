@@ -90,15 +90,33 @@ public final class PixelIcons {
             if (res.isEmpty()) return null;
             NativeImage img;
             try (var in = res.get().getInputStream()) { img = NativeImage.read(in); }
-            NativeImage out = new NativeImage(img.getWidth(), img.getHeight(), true);
-            for (int py = 0; py < img.getHeight(); py++) {
-                for (int px = 0; px < img.getWidth(); px++) {
+            // Pass 1 — auto-levels: the tritone must split THIS texture's own tonal range. Fixed
+            // absolute thresholds turned dark art (netherite!) into an all-shadow field with random
+            // speckle ("баганные" icons); percentile normalization keeps every sprite's structure.
+            int w = img.getWidth(), hgt = img.getHeight();
+            int[] hist = new int[256];
+            int opaque = 0;
+            for (int py = 0; py < hgt; py++)
+                for (int px = 0; px < w; px++) {
+                    int abgr = img.getColor(px, py);
+                    if (((abgr >>> 24) & 0xFF) < 96) continue;
+                    hist[lum(abgr)]++; opaque++;
+                }
+            if (opaque == 0) { img.close(); return null; }
+            float lo = percentile(hist, opaque, 0.10f), hi = percentile(hist, opaque, 0.90f);
+            boolean flat = hi - lo < 24f;   // near-uniform sprite → single base tone, no fake contrast
+
+            NativeImage out = new NativeImage(w, hgt, true);
+            for (int py = 0; py < hgt; py++) {
+                for (int px = 0; px < w; px++) {
                     int abgr = img.getColor(px, py);
                     int a = (abgr >>> 24) & 0xFF;
                     if (a < 96) { out.setColor(px, py, 0); continue; }
-                    int b = (abgr >> 16) & 0xFF, g = (abgr >> 8) & 0xFF, r = abgr & 0xFF;
-                    float l = 0.299f * r + 0.587f * g + 0.114f * b;
-                    float f = l > 168f ? LIFT : (l > 100f ? 1f : SHADOW);
+                    float f = 1f;
+                    if (!flat) {
+                        float ln = Math.max(0f, Math.min(1f, (lum(abgr) - lo) / (hi - lo)));
+                        f = ln > 0.72f ? LIFT : (ln < 0.33f ? SHADOW : 1f);
+                    }
                     int level = Math.round(255f * f / LIFT);
                     out.setColor(px, py, (a << 24) | (level << 16) | (level << 8) | level);
                 }
@@ -113,5 +131,18 @@ public final class PixelIcons {
         } catch (Exception e) {
             return null;   // missing/broken texture → caller falls back to its SDF glyph
         }
+    }
+
+    /** Luminance of an ABGR pixel (NativeImage layout), 0..255. */
+    private static int lum(int abgr) {
+        int b = (abgr >> 16) & 0xFF, g = (abgr >> 8) & 0xFF, r = abgr & 0xFF;
+        return Math.round(0.299f * r + 0.587f * g + 0.114f * b);
+    }
+
+    /** The luminance below which {@code p} of the opaque pixels fall. */
+    private static float percentile(int[] hist, int total, float p) {
+        int target = Math.round(total * p), seen = 0;
+        for (int i = 0; i < 256; i++) { seen += hist[i]; if (seen >= target) return i; }
+        return 255f;
     }
 }

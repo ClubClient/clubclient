@@ -7,7 +7,8 @@
     "MixinInGameOverlayRenderer",
     "MixinHeldItemRenderer",
     "MixinLivingEntity",
-    "MixinInGameHud"
+    "MixinInGameHud",
+    "MouseAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
