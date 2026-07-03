@@ -109,14 +109,14 @@ public final class ClubMenuScreen extends Screen {
     // transitions mid-flight — the interface flows, it never restarts. Phases: exits fade+shrink
     // from 0ms; survivors re-aim at +40ms; enters fade+grow at +70ms. The window/grid container
     // itself never moves (no jelly). Category open staggers enters 17ms/card; search NEVER staggers.
-    // ~20% slower than the first cut (owner: «буквально чуток медленнее»).
-    private static final float EXIT_DUR = 0.22f, ENTER_DUR = 0.20f, MOVE_DUR = 0.24f;
-    private static final float MOVE_DELAY = 0.05f, ENTER_DELAY = 0.08f, CAT_STAGGER = 0.03f;
+    // Owner-tuned pacing, final round: everything ×1.4 slower («в полтора, ну может 1.4 раза»).
+    private static final float EXIT_DUR = 0.30f, ENTER_DUR = 0.28f, MOVE_DUR = 0.34f;
+    private static final float MOVE_DELAY = 0.07f, ENTER_DELAY = 0.11f, CAT_STAGGER = 0.042f;
     /** Category enters RISE into place (6px drift, translation not scale) — a bare fade read flat. */
     private static final float CAT_DRIFT = 6f;
-    /** Exit cascade (owner, round 3): 75ms per card, receding FROM THE TAIL — the last card in
-     *  the grid dissolves first and the wave walks back toward the start. */
-    private static final float EXIT_STAGGER = 0.075f;
+    /** Exit cascade: 105ms per card, receding FROM THE TAIL — the last card in the grid
+     *  dissolves first and the wave walks back toward the start. */
+    private static final float EXIT_STAGGER = 0.105f;
     private static final float TILE_SCALE_FROM = 0.97f;   // enter 0.97→1; exit mirrors it
     private final java.util.HashMap<Module, TileMotion> tileMotion = new java.util.HashMap<>();
     // Cards that stopped matching keep painting HERE while they dissolve (they left the grid already).
