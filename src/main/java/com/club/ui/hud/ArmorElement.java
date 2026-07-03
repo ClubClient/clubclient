@@ -30,10 +30,14 @@ import net.minecraft.item.Items;
  */
 public final class ArmorElement extends HudElement {
     private static final int ICON = 16, GAP = 5;             // icon size; icon ↔ value gap (COLUMN)
-    private static final float BAR_H = 2f, BAR_GAP = 2f;     // per-piece live line + gap above it
-    private static final float ROW_BLOCK = ICON + BAR_GAP + BAR_H;   // icon + gap + line = 20
-    private static final float ROW_GAP = 5f;                 // COLUMN row spacing
+    private static final float BAR_H = 2f, BAR_GAP = 1f;     // per-piece live line + gap above it
+    private static final float ROW_BLOCK = ICON + BAR_GAP + BAR_H;   // icon + gap + line = 19
+    // Row pitch 25 → 21 (owner: the column read ~15-20% too long) — the gauge hugs its icon.
+    private static final float ROW_GAP = 2f;                 // COLUMN row spacing
     private static final float LINE_GAP = 8f, VAL_GAP = 2f;  // LINE cell spacing; value ↔ icon gap
+    // Centering the value by lineHeight leaves the DIGITS ~1px above the icon's optical middle
+    // (digits have no descender) — owner sees it. Nudge the baseline down.
+    private static final float VAL_NUDGE = 1f;
 
     public ArmorElement() { super("armor"); }
     @Override public String displayName() { return "Armor"; }
@@ -158,7 +162,8 @@ public final class ArmorElement extends HudElement {
                 // COLUMN: [icon  value] rows, tabular values right-aligned down the stack
                 iconX = ox;
                 iconY = oy + i * (ROW_BLOCK + ROW_GAP) * s;
-                HudText.draw(ctx, v, ox + (cell - tw) * s, iconY + (ICON - ty.body().lineHeight()) * 0.5f * s, style, vSize, s);
+                HudText.draw(ctx, v, ox + (cell - tw) * s,
+                        iconY + ((ICON - ty.body().lineHeight()) * 0.5f + VAL_NUDGE) * s, style, vSize, s);
             }
             // duotone vanilla item icon (Stage 17, owner pick A); SDF silhouette is the fallback
             if (!com.club.hud.PixelIcons.draw(itemTexture(st), iconX, iconY, ICON * s, 16, materialTint(st), alpha))
@@ -200,7 +205,7 @@ public final class ArmorElement extends HudElement {
             case "iron"      -> 0xFFD8DEE6;
             case "gold"      -> 0xFFF2CE72;
             case "diamond"   -> 0xFF7FE0E6;
-            case "netherite" -> 0xFFB98FA9;
+            case "netherite" -> 0xFFAA849B;   // a step darker (owner) — still voiced, not gray
             case "turtle"    -> 0xFF8FD0AC;
             default          -> 0xFFAEB9C9;   // unknown/modded — neutral steel
         };

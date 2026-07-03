@@ -167,7 +167,9 @@ public final class EffectsElement extends HudElement {
         int cell = cellW(rows);
         float base = ty.body().size(), ampSize = ty.label().size();
         float lh = ty.body().lineHeight();
-        float textTop = (ICON - lh) * 0.5f;                    // text block centered on the icon box
+        // text block centered on the icon box, +1px: digits have no descender, so lineHeight
+        // centering leaves them optically high against the icon (same nudge as Armor's values)
+        float textTop = (ICON - lh) * 0.5f + 1f;
         float ampDy = Ui.text().ascent(Weight.SEMIBOLD, base) - Ui.text().ascent(Weight.SEMIBOLD, ampSize);
         // the separator dot sits at the digits' optical middle (~half x-height above the baseline)
         float dotY = textTop + Ui.text().ascent(Weight.SEMIBOLD, base) - base * 0.28f - DOT * 0.5f;
