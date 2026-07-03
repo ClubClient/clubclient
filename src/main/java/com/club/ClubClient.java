@@ -3,12 +3,18 @@ package com.club;
 import com.club.config.ClubConfig;
 import com.club.ui.menu.ClubMenuScreen;
 import com.club.ui.Ui;
+import com.club.hud.PixelIcons;
 import com.club.hud.HudManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.resource.ResourceManager;
+import net.minecraft.resource.ResourceType;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public class ClubClient implements ClientModInitializer {
@@ -27,6 +33,13 @@ public class ClubClient implements ClientModInitializer {
 
         // HUD elements
         HudManager.init();
+
+        // duotone HUD icons bake lazily from live textures — drop the cache when packs change
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(
+                new SimpleSynchronousResourceReloadListener() {
+                    @Override public Identifier getFabricId() { return Identifier.of("club", "pixel_icons"); }
+                    @Override public void reload(ResourceManager manager) { PixelIcons.reload(); }
+                });
 
         // keybind: Open Club Menu (default RIGHT SHIFT), category "Club"
         openMenuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(

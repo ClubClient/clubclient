@@ -176,6 +176,7 @@ public final class HudEditorScreen extends Screen {
 
     @Override public void render(DrawContext dc, int mx, int my, float d) {
         Ui.beginFrame(dc);
+        com.club.hud.PixelIcons.set(dc);   // duotone icons draw through this DrawContext
         var r = Ui.renderer(); Typography ty = Tokens.type();
         if (stHint == null) initStyles();
         r.rect(0, 0, width, height, 0xFF0A0E15);

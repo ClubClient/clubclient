@@ -12,6 +12,7 @@ import com.club.ui.theme.Tokens;
 import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.util.Identifier;
 
 import java.util.HashMap;
 
@@ -68,15 +69,16 @@ public final class EffectsElement extends HudElement {
         return !live(mc) || !com.club.hud.PotionHud.effects(mc).isEmpty();
     }
 
-    /** One row's data: stable key, icon, association color, roman level ("" for I), countdown, fraction. */
-    private record Fx(String key, IconGlyph icon, int color, String amp, String time, float frac) {}
+    /** One row's data: stable key, sprite texture, fallback glyph, association color, level, countdown, fraction. */
+    private record Fx(String key, Identifier tex, IconGlyph icon, int color, String amp, String time, float frac) {}
 
     private static final Fx[] SAMPLE = {
         sample("speed", 1, "1:24", 0.47f), sample("strength", 0, "0:42", 0.23f),
     };
     private static Fx sample(String id, int amp, String time, float frac) {
         EffectStyles.Style st = EffectStyles.byId(id);
-        return new Fx("sample:" + id, st.icon(), st.color(), roman(amp), time, frac);
+        return new Fx("sample:" + id, Identifier.of("minecraft", "textures/mob_effect/" + id + ".png"),
+                st.icon(), st.color(), roman(amp), time, frac);
     }
 
     /** Live effects (expiring first) with drain fractions; representative sample otherwise. */
@@ -94,9 +96,11 @@ public final class EffectsElement extends HudElement {
         for (int i = 0; i < fx.size(); i++) {
             var e = fx.get(i);
             EffectStyles.Style st = EffectStyles.of(e);
+            Identifier eid = e.getEffectType().getKey().map(k -> k.getValue()).orElse(null);
+            Identifier tex = eid == null ? null
+                    : Identifier.of(eid.getNamespace(), "textures/mob_effect/" + eid.getPath() + ".png");
             // key includes the amplifier: Speed I → Speed II is a NEW row (fresh drain scale + fade)
-            String key = e.getEffectType().getKey().map(k -> k.getValue().toString()).orElse("?")
-                    + "#" + e.getAmplifier();
+            String key = (eid == null ? "?" : eid.toString()) + "#" + e.getAmplifier();
             float frac;
             if (e.isInfinite()) {
                 frac = 1f;
@@ -105,7 +109,7 @@ public final class EffectsElement extends HudElement {
                 int max = maxSeen.merge(key, dur, Math::max);   // re-application (dur > seen) resets the scale
                 frac = max > 0 ? (float) dur / max : 0f;
             }
-            out[i] = new Fx(key, st.icon(), st.color(), roman(e.getAmplifier()), time(e), frac);
+            out[i] = new Fx(key, tex, st.icon(), st.color(), roman(e.getAmplifier()), time(e), frac);
         }
         // Forget scales/fades for effects no longer present, so a re-gained effect starts fresh.
         enter.keySet().removeIf(k -> !hasRow(out, k));
@@ -184,7 +188,10 @@ public final class EffectsElement extends HudElement {
             float cx = ox + (PAD_X + (horizontal ? i * (cell + CELL_GAP) : 0)) * s;
             float cy = oy + (PAD_Y + (horizontal ? 0 : i * (ROW_BLOCK + ROW_GAP))) * s;
 
-            row.icon().draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(row.color(), a));
+            // duotone vanilla effect sprite (18px art, centered on the 16px box); SDF glyph fallback
+            if (row.tex() == null
+                    || !com.club.hud.PixelIcons.draw(row.tex(), cx - s, cy - s, (ICON + 2) * s, 18, row.color(), a))
+                row.icon().draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(row.color(), a));
             // countdown right-aligned in the shared column (tabular — a ticking second never jitters)
             float timeW = HudText.width(row.time(), Weight.SEMIBOLD, base);
             float timeX = cell - timeW;

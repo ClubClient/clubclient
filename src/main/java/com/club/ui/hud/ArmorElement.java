@@ -144,7 +144,9 @@ public final class ArmorElement extends HudElement {
             float cy = oy + (layout == 0 ? i * (ROW_BLOCK + ROW_GAP) : 0) * s;
             float f = frac(st);
 
-            icon(slot, st).draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(materialTint(st), alpha));
+            // duotone vanilla item icon (Stage 17, owner pick A); SDF silhouette is the fallback
+            if (!com.club.hud.PixelIcons.draw(itemTexture(st), cx, cy, ICON * s, 16, materialTint(st), alpha))
+                icon(slot, st).draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(materialTint(st), alpha));
             if (layout != 2) {
                 // tabular value right-aligned in the shared column: equal-length values are pixel-identical
                 String v = value(st, percent);
@@ -158,7 +160,13 @@ public final class ArmorElement extends HudElement {
         }
     }
 
-    /** Slot → piece silhouette; elytra gets its own wings in the chest slot. */
+    /** The item's own flat texture — resource packs and modded armor come for free. */
+    private static net.minecraft.util.Identifier itemTexture(ItemStack st) {
+        var id = net.minecraft.registry.Registries.ITEM.getId(st.getItem());
+        return net.minecraft.util.Identifier.of(id.getNamespace(), "textures/item/" + id.getPath() + ".png");
+    }
+
+    /** Slot → piece silhouette (fallback when the item texture can't bake); elytra gets its own wings. */
     private static IconGlyph icon(int slot, ItemStack st) {
         if (st.getItem() instanceof ElytraItem) return IconGlyph.ARMOR_ELYTRA;
         return switch (slot) {

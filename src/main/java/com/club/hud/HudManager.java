@@ -37,6 +37,7 @@ public final class HudManager {
 
             // V2 HUD (Effects / Target / Info / Armor) — frozen UI stack; the canvas hides disabled/empty elements.
             Ui.beginFrame(ctx);
+            PixelIcons.set(ctx);   // duotone icons draw through this DrawContext
             UI.setTime((System.nanoTime() - START) / 1_000_000_000f);
             CANVAS.setScreen(mc.getWindow().getScaledWidth(), mc.getWindow().getScaledHeight());
             CANVAS.layoutFromConfig(mc);
