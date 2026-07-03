@@ -28,7 +28,7 @@ final class EffectStyles {
             case "slowness"        -> new Style(IconGlyph.FX_SLOWNESS,        0xFF8C9BB5);
             case "haste"           -> new Style(IconGlyph.FX_HASTE,           0xFFE8C97A);
             case "mining_fatigue"  -> new Style(IconGlyph.FX_MINING_FATIGUE,  0xFF98A2B3);
-            case "strength"        -> new Style(IconGlyph.FX_STRENGTH,        0xFFD97A7A);
+            case "strength"        -> new Style(IconGlyph.FX_STRENGTH,        0xFFC26161);   // deeper red, de-pinked (owner)
             case "jump_boost"      -> new Style(IconGlyph.FX_JUMP_BOOST,      0xFF7FD68A);
             case "nausea"          -> new Style(IconGlyph.FX_NAUSEA,          0xFFA87FB8);
             case "regeneration"    -> new Style(IconGlyph.FX_REGENERATION,    0xFFE38BB0);

@@ -35,11 +35,15 @@ import java.util.Set;
 public final class PixelIcons {
     private PixelIcons() {}
 
-    /** The prototype's tritone: lift for highlights, unity for base, deep cut for shadow. */
-    private static final float LIFT = 1.28f, SHADOW = 0.52f;
+    /** QUADTONE (Stage 18.4, owner: «прорисовать тёмные линии»): deep outline, shadow, base, light. */
+    private static final float LIFT = 1.28f, SHADOW = 0.62f, OUTLINE = 0.36f;
+
+    /** A baked mask + the art's tight-bounds center (texels) — vanilla sprites pad unevenly, so
+     *  icons must center on their VISIBLE art, not the texture square (owner: «цифры не встают»). */
+    private record Baked(Identifier tex, float cx, float cy) {}
 
     private static DrawContext dc;
-    private static final Map<Identifier, Identifier> baked = new HashMap<>();
+    private static final Map<Identifier, Baked> baked = new HashMap<>();
     private static final Set<Identifier> failed = new HashSet<>();
 
     /** The current frame's DrawContext (HudManager / HudEditorScreen, right after Ui.beginFrame). */
@@ -48,7 +52,7 @@ public final class PixelIcons {
     /** Resource reload → drop every baked mask so pack-switched textures rebake lazily. */
     public static void reload() {
         var tm = MinecraftClient.getInstance().getTextureManager();
-        for (Identifier id : baked.values()) tm.destroyTexture(id);
+        for (Baked b : baked.values()) tm.destroyTexture(b.tex());
         baked.clear(); failed.clear();
     }
 
@@ -59,31 +63,32 @@ public final class PixelIcons {
      */
     public static boolean draw(Identifier src, float x, float y, float sizePx, int srcSize, int tint, float alpha) {
         if (dc == null || alpha <= 0f || failed.contains(src)) return false;
-        Identifier tex = baked.get(src);
-        if (tex == null) {
-            tex = bake(src);
-            if (tex == null) { failed.add(src); return false; }
-            baked.put(src, tex);
+        Baked bk = baked.get(src);
+        if (bk == null) {
+            bk = bake(src);
+            if (bk == null) { failed.add(src); return false; }
+            baked.put(src, bk);
         }
         // clamp(tint·LIFT): the mask's white level is 1/LIFT, so highlight = tint·LIFT, base = tint,
-        // shadow = tint·SHADOW — the exact tones of the approved board (same per-channel clamp).
+        // shadow/outline scale down — the exact tones of the approved board (same per-channel clamp).
         float r = Math.min(1f, ((tint >> 16) & 0xFF) / 255f * LIFT);
         float g = Math.min(1f, ((tint >> 8) & 0xFF) / 255f * LIFT);
         float b = Math.min(1f, (tint & 0xFF) / 255f * LIFT);
         RenderSystem.setShaderColor(r, g, b, alpha);
         var m = dc.getMatrices();
         m.push();
-        m.translate(x, y, 0f);
         float k = sizePx / srcSize;
+        // land the ART's center on the box center — sprites pad their square unevenly
+        m.translate(x + (srcSize * 0.5f - bk.cx()) * k, y + (srcSize * 0.5f - bk.cy()) * k, 0f);
         m.scale(k, k, 1f);
-        dc.drawTexture(tex, 0, 0, 0f, 0f, srcSize, srcSize, srcSize, srcSize);
+        dc.drawTexture(bk.tex(), 0, 0, 0f, 0f, srcSize, srcSize, srcSize, srcSize);
         m.pop();
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         return true;
     }
 
     /** Bakes the source texture into its grayscale factor mask (NEAREST, alpha preserved). */
-    private static Identifier bake(Identifier src) {
+    private static Baked bake(Identifier src) {
         try {
             MinecraftClient mc = MinecraftClient.getInstance();
             var res = mc.getResourceManager().getResource(src);
@@ -96,11 +101,14 @@ public final class PixelIcons {
             int w = img.getWidth(), hgt = img.getHeight();
             int[] hist = new int[256];
             int opaque = 0;
+            int minX = w, minY = hgt, maxX = -1, maxY = -1;   // the art's tight bounds
             for (int py = 0; py < hgt; py++)
                 for (int px = 0; px < w; px++) {
                     int abgr = img.getColor(px, py);
                     if (((abgr >>> 24) & 0xFF) < 96) continue;
                     hist[lum(abgr)]++; opaque++;
+                    if (px < minX) minX = px; if (px > maxX) maxX = px;
+                    if (py < minY) minY = py; if (py > maxY) maxY = py;
                 }
             if (opaque == 0) { img.close(); return null; }
             float lo = percentile(hist, opaque, 0.10f), hi = percentile(hist, opaque, 0.90f);
@@ -115,7 +123,8 @@ public final class PixelIcons {
                     float f = 1f;
                     if (!flat) {
                         float ln = Math.max(0f, Math.min(1f, (lum(abgr) - lo) / (hi - lo)));
-                        f = ln > 0.72f ? LIFT : (ln < 0.33f ? SHADOW : 1f);
+                        // quadtone: the darkest band becomes crisp OUTLINE linework
+                        f = ln > 0.74f ? LIFT : (ln < 0.15f ? OUTLINE : (ln < 0.42f ? SHADOW : 1f));
                     }
                     int level = Math.round(255f * f / LIFT);
                     out.setColor(px, py, (a << 24) | (level << 16) | (level << 8) | level);
@@ -127,7 +136,7 @@ public final class PixelIcons {
             Identifier id = Identifier.of("club",
                     "pixel/" + src.getNamespace() + "/" + src.getPath().replace(".png", "").replace('/', '_'));
             mc.getTextureManager().registerTexture(id, tex);
-            return id;
+            return new Baked(id, (minX + maxX + 1) * 0.5f, (minY + maxY + 1) * 0.5f);
         } catch (Exception e) {
             return null;   // missing/broken texture → caller falls back to its SDF glyph
         }

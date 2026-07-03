@@ -208,7 +208,7 @@ public final class ArmorElement extends HudElement {
             case "iron"      -> 0xFFD8DEE6;
             case "gold"      -> 0xFFF2CE72;
             case "diamond"   -> 0xFF7FE0E6;
-            case "netherite" -> 0xFFAA849B;   // a step darker (owner) — still voiced, not gray
+            case "netherite" -> 0xFF9A7E8E;   // muted purple-gray: darker, de-pinked (owner round 2)
             case "turtle"    -> 0xFF8FD0AC;
             default          -> 0xFFAEB9C9;   // unknown/modded — neutral steel
         };
