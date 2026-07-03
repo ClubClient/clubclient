@@ -110,10 +110,11 @@ public final class ClubMenuScreen extends Screen {
     // from 0ms; survivors re-aim at +40ms; enters fade+grow at +70ms. The window/grid container
     // itself never moves (no jelly). Category open staggers enters 17ms/card; search NEVER staggers.
     // ~20% slower than the first cut (owner: «буквально чуток медленнее»).
-    private static final float EXIT_DUR = 0.15f, ENTER_DUR = 0.20f, MOVE_DUR = 0.24f;
+    private static final float EXIT_DUR = 0.22f, ENTER_DUR = 0.20f, MOVE_DUR = 0.24f;
     private static final float MOVE_DELAY = 0.05f, ENTER_DELAY = 0.08f, CAT_STAGGER = 0.02f;
-    /** Exits cascade one after another (owner, round 2: slower — «чтобы кайфово») — 50ms per card. */
-    private static final float EXIT_STAGGER = 0.05f;
+    /** Exit cascade (owner, round 3): 75ms per card, receding FROM THE TAIL — the last card in
+     *  the grid dissolves first and the wave walks back toward the start. */
+    private static final float EXIT_STAGGER = 0.075f;
     private static final float TILE_SCALE_FROM = 0.97f;   // enter 0.97→1; exit mirrors it
     private final java.util.HashMap<Module, TileMotion> tileMotion = new java.util.HashMap<>();
     // Cards that stopped matching keep painting HERE while they dissolve (they left the grid already).
@@ -264,9 +265,10 @@ public final class ClubMenuScreen extends Screen {
             return;
         }
 
-        // live search — phase 1: cards that stopped matching dissolve ONE AFTER ANOTHER (owner):
-        // each exit is armed with a 30ms-per-card gate; the tile render fires the fade when due
-        int exitIdx = 0;
+        // live search — phase 1: cards that stopped matching dissolve ONE AFTER ANOTHER, receding
+        // FROM THE TAIL (owner): the last exiting card in grid order goes first, the wave walks
+        // back toward the start. Each exit holds (seeded fade) until its gate fires in render.
+        java.util.List<TileMotion> exits = new java.util.ArrayList<>();
         for (var c : grid.children()) {
             ModuleTile t = (ModuleTile) c;
             if (match.contains(t.m)) continue;
@@ -275,9 +277,11 @@ public final class ClubMenuScreen extends Screen {
             if (!tm.hasPos) { tileMotion.remove(t.m); continue; }   // never rendered — nothing to dissolve
             tm.leaving = true; tm.shown = true; tm.movePending = false;
             tm.fade = new Transition(tm.fade.value(now), EXIT_DUR, Tokens.motion().easings().standard());
-            tm.hideAt = now + exitIdx++ * EXIT_STAGGER;   // seeded, holds until its turn
+            exits.add(tm);
             leaving.put(t.m, t);
         }
+        for (int j = 0; j < exits.size(); j++)
+            exits.get(j).hideAt = now + (exits.size() - 1 - j) * EXIT_STAGGER;
         grid.clear();
         for (Module m : match) {
             TileMotion tm = tileMotion.get(m);
