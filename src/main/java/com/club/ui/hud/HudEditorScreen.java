@@ -7,8 +7,8 @@ import com.club.ui.component.Component;
 import com.club.ui.component.Container;
 import com.club.ui.component.FocusManager;
 import com.club.ui.component.UiContextImpl;
+import com.club.ui.UiContext;
 import com.club.ui.component.widget.Button;
-import com.club.ui.component.widget.Dropdown;
 import com.club.ui.component.widget.Label;
 import com.club.ui.component.widget.Slider;
 import com.club.ui.component.widget.Toggle;
@@ -84,27 +84,30 @@ public final class HudEditorScreen extends Screen {
 
     private static final int POP_HEAD = 28, POP_ROW = 26, POP_PAD_B = 8;
     private final java.util.List<Label> popLabels = new java.util.ArrayList<>();
+    private float popNeeded;   // widest [label + control] row → popW grows to fit (3-way segments)
 
     /** Build the popover's rows (label + control) for the selected element. Per-frame positioning is in positionPopover(). */
     private void rebuildPopover() {
         popover.clear(); popLabels.clear(); focus.clear(); hasPopover = canvas.selected() != null;
         if (!hasPopover) return;
         HudElement sel = canvas.selected();
-        popW = 178;
+        popNeeded = 0;
         addRow("Enabled", new Toggle(sel.cfgEnabled()).onChange(v -> { setEnabled(sel, v); save(); }));
         addRow("Size", new Slider(sel.cfgScale(), 0.5f, 2f, 0.05f).onChange(v -> { setScale(sel, v); save(); }));
         if (sel instanceof EffectsElement) {
-            addRow("Layout", new Dropdown(new String[]{"Column", "Row"}, h().potionHorizontal ? 1 : 0)
-                    .onChange(i -> { h().potionHorizontal = (i == 1); save(); }));
+            addRow("Layout", new Segmented(new String[]{"Column", "Row"}, h().potionHorizontal ? 1 : 0,
+                    i -> { h().potionHorizontal = (i == 1); save(); }));
         } else if (sel instanceof TargetElement) {
             addRow("Range", new Slider(h().targetDistance, 3f, 32f, 1f)
                     .onChange(v -> { h().targetDistance = Math.round(v); save(); }));
         } else if (sel instanceof ArmorElement) {
-            addRow("Layout", new Dropdown(new String[]{"Vertical", "Row"}, h().armorVertical ? 0 : 1)
-                    .onChange(i -> { h().armorVertical = (i == 0); save(); }));
-            addRow("Value", new Dropdown(new String[]{"Percent", "Count"}, h().armorPercent ? 0 : 1)
-                    .onChange(i -> { h().armorPercent = (i == 0); save(); }));
+            addRow("Layout", new Segmented(new String[]{"Column", "Row", "Line"}, h().armorLayout,
+                    i -> { h().armorLayout = i; save(); rebuildPopover(); }));
+            if (h().armorLayout != 2)   // the Line view has no digits — Value doesn't apply
+                addRow("Value", new Segmented(new String[]{"Percent", "Count"}, h().armorPercent ? 0 : 1,
+                        i -> { h().armorPercent = (i == 0); save(); }));
         }
+        popW = Math.max(178, Math.round(popNeeded) + 24);
         popH = POP_HEAD + popover.children().size() * POP_ROW + POP_PAD_B;
         popReveal = null;   // replay the grow-in for this (new) selection
     }
@@ -113,6 +116,9 @@ public final class HudEditorScreen extends Screen {
         popLabels.add(new Label(name, Tokens.type().label()).color(Tokens.palette().textMuted()));
         popover.add(ctrl);
         focus.register(ctrl);
+        float cw = ctrl instanceof Slider ? 88 : ctrl.measure(10_000, 22).w(); if (cw <= 0) cw = 88;
+        popNeeded = Math.max(popNeeded,
+                Ui.text().width(name, Tokens.type().label().weight(), Tokens.type().label().size()) + 12 + cw);
     }
 
     /** Re-anchor the popover beside the selected element every frame, so it follows when the element is dragged. */
@@ -252,5 +258,57 @@ public final class HudEditorScreen extends Screen {
         void add(Component c) { addChild(c); }
         void clear() { children.clear(); }
         @Override public Size measure(float aw, float ah) { return new Size(aw, ah); }
+    }
+
+    private static final float SEG_H = 22f;
+
+    /** Quiet segmented selector (the menu's SegmentRow language): one recessed track, equal
+     *  segments, an eased brand-tinted pill sliding between them; active label = accent, inactive
+     *  = muted. Replaces the loud Dropdowns of the first popover (owner: "кричащие"). */
+    private final class Segmented extends Component {
+        private final String[] labels;
+        private final java.util.function.IntConsumer onChange;
+        private int index;
+        private final com.club.ui.motion.Transition slide;
+
+        Segmented(String[] labels, int index, java.util.function.IntConsumer onChange) {
+            this.labels = labels; this.index = index; this.onChange = onChange;
+            slide = new com.club.ui.motion.Transition(index,
+                    Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+        }
+
+        @Override public Size measure(float aw, float ah) {
+            Typography ty = Tokens.type();
+            float m = 0;
+            for (String l : labels) m = Math.max(m, Ui.text().width(l, ty.label().weight(), ty.label().size()));
+            return new Size(Math.min(aw, labels.length * (m + 14)), SEG_H);
+        }
+
+        @Override public void render(UiContext ctx) {
+            var r = ctx.renderer();
+            Typography ty = Tokens.type();
+            float now = ctx.time(), rad = 7f;
+            r.roundedRect(x, y, w, h, rad, Tokens.surface().bg1());
+            r.border(x, y, w, h, rad, Tokens.border().thickness(), Tokens.border().defaultColor());
+            float segW = w / labels.length;
+            int acc = Tokens.accent().accent();
+            r.roundedRect(x + slide.value(now) * segW + 2, y + 2, segW - 4, h - 4, rad - 2, Color.withAlpha(acc, 0x2E));
+            float lh = ty.label().lineHeight();
+            for (int i = 0; i < labels.length; i++)
+                ctx.text().draw(labels[i], x + segW * i + segW / 2f, y + (h - lh) / 2f,
+                        TextStyle.of(ty.label().weight(), ty.label().size(),
+                                i == index ? acc : Tokens.palette().textMuted()).align(Align.CENTER));
+        }
+
+        @Override public boolean mouseClicked(double mx, double my, int b) {
+            if (b != 0 || !contains(mx, my)) return false;
+            int seg = Math.max(0, Math.min(labels.length - 1, (int) ((mx - x) / (w / labels.length))));
+            if (seg != index) {
+                index = seg;
+                slide.target(seg, uiCtx.time());
+                onChange.accept(seg);
+            }
+            return true;
+        }
     }
 }
