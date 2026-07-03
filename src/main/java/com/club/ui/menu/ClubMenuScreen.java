@@ -93,9 +93,12 @@ public final class ClubMenuScreen extends Screen {
     // Zones separate by panel EDGES and depth — every hairline divider is gone.
     private float railWX, railWY, railWW, railWH;   // the shallow tray (hugs the category list)
     private float wellX, wellY, wellW, wellH;       // the deep content well
-    // Ambient halo behind the window: spreads + falling alphas (slight downward drift baked in)
-    private static final float[] HALO_SPREAD = {3f, 7f, 13f, 22f, 34f};
-    private static final int[]   HALO_ALPHA  = {0x2C, 0x22, 0x18, 0x0F, 0x08};
+    // Ambient halo behind the window: MANY thin equal-alpha rings — coarse layers read as banded
+    // "broken border" rings on a bright sky (owner). 14 × 2px @ 0x05 stack to ~27% at the edge
+    // and fall off linearly with no visible step.
+    private static final int HALO_LAYERS = 14;
+    private static final float HALO_STEP = 2f;
+    private static final int HALO_LAYER_ALPHA = 0x05;
     /** Footer version whisper — balances the profile chip on the content well's right axis. */
     private static final String VERSION = net.fabricmc.loader.api.FabricLoader.getInstance()
             .getModContainer("club")
@@ -110,6 +113,8 @@ public final class ClubMenuScreen extends Screen {
     // ~20% slower than the first cut (owner: «буквально чуток медленнее»).
     private static final float EXIT_DUR = 0.15f, ENTER_DUR = 0.20f, MOVE_DUR = 0.24f;
     private static final float MOVE_DELAY = 0.05f, ENTER_DELAY = 0.08f, CAT_STAGGER = 0.02f;
+    /** Exits cascade one after another (owner) — each leaving card starts 30ms after the previous. */
+    private static final float EXIT_STAGGER = 0.03f;
     private static final float TILE_SCALE_FROM = 0.97f;   // enter 0.97→1; exit mirrors it
     private final java.util.HashMap<Module, TileMotion> tileMotion = new java.util.HashMap<>();
     // Cards that stopped matching keep painting HERE while they dissolve (they left the grid already).
@@ -126,6 +131,7 @@ public final class ClubMenuScreen extends Screen {
         float showDelay;        // enter delay (stagger / +70ms phase), resolved on first render —
         float showAt = -1f;     //   rebuilds can run before the ui clock ticks (init)
         boolean shown;
+        float hideAt = -1f;     // exit gate: the dissolve starts once time passes this (exit cascade)
         float moveAt;           // survivor gate: position re-aims only after this (+40ms phase)
         boolean movePending;
         boolean leaving;
@@ -259,7 +265,9 @@ public final class ClubMenuScreen extends Screen {
             return;
         }
 
-        // live search — phase 1 (0ms): cards that stopped matching start dissolving in place
+        // live search — phase 1: cards that stopped matching dissolve ONE AFTER ANOTHER (owner):
+        // each exit is armed with a 30ms-per-card gate; the tile render fires the fade when due
+        int exitIdx = 0;
         for (var c : grid.children()) {
             ModuleTile t = (ModuleTile) c;
             if (match.contains(t.m)) continue;
@@ -267,9 +275,8 @@ public final class ClubMenuScreen extends Screen {
             if (tm == null || tm.leaving) continue;
             if (!tm.hasPos) { tileMotion.remove(t.m); continue; }   // never rendered — nothing to dissolve
             tm.leaving = true; tm.shown = true; tm.movePending = false;
-            Transition f = new Transition(tm.fade.value(now), EXIT_DUR, Tokens.motion().easings().standard());
-            f.target(0f, now);
-            tm.fade = f;
+            tm.fade = new Transition(tm.fade.value(now), EXIT_DUR, Tokens.motion().easings().standard());
+            tm.hideAt = now + exitIdx++ * EXIT_STAGGER;   // seeded, holds until its turn
             leaving.put(t.m, t);
         }
         grid.clear();
@@ -281,7 +288,7 @@ public final class ClubMenuScreen extends Screen {
                 tm.showDelay = ENTER_DELAY;
                 tileMotion.put(m, tm);
             } else if (tm.leaving) {              // matched again mid-exit — turn around, no restart
-                tm.leaving = false; tm.shown = true;
+                tm.leaving = false; tm.shown = true; tm.hideAt = -1f;
                 Transition f = new Transition(tm.fade.value(now), ENTER_DUR, Tokens.motion().easings().decelerate());
                 f.target(1f, now);
                 tm.fade = f;
@@ -489,13 +496,13 @@ public final class ClubMenuScreen extends Screen {
         // No background scrim: the world stays fully visible so settings apply live (e.g. adjust a hand slider
         // and watch the hand move behind/around the window).
 
-        // Ambient halo BEHIND the window (Stage 22): a stack of expanding rounded rects with
-        // falling alpha — the window detaches from the world instead of reading as a cropped
-        // rectangle. Not UI depth (that stays banned) — separation from the game world.
-        for (int i = HALO_SPREAD.length - 1; i >= 0; i--) {
-            float s = HALO_SPREAD[i];
+        // Ambient halo BEHIND the window (Stage 22): many thin equal-alpha rings accumulate into
+        // a smooth linear falloff (no banding) — the window detaches from the world instead of
+        // reading as a cropped rectangle. Not UI depth (that stays banned) — world separation.
+        for (int i = HALO_LAYERS; i >= 1; i--) {
+            float s = i * HALO_STEP;
             r.roundedRect(winX - s, winY - s + s * 0.3f, winW + 2 * s, winH + 2 * s, lg + s,
-                    Color.withAlpha(0xFF000000, HALO_ALPHA[i]));
+                    Color.withAlpha(0xFF000000, HALO_LAYER_ALPHA));
         }
 
         // Passe-partout (Stage 22): ONE frame tone + two wells whose edges do the separating —
@@ -645,9 +652,14 @@ public final class ClubMenuScreen extends Screen {
         closing = true;
         closePopover();
         MinecraftClient mc = MinecraftClient.getInstance();
-        InputUtil.setCursorParameters(mc.getWindow().getHandle(), GLFW_CURSOR_DISABLED,
-                mc.getWindow().getWidth() / 2.0, mc.getWindow().getHeight() / 2.0);
-        ((com.club.mixin.MouseAccessor) mc.mouse).club$setCursorLocked(true);
+        double cx = mc.getWindow().getWidth() / 2.0, cy = mc.getWindow().getHeight() / 2.0;
+        InputUtil.setCursorParameters(mc.getWindow().getHandle(), GLFW_CURSOR_DISABLED, cx, cy);
+        var mouse = (com.club.mixin.MouseAccessor) mc.mouse;
+        mouse.club$setCursorLocked(true);
+        // mirror vanilla lockCursor: re-centre the tracked pos + drop pending deltas, or the first
+        // look after closing dumps (centre − last menu pos) into the camera — a teleport jerk
+        mouse.club$setX(cx); mouse.club$setY(cy);
+        mouse.club$setCursorDeltaX(0); mouse.club$setCursorDeltaY(0);
         KeyBinding.updatePressedStates();   // vanilla lockCursor does this too — keys stay coherent
     }
 
@@ -796,6 +808,7 @@ public final class ClubMenuScreen extends Screen {
             if (tm != null) {
                 if (tm.showAt < 0f) tm.showAt = now + tm.showDelay;   // resolve vs the live ui clock
                 if (!tm.shown && now >= tm.showAt) { tm.shown = true; tm.fade.target(1f, now); }
+                if (tm.hideAt >= 0f && now >= tm.hideAt) { tm.hideAt = -1f; tm.fade.target(0f, now); }   // its turn in the exit cascade
                 ta = tm.fade.value(now);
                 // Positions ease in WINDOW space: the entrance rise (and any window recentre) moves
                 // cards rigidly with the frame — easing screen coords made them lag/chase the window

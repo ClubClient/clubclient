@@ -14,4 +14,10 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(Mouse.class)
 public interface MouseAccessor {
     @Accessor("cursorLocked") void club$setCursorLocked(boolean locked);
+    // Vanilla lockCursor() re-centres the tracked position BEFORE grabbing — without this the
+    // first look delta after our raw grab is (centre − last menu cursor pos): a camera teleport.
+    @Accessor("x") void club$setX(double x);
+    @Accessor("y") void club$setY(double y);
+    @Accessor("cursorDeltaX") void club$setCursorDeltaX(double d);
+    @Accessor("cursorDeltaY") void club$setCursorDeltaY(double d);
 }
