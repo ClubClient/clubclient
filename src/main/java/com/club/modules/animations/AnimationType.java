@@ -15,10 +15,10 @@ import com.club.util.Mth;
  * correctly. {@code amp} scales the motion (0.5 subtle … 1.5 punchy).
  */
 public enum AnimationType {
-    /** Stock Minecraft swing (no override — fully vanilla). */
-    VANILLA("Vanilla") {
-        @Override public Pose sample(Pose p, float s, float amp, int arm) { return p.set(0, 0, 0, 0, 0, 0); }
-    },
+    /** Stock Minecraft swing (no override — fully vanilla). Uses the identity default of
+     *  {@link #sample}; it is never reached anyway ({@code AnimationModule.pose} short-circuits
+     *  VANILLA to null before sampling). */
+    VANILLA("Vanilla"),
     /** Clean diagonal chop — snappy, returns to rest. The default showcase. */
     CLASSIC("Classic") {
         @Override public Pose sample(Pose p, float s, float amp, int arm) {
@@ -56,11 +56,17 @@ public enum AnimationType {
      * Full blade spin, flat to the screen. Rotation is pure roll about the camera
      * axis (Z) — the same axis vanilla uses for its in-plane swing tilt — so the
      * blade sweeps a clean circle facing the player and never dives into depth
-     * (no Z-translate "pump"). Direction mirrors per hand.
+     * (no Z-translate "pump"). Direction mirrors per hand. Amplitude drives the spin
+     * on both axes it honestly can: the turn count (quantized — only FULL turns land
+     * back at rest at {@code s == 1}) and the launch snap (continuous, so the slider
+     * always does something: low = even glide, high = hard front-loaded whip that
+     * eases into the landing — the family's curve language).
      */
     SPIN("Spin") {
         @Override public Pose sample(Pose p, float s, float amp, int arm) {
-            return p.set(0, 0, 0, 0, 0, arm * -360f * s);
+            int turns = Math.max(1, Math.round(amp));
+            float e = 1f - (float) Math.pow(1f - s, 1f + amp);   // monotonic 0→1, soft landing
+            return p.set(0, 0, 0, 0, 0, arm * -360f * turns * e);
         }
     };
 
@@ -80,8 +86,11 @@ public enum AnimationType {
         return (float) Math.sin(Math.PI * Mth.clamp(swing, 0f, 1f));
     }
 
-    /** Fill {@code out} with this animation's pose at swing progress {@code swing}. */
-    public abstract Pose sample(Pose out, float swing, float amplitude, int arm);
+    /** Fill {@code out} with this animation's pose at swing progress {@code swing}.
+     *  Default: identity (rest) — every non-passthrough constant overrides. */
+    public Pose sample(Pose out, float swing, float amplitude, int arm) {
+        return out.set(0, 0, 0, 0, 0, 0);
+    }
 
     public static AnimationType fromName(String name) {
         try { return valueOf(name); } catch (Exception e) { return CLASSIC; }

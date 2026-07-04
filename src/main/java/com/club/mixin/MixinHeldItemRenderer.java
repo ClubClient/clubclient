@@ -25,9 +25,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * <p><b>Animations</b>: unless the Vanilla passthrough is selected we capture the
  * real hand-swing once (and zero it so vanilla never swings the hand), then apply
- * our own pose. The pose is rotated about the grip — the same space vanilla swings
- * in — and paired with a translation arc, so the blade never orbits a stray pivot
- * or drops on an air-hit. Items in use (eat/drink/block/bow) are left to vanilla.
+ * our own pose STRICTLY per-hand — vanilla gates the swing by {@code player.preferredHand},
+ * so only the hand that actually swung plays it (an off-hand block placement animates
+ * the off-hand, never the main hand). The pose is rotated about the grip — the same
+ * space vanilla swings in — and paired with a translation arc, so the blade never
+ * orbits a stray pivot or drops on an air-hit. Items in use (eat/drink/block/bow)
+ * are left to vanilla.
  */
 @Mixin(HeldItemRenderer.class)
 public class MixinHeldItemRenderer {
@@ -36,6 +39,7 @@ public class MixinHeldItemRenderer {
             "Lnet/minecraft/client/render/item/HeldItemRenderer;renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/client/render/model/json/ModelTransformationMode;ZLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V";
 
     private float club$swing;
+    private final Pose club$pose = new Pose();   // out-param, reused — no per-frame allocation
 
     /**
      * Kill the vanilla "equip dip" on air/entity hits. {@code updateHeldItems}
@@ -82,10 +86,13 @@ public class MixinHeldItemRenderer {
             matrices.scale(sc, sc, sc);
         }
 
-        // Custom attack pose — main hand, not while using an item.
-        if (main && !player.isUsingItem() && AnimationModule.overridesVanillaSwing()) {
-            int arm = player.getMainArm() == Arm.RIGHT ? 1 : -1;
-            Pose pose = AnimationModule.pose(new Pose(), club$swing, arm);
+        // Custom attack pose — only on the hand that actually swung (vanilla gates the swing it
+        // hands out by player.preferredHand; the captured progress belongs to that hand alone),
+        // and not while using an item.
+        Hand swingHand = player.preferredHand != null ? player.preferredHand : Hand.MAIN_HAND;
+        if (hand == swingHand && !player.isUsingItem() && AnimationModule.overridesVanillaSwing()) {
+            int arm = rightSide ? 1 : -1;
+            Pose pose = AnimationModule.pose(club$pose, club$swing, arm);
             if (pose != null && !pose.isIdentity()) {
                 // rotate about the grip (current origin), paired with the arc translate
                 matrices.translate(pose.tx, pose.ty, pose.tz);

@@ -1,6 +1,6 @@
 package com.club.modules.animations;
 
-/** A first-person hand transform: translation (in 1/16 block units) + rotation (degrees). */
+/** A first-person hand transform: translation (in BLOCKS — raw MatrixStack units) + rotation (degrees). */
 public class Pose {
     public float tx, ty, tz;
     public float rx, ry, rz;
