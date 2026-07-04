@@ -1,6 +1,5 @@
 package com.club.ui.hud;
 
-import com.club.ui.Color;
 import com.club.ui.UiContext;
 import com.club.ui.component.Component;
 import com.club.ui.layout.Size;
@@ -88,13 +87,12 @@ public abstract class HudElement extends Component {
     /** Live data is used when a player exists AND we're not forcing sample (editor); otherwise sample data. */
     protected boolean live(MinecraftClient mc) { return !forceSample && mc != null && mc.player != null; }
 
-    /** Editor placeholder: a uniform labeled box showing just the element's area + name — no sample content,
-     *  so the editor reads as a clean layout map and every element is always visible/positionable. */
+    /** Editor placeholder: the element's area + name — no sample content, so the editor reads as a
+     *  clean layout map and every element is always visible/positionable. Stage 25 (owner board,
+     *  variant A): the ground is the exact {@link HudPaint#chip} capsule — borderless, translucent,
+     *  chip radius — so the editor reads as "the same capsules, just empty", not older boxed chrome. */
     public void renderPlaceholder(UiContext ctx) {
-        var r = ctx.renderer();
-        float rad = Tokens.radius().sm();
-        r.roundedRect(x, y, w, h, rad, Color.withAlpha(Tokens.surface().bg2(), 0xCC));
-        r.border(x, y, w, h, rad, Tokens.border().thickness(), Tokens.border().defaultColor());
+        HudPaint.chip(ctx, x, y, w, h, HudPaint.CHIP_RAD * cfgScale(), 1f);
         Typography.Role role = Tokens.type().body();
         float ty = y + (h - role.lineHeight()) * 0.5f;
         ctx.text().draw(displayName(), x + w * 0.5f, ty,

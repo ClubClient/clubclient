@@ -98,6 +98,8 @@ public final class ClubMenuScreen extends Screen {
     // buffer" around the window — owner). Cumulative ≈21% at the edge, ≈5% by 12px out.
     private static final float HALO_STEP = 2f;
     private static final int[] HALO_ALPHAS = {9, 8, 7, 6, 5, 4, 3, 3, 2, 2, 2, 1, 1, 1};
+    // Popover mini-halo (Stage 25): the same quadratic law, sheet-sized — 6 rings, ≈9% at the edge.
+    private static final int[] POP_HALO_ALPHAS = {8, 6, 4, 3, 2, 1};
     /** Footer version whisper — balances the profile chip on the content well's right axis. */
     private static final String VERSION = net.fabricmc.loader.api.FabricLoader.getInstance()
             .getModContainer("club")
@@ -631,8 +633,18 @@ public final class ClubMenuScreen extends Screen {
             } else {
                 float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
                 float pr = Tokens.radius().md();
-                r.roundedRect(popX, popY, popW, drawnH, pr, Tokens.surface().bg2());
-                r.border(popX, popY, popW, drawnH, pr, Tokens.border().thickness(), Tokens.border().strong());
+                // Stage 25 (owner board, variant A): the popover is a RAISED SHEET, not a hole —
+                // under the Stage-22 depth grammar (darker = recessed) the old bg2 ground + strong
+                // border read as a punched-out box. Card tone one step above the window ground,
+                // the window's quadratic mini-halo instead of a loud border, and a quiet hairline
+                // to hold the edge where the sheet crosses the light wells.
+                for (int i = POP_HALO_ALPHAS.length; i >= 1; i--) {
+                    float hs = i * HALO_STEP;
+                    r.roundedRect(popX - hs, popY - hs, popW + 2 * hs, drawnH + 2 * hs, pr + hs,
+                            Color.withAlpha(0xFF000000, POP_HALO_ALPHAS[i - 1]));
+                }
+                r.roundedRect(popX, popY, popW, drawnH, pr, Tokens.surface().surface());
+                r.border(popX, popY, popW, drawnH, pr, Tokens.border().thickness(), Tokens.border().defaultColor());
                 r.pushClip(popX, popY, popW, drawnH);
                 popScroll.mouseMoved(mouseX, mouseY);
                 popScroll.render(uiCtx);
@@ -1062,8 +1074,9 @@ public final class ClubMenuScreen extends Screen {
             Typography ty = Tokens.type();
             float now = ctx.time();
             float rad = 8f;   // matches the card chip radius
-            r.roundedRect(x, y, w, h, rad, Tokens.surface().bg1());
-            r.border(x, y, w, h, rad, Tokens.border().thickness(), Tokens.border().defaultColor());
+            // Stage 25: quiet track from the WELL family (SearchField precedent after Stage 22) —
+            // well tone, borderless at rest; the sliding pill alone carries the state.
+            r.roundedRect(x, y, w, h, rad, Tokens.surface().well());
             float segW = w / labels.length;
             float px = x + (segSlide != null ? segSlide.value(now) : tabIndex) * segW;
             r.roundedRect(px + 2, y + 2, segW - 4, h - 4, rad - 2, Color.withAlpha(accent, 0x2E));

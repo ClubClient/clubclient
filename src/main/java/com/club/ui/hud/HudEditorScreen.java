@@ -66,8 +66,20 @@ public final class HudEditorScreen extends Screen {
                               TB_GAP = 12, TB_PAD = 14, TB_LABEL_W = 66;
 
     // The editor is a dark utility overlay — full-brand fills scream on it (owner: Done/Enabled
-    // "бросаются в глаза"). Controls take a muted brand instead; GHOST for buttons.
-    private static final int QUIET_ACC = 0xFF5F83C2;
+    // "бросаются в глаза"). Controls take the muted-brand TOKEN (Stage 25); GHOST for buttons.
+    private static final int QUIET_ACC = Tokens.accent().accentQuiet();
+
+    // Raised utility sheet (Stage 25): toolbar + popover share the menu popover's grammar —
+    // card tone above the ground, quadratic mini-halo instead of a loud border, quiet hairline.
+    private static final int[] SHEET_HALO = {8, 6, 4, 3, 2, 1};
+    private void sheet(com.club.ui.UiRenderer r, float x, float y, float w, float h, float rad) {
+        for (int i = SHEET_HALO.length; i >= 1; i--) {
+            float s = i * 2f;
+            r.roundedRect(x - s, y - s, w + 2 * s, h + 2 * s, rad + s, Color.withAlpha(0xFF000000, SHEET_HALO[i - 1]));
+        }
+        r.roundedRect(x, y, w, h, rad, Tokens.surface().surface());
+        r.border(x, y, w, h, rad, Tokens.border().thickness(), Tokens.border().defaultColor());
+    }
 
     private void buildToolbar() {
         toolbar.clear();
@@ -194,8 +206,7 @@ public final class HudEditorScreen extends Screen {
 
         // compact floating toolbar — a top-centre overlay so the whole canvas underneath stays usable
         float tbR = Tokens.radius().md();
-        r.roundedRect(tbX, tbY, tbW, tbH, tbR, Color.withAlpha(Tokens.surface().bg2(), 0xE6));
-        r.border(tbX, tbY, tbW, tbH, tbR, Tokens.border().thickness(), Tokens.border().strong());
+        sheet(r, tbX, tbY, tbW, tbH, tbR);
         uiCtx.text().draw("Grid snap", tbX + TB_PAD, tbY + (tbH - ty.label().lineHeight()) / 2f, stToolLabel);
         toolbar.mouseMoved(mx, my); toolbar.render(uiCtx);
 
@@ -217,8 +228,7 @@ public final class HudEditorScreen extends Screen {
                 popover.clear(); popLabels.clear(); popSel = null; focus.clear();
             } else {
                 float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
-                r.roundedRect(popX, popY, popW, drawnH, Tokens.radius().md(), Tokens.surface().bg2());
-                r.border(popX, popY, popW, drawnH, Tokens.radius().md(), 1, Tokens.border().defaultColor());
+                sheet(r, popX, popY, popW, drawnH, Tokens.radius().md());
                 r.pushClip(popX, popY, popW, drawnH);
                 r.roundedRect(popX + 12, popY + 11, 6, 6, 2, Tokens.accent().accent());
                 uiCtx.text().draw(titleOf(popSel), popX + 24, popY + 7, stPop);
@@ -311,8 +321,8 @@ public final class HudEditorScreen extends Screen {
             var r = ctx.renderer();
             Typography ty = Tokens.type();
             float now = ctx.time(), rad = 7f;
-            r.roundedRect(x, y, w, h, rad, Tokens.surface().bg1());
-            r.border(x, y, w, h, rad, Tokens.border().thickness(), Tokens.border().defaultColor());
+            // Stage 25: quiet track from the WELL family (mirrors the menu's SegmentRow) — borderless.
+            r.roundedRect(x, y, w, h, rad, Tokens.surface().well());
             float segW = w / labels.length;
             int acc = Tokens.accent().accent();
             r.roundedRect(x + slide.value(now) * segW + 2, y + 2, segW - 4, h - 4, rad - 2, Color.withAlpha(acc, 0x2E));
