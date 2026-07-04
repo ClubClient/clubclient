@@ -47,10 +47,14 @@ public final class TargetElement extends HudElement {
     // real name/HP instead of leaking the editor sample. Sample ("Steve_42") only ever shows in the editor.
     private String curName = "Steve_42", curNum = "18";
     private float curFrac = 0.62f;
-    private String tweenName;   // the name the hp tween is based on (snap on change)
+    // Target identity = entity ID, not the display name (Stage 23): two zombies both read "Zombie", but
+    // switching between them must still snap the HP tween and replay the acquire-pop.
+    private static final int NO_ID = Integer.MIN_VALUE, SAMPLE_ID = -1;
+    private int curId = SAMPLE_ID;
+    private int tweenId = NO_ID;   // the target id the hp tween is based on (snap on change)
     // Scale-pop on target acquire/change: a quick 0.955 → 1.0 ease so a new target "lands" instead of popping in.
     private static final float POP_FROM = 0.955f;
-    private String popName;     // last name we popped for
+    private int popId = NO_ID;     // last target id we popped for
     private float popStart = -1f;
 
     public TargetElement() { super("target"); }
@@ -73,7 +77,7 @@ public final class TargetElement extends HudElement {
      *  as the other HUD motion, so all animations share one speed language. */
     @Override protected float visualScale(UiContext ctx) {
         float now = ctx.time();
-        if (!curName.equals(popName)) { popName = curName; popStart = now; }   // acquired / changed → play
+        if (curId != popId) { popId = curId; popStart = now; }   // acquired / changed → play
         if (popStart < 0f) return 1f;
         float t = (now - popStart) / Tokens.motion().durations().fast();
         if (t >= 1f) return 1f;
@@ -87,9 +91,10 @@ public final class TargetElement extends HudElement {
     @Override public int autoX(MinecraftClient mc) { return mc != null ? mc.getWindow().getScaledWidth() / 2 + 16 : -1; }
     @Override public int autoY(MinecraftClient mc) { return mc != null ? mc.getWindow().getScaledHeight() / 2 - CONTENT_H / 2 : -1; }
 
-    /** In-world: show only when actually aiming at a living entity (no sample fallback outside the editor). */
+    /** In-world: show only when actually aiming at a living entity (no sample fallback outside the editor).
+     *  Reads the frame's cached target (resolved once per frame by HudManager) — no extra raycast here. */
     @Override public boolean hasContent(MinecraftClient mc) {
-        return !live(mc) || mc.world == null || com.club.hud.TargetHud.raycastTarget(mc, 1f) != null;
+        return !live(mc) || mc.world == null || com.club.hud.TargetHud.current() != null;
     }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
@@ -101,7 +106,7 @@ public final class TargetElement extends HudElement {
         var t = ctx.text();
         float now = ctx.time();
         // cur* refreshed in contentSize() this frame. Snap the edge when the target changes; else ease it.
-        if (!curName.equals(tweenName)) { hpFrac.snap(curFrac, now); tweenName = curName; } else hpFrac.set(curFrac, now);
+        if (curId != tweenId) { hpFrac.snap(curFrac, now); tweenId = curId; } else hpFrac.set(curFrac, now);
         float frac = hpFrac.get(now);
 
         float cw = contentW(), ch = CONTENT_H;
@@ -156,10 +161,11 @@ public final class TargetElement extends HudElement {
     /** Refresh the cached target data. A lost target keeps the last real values (so the fade-out / death frame
      *  shows the real name, not the sample); the sample is only ever used in the editor (live=false). */
     private void resolve(MinecraftClient mc, boolean live) {
-        if (!live) { curName = "Steve_42"; curNum = "18"; curFrac = 0.62f; return; }
+        if (!live) { curName = "Steve_42"; curNum = "18"; curFrac = 0.62f; curId = SAMPLE_ID; return; }
         if (mc == null || mc.world == null) return;                    // keep last known
-        var le = com.club.hud.TargetHud.raycastTarget(mc, 1f);
+        var le = com.club.hud.TargetHud.current();                     // frame cache — resolved once in HudManager
         if (le == null) return;                                        // no target now — keep last, never the sample
+        curId = le.getId();
         curName = le.getName().getString();
         float hp = le.getHealth(), max = le.getMaxHealth();
         curFrac = max > 0 ? Math.max(0f, Math.min(1f, hp / max)) : 0f;

@@ -9,6 +9,7 @@ import com.club.ui.hud.EffectsElement;
 import com.club.ui.hud.HudCanvas;
 import com.club.ui.hud.InfoElement;
 import com.club.ui.hud.TargetElement;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -28,6 +29,9 @@ public final class HudManager {
     private static final long START = System.nanoTime();
 
     public static void init() {
+        // the HUD callback stops firing outside a world — without this the target cache would pin the
+        // unloaded ClientWorld (via the held entity) for as long as the player sits at the title screen
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> TargetHud.clear());
         HudRenderCallback.EVENT.register((ctx, tickCounter) -> {
             MinecraftClient mc = MinecraftClient.getInstance();
             if (mc.player == null || mc.options.hudHidden) return;
@@ -39,6 +43,7 @@ public final class HudManager {
             Ui.beginFrame(ctx);
             PixelIcons.set(ctx);   // duotone icons draw through this DrawContext
             UI.setTime((System.nanoTime() - START) / 1_000_000_000f);
+            TargetHud.frame(mc, tickCounter.getTickDelta(true));   // one crosshair raycast per frame, real partial tick
             CANVAS.setScreen(mc.getWindow().getScaledWidth(), mc.getWindow().getScaledHeight());
             CANVAS.layoutFromConfig(mc);
             CANVAS.render(UI);
