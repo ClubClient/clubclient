@@ -35,8 +35,7 @@ import java.util.Set;
 public final class PixelIcons {
     private PixelIcons() {}
 
-    /** QUADTONE (Stage 18.4, owner: «прорисовать тёмные линии»): deep outline, shadow, base, light. */
-    private static final float LIFT = 1.28f, SHADOW = 0.62f, OUTLINE = 0.36f;
+    // Tone/level/percentile math lives in the pure {@link PixelMath} (unit-tested, Stage 28).
 
     /** A baked mask + the art's tight-bounds center (texels) — vanilla sprites pad unevenly, so
      *  icons must center on their VISIBLE art, not the texture square (owner: «цифры не встают»). */
@@ -71,9 +70,9 @@ public final class PixelIcons {
         }
         // clamp(tint·LIFT): the mask's white level is 1/LIFT, so highlight = tint·LIFT, base = tint,
         // shadow/outline scale down — the exact tones of the approved board (same per-channel clamp).
-        float r = Math.min(1f, ((tint >> 16) & 0xFF) / 255f * LIFT);
-        float g = Math.min(1f, ((tint >> 8) & 0xFF) / 255f * LIFT);
-        float b = Math.min(1f, (tint & 0xFF) / 255f * LIFT);
+        float r = PixelMath.shaderChannel((tint >> 16) & 0xFF);
+        float g = PixelMath.shaderChannel((tint >> 8) & 0xFF);
+        float b = PixelMath.shaderChannel(tint & 0xFF);
         RenderSystem.setShaderColor(r, g, b, alpha);
         var m = dc.getMatrices();
         m.push();
@@ -106,13 +105,13 @@ public final class PixelIcons {
                 for (int px = 0; px < w; px++) {
                     int abgr = img.getColor(px, py);
                     if (((abgr >>> 24) & 0xFF) < 96) continue;
-                    hist[lum(abgr)]++; opaque++;
+                    hist[PixelMath.lum(abgr)]++; opaque++;
                     if (px < minX) minX = px; if (px > maxX) maxX = px;
                     if (py < minY) minY = py; if (py > maxY) maxY = py;
                 }
             if (opaque == 0) { img.close(); return null; }
-            float lo = percentile(hist, opaque, 0.10f), hi = percentile(hist, opaque, 0.90f);
-            boolean flat = hi - lo < 24f;   // near-uniform sprite → single base tone, no fake contrast
+            float lo = PixelMath.percentile(hist, opaque, 0.10f), hi = PixelMath.percentile(hist, opaque, 0.90f);
+            boolean flat = PixelMath.flat(lo, hi);   // near-uniform sprite → single base tone, no fake contrast
 
             NativeImage out = new NativeImage(w, hgt, true);
             for (int py = 0; py < hgt; py++) {
@@ -120,13 +119,9 @@ public final class PixelIcons {
                     int abgr = img.getColor(px, py);
                     int a = (abgr >>> 24) & 0xFF;
                     if (a < 96) { out.setColor(px, py, 0); continue; }
-                    float f = 1f;
-                    if (!flat) {
-                        float ln = Math.max(0f, Math.min(1f, (lum(abgr) - lo) / (hi - lo)));
-                        // quadtone: the darkest band becomes crisp OUTLINE linework
-                        f = ln > 0.74f ? LIFT : (ln < 0.15f ? OUTLINE : (ln < 0.42f ? SHADOW : 1f));
-                    }
-                    int level = Math.round(255f * f / LIFT);
+                    // quadtone: the darkest band becomes crisp OUTLINE linework (flat sprite → base only)
+                    float f = flat ? 1f : PixelMath.quadFactor(PixelMath.normLum(PixelMath.lum(abgr), lo, hi));
+                    int level = PixelMath.maskLevel(f);
                     out.setColor(px, py, (a << 24) | (level << 16) | (level << 8) | level);
                 }
             }
@@ -136,22 +131,9 @@ public final class PixelIcons {
             Identifier id = Identifier.of("club",
                     "pixel/" + src.getNamespace() + "/" + src.getPath().replace(".png", "").replace('/', '_'));
             mc.getTextureManager().registerTexture(id, tex);
-            return new Baked(id, (minX + maxX + 1) * 0.5f, (minY + maxY + 1) * 0.5f);
+            return new Baked(id, PixelMath.tightCenter(minX, maxX), PixelMath.tightCenter(minY, maxY));
         } catch (Exception e) {
             return null;   // missing/broken texture → caller falls back to its SDF glyph
         }
-    }
-
-    /** Luminance of an ABGR pixel (NativeImage layout), 0..255. */
-    private static int lum(int abgr) {
-        int b = (abgr >> 16) & 0xFF, g = (abgr >> 8) & 0xFF, r = abgr & 0xFF;
-        return Math.round(0.299f * r + 0.587f * g + 0.114f * b);
-    }
-
-    /** The luminance below which {@code p} of the opaque pixels fall. */
-    private static float percentile(int[] hist, int total, float p) {
-        int target = Math.round(total * p), seen = 0;
-        for (int i = 0; i < 256; i++) { seen += hist[i]; if (seen >= target) return i; }
-        return 255f;
     }
 }

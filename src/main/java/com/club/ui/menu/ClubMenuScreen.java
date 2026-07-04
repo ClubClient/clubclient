@@ -107,43 +107,13 @@ public final class ClubMenuScreen extends Screen {
             .orElse("Club");
 
     // ---- search reflow (Stage 21, owner's choreography) -----------------------------------------
-    // Motion is keyed by Module so it SURVIVES grid rebuilds: fast typing retargets the SAME
-    // transitions mid-flight — the interface flows, it never restarts. Phases: exits fade+shrink
-    // from 0ms; survivors re-aim at +40ms; enters fade+grow at +70ms. The window/grid container
-    // itself never moves (no jelly). Category open staggers enters 17ms/card; search NEVER staggers.
-    // Owner-tuned pacing, final round: everything ×1.4 slower («в полтора, ну может 1.4 раза»).
-    private static final float EXIT_DUR = 0.30f, ENTER_DUR = 0.28f, MOVE_DUR = 0.34f;
-    private static final float MOVE_DELAY = 0.07f, ENTER_DELAY = 0.11f, CAT_STAGGER = 0.042f;
-    /** Category enters RISE into place (6px drift, translation not scale) — a bare fade read flat. */
-    private static final float CAT_DRIFT = 6f;
-    /** Exit cascade: 105ms per card, receding FROM THE TAIL — the last card in the grid
-     *  dissolves first and the wave walks back toward the start. */
-    private static final float EXIT_STAGGER = 0.105f;
-    private static final float TILE_SCALE_FROM = 0.97f;   // enter 0.97→1; exit mirrors it
+    // Per-card motion is a Module-keyed TileMotion (extracted Stage 28 — see that class for the
+    // choreography + owner-frozen pacing). It SURVIVES grid rebuilds so fast typing retargets the
+    // SAME transitions mid-flight (the interface flows, it never restarts).
     private final java.util.HashMap<Module, TileMotion> tileMotion = new java.util.HashMap<>();
     // Cards that stopped matching keep painting HERE while they dissolve (they left the grid already).
     private final java.util.LinkedHashMap<Module, ModuleTile> leaving = new java.util.LinkedHashMap<>();
     private Transition noteFade;   // "No matching modules" — single smooth fade in/out
-
-    /** One card's motion across rebuilds: eased position + fade (the 0.97→1 scale rides the fade). */
-    private static final class TileMotion {
-        Transition px, py;      // eased position — created snapped on first sighting (no fly-in)
-        Transition fade;        // 0→1 enter / →0 exit; recreated per direction (durations differ),
-                                //   always seeded from the current value → turn-arounds stay smooth
-        float tx, ty;           // last applied position target
-        boolean hasPos;
-        float showDelay;        // enter delay (stagger / +70ms phase), resolved on first render —
-        float showAt = -1f;     //   rebuilds can run before the ui clock ticks (init)
-        boolean shown;
-        float hideAt = -1f;     // exit gate: the dissolve starts once time passes this (exit cascade)
-        boolean scaleIn = true; // search language: fade+scale; category cascades are FADE-ONLY
-                                //   (the 0.97→1 pop per card read as popcorn — owner)
-        boolean driftIn;        // category language: the card rises 6px into place as it fades in
-        float moveAt;           // survivor gate: position re-aims only after this (+40ms phase)
-        boolean movePending;
-        boolean leaving;
-        float bx, by, bw, bh;   // last visual box — the frozen stage for a dissolving card
-    }
 
     // settings popover (RMB), anchored to a card
     private Module popModule;
@@ -278,16 +248,8 @@ public final class ClubMenuScreen extends Screen {
             grid.clear();
             int i = 0;
             for (Module m : match) {
-                TileMotion tm = new TileMotion();
-                if (mode == GridRebuild.CATEGORY) {
-                    tm.fade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
-                    tm.showDelay = i++ * CAT_STAGGER;
-                    tm.scaleIn = false;   // no per-card scale pop (popcorn) —
-                    tm.driftIn = true;    //   the card RISES into place instead
-                } else {
-                    tm.fade = new Transition(1f, ENTER_DUR, Tokens.motion().easings().decelerate());
-                    tm.shown = true;
-                }
+                // CATEGORY = fade-only cascade that rises into place; OPEN = shown at once (rides the window fade)
+                TileMotion tm = (mode == GridRebuild.CATEGORY) ? TileMotion.categoryEnter(i++) : TileMotion.opening();
                 tileMotion.put(m, tm);
                 grid.add(new ModuleTile(m, accent));
             }
@@ -304,29 +266,23 @@ public final class ClubMenuScreen extends Screen {
             TileMotion tm = tileMotion.get(t.m);
             if (tm == null || tm.leaving) continue;
             if (!tm.hasPos) { tileMotion.remove(t.m); continue; }   // never rendered — nothing to dissolve
-            tm.leaving = true; tm.shown = true; tm.movePending = false; tm.scaleIn = true;   // exits always mirror the search scale
-            tm.fade = new Transition(tm.fade.value(now), EXIT_DUR, Tokens.motion().easings().standard());
+            tm.beginExit(now);
             exits.add(tm);
             leaving.put(t.m, t);
         }
         for (int j = 0; j < exits.size(); j++)
-            exits.get(j).hideAt = now + (exits.size() - 1 - j) * EXIT_STAGGER;
+            exits.get(j).scheduleHideFromTail(now, j, exits.size());
         grid.clear();
         for (Module m : match) {
             TileMotion tm = tileMotion.get(m);
-            if (tm == null) {                     // brand new match — fade+grow in at +70ms
-                tm = new TileMotion();
-                tm.fade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
-                tm.showDelay = ENTER_DELAY;
+            if (tm == null) {                     // brand new match — fade+grow in at +110ms
+                tm = TileMotion.searchEnter();
                 tileMotion.put(m, tm);
             } else if (tm.leaving) {              // matched again mid-exit — turn around, no restart
-                tm.leaving = false; tm.shown = true; tm.hideAt = -1f;
-                Transition f = new Transition(tm.fade.value(now), ENTER_DUR, Tokens.motion().easings().decelerate());
-                f.target(1f, now);
-                tm.fade = f;
+                tm.reverseToEnter(now);
                 leaving.remove(m);
-            } else if (tm.hasPos) {               // survivor — glides to its new slot after +40ms
-                tm.movePending = true; tm.moveAt = now + MOVE_DELAY;
+            } else if (tm.hasPos) {               // survivor — glides to its new slot after +70ms
+                tm.scheduleMove(now);
             }
             grid.add(new ModuleTile(m, accent));
         }
@@ -686,7 +642,7 @@ public final class ClubMenuScreen extends Screen {
         // to finish, then eases in (stepped alpha read as a glitch); retargets to 0 the moment
         // anything matches again.
         boolean noteOn = !query.isEmpty() && grid.children().isEmpty() && leaving.isEmpty();
-        if (noteFade == null) noteFade = new Transition(0f, ENTER_DUR, Tokens.motion().easings().decelerate());
+        if (noteFade == null) noteFade = new Transition(0f, TileMotion.ENTER_DUR, Tokens.motion().easings().decelerate());
         noteFade.target(noteOn ? 1f : 0f, now);
         float noteA = noteFade.value(now);
         if (noteA > 0.001f) {
@@ -704,7 +660,7 @@ public final class ClubMenuScreen extends Screen {
                 var en = it.next();
                 en.getValue().render(uiCtx);
                 TileMotion tm = tileMotion.get(en.getKey());
-                if (tm == null || tm.fade.value(now) <= 0.001f) {
+                if (tm == null || tm.fadeValue(now) <= 0.001f) {   // dissolve finished — prune the departed card
                     it.remove();
                     tileMotion.remove(en.getKey());
                 }
@@ -976,10 +932,7 @@ public final class ClubMenuScreen extends Screen {
             TileMotion tm = tileMotion.get(m);
             float ta = 1f;
             if (tm != null) {
-                if (tm.showAt < 0f) tm.showAt = now + tm.showDelay;   // resolve vs the live ui clock
-                if (!tm.shown && now >= tm.showAt) { tm.shown = true; tm.fade.target(1f, now); }
-                if (tm.hideAt >= 0f && now >= tm.hideAt) { tm.hideAt = -1f; tm.fade.target(0f, now); }   // its turn in the exit cascade
-                ta = tm.fade.value(now);
+                ta = tm.tick(now);   // resolve lazy show / cascade-hide gates, get the fade
                 // Positions ease in WINDOW space: the entrance rise (and any window recentre) moves
                 // cards rigidly with the frame — easing screen coords made them lag/chase the window
                 // ("подпрыгивают" after open). Only slot-to-slot moves animate.
@@ -989,26 +942,10 @@ public final class ClubMenuScreen extends Screen {
                     ex = winX + tm.bx; ey = winY + tm.by; w = tm.bw; h = tm.bh;
                     hovered = false;   // a dissolving card must not keep its hover lift
                 } else {
-                    if (!tm.hasPos) {   // first sighting — snap, never fly in from nowhere
-                        tm.px = new Transition(relX, MOVE_DUR, Tokens.motion().easings().standard());
-                        tm.py = new Transition(relY, MOVE_DUR, Tokens.motion().easings().standard());
-                        tm.tx = relX; tm.ty = relY; tm.hasPos = true;
-                    } else if (tm.movePending) {
-                        if (now >= tm.moveAt) {   // the +50ms phase — survivors re-aim now
-                            tm.movePending = false;
-                            tm.tx = relX; tm.ty = relY;
-                            tm.px.target(relX, now); tm.py.target(relY, now);
-                        }
-                    } else if (tm.tx != relX || tm.ty != relY) {   // grid change outside search — re-aim
-                        tm.tx = relX; tm.ty = relY;
-                        tm.px.target(relX, now); tm.py.target(relY, now);
-                    }
-                    tm.bx = tm.px.value(now); tm.by = tm.py.value(now);   // window-relative visual spot
-                    tm.bw = w; tm.bh = h;
-                    ex = winX + tm.bx; ey = winY + tm.by;
-                    if (tm.driftIn) ey += (1f - Math.min(1f, ta)) * CAT_DRIFT;   // rise into place
+                    tm.place(now, relX, relY, w, h);
+                    ex = winX + tm.bx; ey = winY + tm.by + tm.driftY(ta);   // driftY rises category enters into place
                 }
-                float sc = tm.scaleIn ? TILE_SCALE_FROM + (1f - TILE_SCALE_FROM) * Math.min(1f, ta) : 1f;
+                float sc = tm.scale(ta);
                 float sw = w * sc, sh = h * sc;
                 x = ex + (w - sw) / 2f; y = ey + (h - sh) / 2f; w = sw; h = sh;
                 if (ta <= 0.001f) return;   // pre-delay or fully dissolved — nothing to draw
