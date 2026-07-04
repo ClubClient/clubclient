@@ -12,6 +12,10 @@ public final class FocusManager {
     public Component focused() { return index < 0 ? null : focusables.get(index); }
 
     public void focus(Component c) { setIndex(focusables.indexOf(c), false); }
+    /** Focus {@code c} as if reached by keyboard (wears the focus-visible ring). */
+    public void focusKeyboard(Component c) { setIndex(focusables.indexOf(c), true); }
+    /** Drop keyboard focus entirely (e.g. handing focus to a non-registered surface like the card grid). */
+    public void blur() { setIndex(-1, false); }
     public void next()     { if (!focusables.isEmpty()) setIndex((index + 1 + focusables.size()) % focusables.size(), true); }
     public void previous() { if (!focusables.isEmpty()) setIndex((index - 1 + focusables.size()) % focusables.size(), true); }
 
