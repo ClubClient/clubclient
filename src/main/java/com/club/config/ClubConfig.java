@@ -44,7 +44,10 @@ public class ClubConfig {
         public boolean enabled = true; // master toggle; when false hands render vanilla
         public HandSide rightHand = new HandSide();
         public HandSide leftHand = new HandSide();
-        // legacy single-hand fields (pre-v3) — boxed so migrate() can detect & carry them over
+        // MIGRATION SHIM (pre-v3, read ONLY by migrate()): the old single-hand settings. Boxed so
+        // migrate() can detect "present in an old file" (non-null) vs "absent" (null), carry them into
+        // rightHand, then null them out. Live code must NEVER read these — the per-side HandSide fields
+        // above are the real schema. Kept (not deleted) so a truly old file still upgrades cleanly.
         public Float scale, offsetX, offsetY, offsetZ;
     }
 
@@ -78,8 +81,11 @@ public class ClubConfig {
         public float armorScale = 1.0f;
         public float potionScale = 1.0f;
         public float targetScale = 1.0f;
-        public Float scale; // legacy global scale (pre-v3) — carried into the three above by migrate()
-        public int armorLayout = 0;   // 0 = column rows [icon value], 1 = line (value above icon, gauge below)
+        // MIGRATION SHIM (pre-v3, read ONLY by migrate()): the old global HUD scale, boxed so migrate()
+        // can carry it into the three per-element scales above, then null it. Live code must never read it.
+        public Float scale;
+        public int armorLayout = 0;   // 0 = column [icon value], 1 = line (value above icon, gauge below); ArmorLayout enum
+
         public boolean potionHorizontal = false; // potions as a row instead of a column
         public boolean hideVanillaEffects = true; // hide the vanilla status-effect HUD overlay
         // V2 HUD: coordinates/FPS readout (new in v5)
@@ -102,7 +108,7 @@ public class ClubConfig {
                 ClubConfig cfg = GSON.fromJson(json, ClubConfig.class);
                 INSTANCE = (cfg != null) ? cfg : new ClubConfig();
                 INSTANCE.sanitize();
-                 INSTANCE.migrate();
+                INSTANCE.migrate();
             } else {
                 INSTANCE = new ClubConfig();
                 save();
@@ -131,6 +137,9 @@ public class ClubConfig {
         if (animations == null) animations = new Animations();
         if (screenStretch == null) screenStretch = new ScreenStretch();
         if (hud == null) hud = new Hud();
+        // Canonicalize armorLayout ONCE here (Stage 29) instead of clamping at every read site: an
+        // old/hand-edited value (e.g. the retired 2, or junk) self-heals to 0/1 on load.
+        hud.armorLayout = ArmorLayout.fromIndex(hud.armorLayout).index();
     }
 
     /**

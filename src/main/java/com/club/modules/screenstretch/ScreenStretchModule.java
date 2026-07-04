@@ -7,6 +7,14 @@ import net.minecraft.client.MinecraftClient;
  * Computes the horizontal scale applied to the world projection matrix to
  * fake a different aspect ratio, plus the letterbox bar size when black bars
  * are enabled.
+ *
+ * <p><b>Trade-off (documented, Stage 29):</b> the letterbox bars are painted by
+ * {@code HudManager.drawBlackBars} as opaque fills over the full-height/width edge
+ * strips. They intentionally cover WHATEVER sits in those strips — including the
+ * vanilla chat box (bottom-left) and the ends of the hotbar/health/hunger when the
+ * bars are horizontal. This is accepted: the bars exist to hide the over-rendered
+ * world edges of the faked aspect, and a player who wants stretch accepts the mask.
+ * See {@code docs/ANIMATIONS.md} §7.
  */
 public final class ScreenStretchModule {
     private ScreenStretchModule() {}

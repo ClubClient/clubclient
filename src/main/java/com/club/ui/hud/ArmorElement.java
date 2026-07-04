@@ -125,15 +125,15 @@ public final class ArmorElement extends HudElement {
     @Override protected float panelPadX() { return 0f; }
     @Override protected float panelPadY() { return 0f; }
 
-    /** 0 = column, 1 = line; old configs may hold 2 (the retired horizontal-cells view) — clamp. */
-    private int layout() { return Math.min(1, Math.max(0, h().armorLayout)); }
+    /** Stored layout (config is canonicalized to 0/1 by ClubConfig.sanitize — Stage 29). */
+    private com.club.config.ArmorLayout layout() { return com.club.config.ArmorLayout.fromIndex(h().armorLayout); }
 
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
         ItemStack[] ps = stacks(mc, live);
         int count = count(ps);
         if (count == 0) return new int[]{0, 0};
         boolean percent = h().armorPercent;
-        if (layout() == 0) {
+        if (layout() == com.club.config.ArmorLayout.COLUMN) {
             int cell = ICON + GAP + valueWidth(ps, percent, COL_VAL_SIZE);
             return new int[]{ cell, Math.round(count * ROW_BLOCK + (count - 1) * ROW_GAP) };
         }
@@ -144,9 +144,8 @@ public final class ArmorElement extends HudElement {
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         ItemStack[] ps = stacks(mc, live);
-        int layout = layout();
         boolean percent = h().armorPercent;
-        boolean line = layout == 1;
+        boolean line = layout() == com.club.config.ArmorLayout.LINE;
         float vSize = line ? LINE_VAL_SIZE : COL_VAL_SIZE;
         float vlh = Ui.text().lineHeight(VAL_WEIGHT, LINE_VAL_SIZE);
         int cell = line ? Math.max(ICON, valueWidth(ps, percent, vSize)) : ICON + GAP + valueWidth(ps, percent, vSize);

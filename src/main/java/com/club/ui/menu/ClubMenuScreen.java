@@ -476,7 +476,10 @@ public final class ClubMenuScreen extends Screen {
     }
 
     private Component buildControl(Setting s, int accent) {
-        if (s instanceof SliderSetting sl) return new Slider(sl.get().get(), sl.min(), sl.max(), sl.step()).onChange(sl.set()).accent(accent);
+        // Stage 29: the setter applies the value LIVE (onChange); the disk write happens once per
+        // gesture on release/step (onRelease), not ~150× across a drag.
+        if (s instanceof SliderSetting sl) return new Slider(sl.get().get(), sl.min(), sl.max(), sl.step())
+                .onChange(sl.set()).onRelease(ClubConfig::save).accent(accent);
         if (s instanceof ToggleSetting t)  return new Toggle(t.get().getAsBoolean()).onChange(t.set()).accent(accent);
         if (s instanceof CheckSetting ck)  return new Checkbox(ck.get().getAsBoolean()).onChange(ck.set()).accent(accent);
         if (s instanceof ActionSetting a)  return new Button(a.label()).variant(Button.Variant.GHOST).onClick(a.action()).accent(accent);

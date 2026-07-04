@@ -120,15 +120,17 @@ public final class HudEditorScreen extends Screen {
         popover.clear(); popLabels.clear(); focus.clear(); hasPopover = true;
         popNeeded = 0;
         addRow("Enabled", new Toggle(sel.cfgEnabled()).accent(QUIET_ACC).onChange(v -> { setEnabled(sel, v); save(); }));
-        addRow("Size", new Slider(sel.cfgScale(), 0.5f, 2f, 0.05f).onChange(v -> { setScale(sel, v); save(); }));
+        // Stage 29: sliders apply live (onChange) and write to disk once per gesture (onRelease).
+        addRow("Size", new Slider(sel.cfgScale(), 0.5f, 2f, 0.05f).onChange(v -> setScale(sel, v)).onRelease(this::save));
         if (sel instanceof EffectsElement) {
             addRow("Layout", new Segmented(new String[]{"Column", "Row"}, h().potionHorizontal ? 1 : 0,
                     i -> { h().potionHorizontal = (i == 1); save(); }));
         } else if (sel instanceof TargetElement) {
             addRow("Range", new Slider(h().targetDistance, 3f, 32f, 1f)
-                    .onChange(v -> { h().targetDistance = Math.round(v); save(); }));
+                    .onChange(v -> h().targetDistance = Math.round(v)).onRelease(this::save));
         } else if (sel instanceof ArmorElement) {
-            addRow("Layout", new Segmented(new String[]{"Column", "Line"}, Math.min(1, h().armorLayout),
+            addRow("Layout", new Segmented(new String[]{"Column", "Line"},
+                    com.club.config.ArmorLayout.fromIndex(h().armorLayout).index(),
                     i -> { h().armorLayout = i; save(); }));
             addRow("Value", new Segmented(new String[]{"Percent", "Count"}, h().armorPercent ? 0 : 1,
                     i -> { h().armorPercent = (i == 0); save(); }));

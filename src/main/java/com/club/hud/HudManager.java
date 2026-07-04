@@ -51,6 +51,9 @@ public final class HudManager {
         });
     }
 
+    // Letterbox bars for Screen Stretch. Trade-off (Stage 29): these opaque fills cover the screen-edge
+    // strips wholesale — including the vanilla chat (bottom-left) and hotbar/bar ends under horizontal
+    // bars. Accepted: the bars mask the over-rendered edges of the faked aspect. See ANIMATIONS.md §7.
     private static void drawBlackBars(DrawContext ctx, MinecraftClient mc) {
         if (!ScreenStretchModule.isActive() || !ScreenStretchModule.blackBars()) return;
         int gw = mc.getWindow().getScaledWidth();

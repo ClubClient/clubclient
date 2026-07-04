@@ -100,8 +100,8 @@ public final class MenuContent {
                 new DropdownSetting("Type", labels,
                         () -> AnimationType.fromName(c.animations.type).ordinal(),
                         i -> { c.animations.type = at[i].name(); save(); }),
-                new SliderSetting("Speed", 0.5f, 2.0f, 0.01f, () -> c.animations.speed, v -> { c.animations.speed = v; save(); }),
-                new SliderSetting("Amplitude", 0.5f, 1.5f, 0.01f, () -> c.animations.amplitude, v -> { c.animations.amplitude = v; save(); })));
+                new SliderSetting("Speed", 0.5f, 2.0f, 0.01f, () -> c.animations.speed, v -> c.animations.speed = v),
+                new SliderSetting("Amplitude", 0.5f, 1.5f, 0.01f, () -> c.animations.amplitude, v -> c.animations.amplitude = v)));
     }
 
     private static Module screenStretch(ClubConfig c) {
@@ -121,15 +121,15 @@ public final class MenuContent {
     private static Module hands(ClubConfig c) {
         ClubConfig.HandSide rh = c.hands.rightHand, lh = c.hands.leftHand;
         List<Setting> right = List.of(
-                new SliderSetting("Scale",    0.5f, 2.0f, 0.01f, () -> rh.scale,   v -> { rh.scale = v;   save(); }),
-                new SliderSetting("Offset X", -1.0f, 1.0f, 0.01f, () -> rh.offsetX, v -> { rh.offsetX = v; save(); }),
-                new SliderSetting("Offset Y", -1.0f, 1.0f, 0.01f, () -> rh.offsetY, v -> { rh.offsetY = v; save(); }),
-                new SliderSetting("Offset Z", -1.0f, 1.0f, 0.01f, () -> rh.offsetZ, v -> { rh.offsetZ = v; save(); }));
+                new SliderSetting("Scale",    0.5f, 2.0f, 0.01f, () -> rh.scale,   v -> rh.scale = v),
+                new SliderSetting("Offset X", -1.0f, 1.0f, 0.01f, () -> rh.offsetX, v -> rh.offsetX = v),
+                new SliderSetting("Offset Y", -1.0f, 1.0f, 0.01f, () -> rh.offsetY, v -> rh.offsetY = v),
+                new SliderSetting("Offset Z", -1.0f, 1.0f, 0.01f, () -> rh.offsetZ, v -> rh.offsetZ = v));
         List<Setting> left = List.of(
-                new SliderSetting("Scale",    0.5f, 2.0f, 0.01f, () -> lh.scale,   v -> { lh.scale = v;   save(); }),
-                new SliderSetting("Offset X", -1.0f, 1.0f, 0.01f, () -> lh.offsetX, v -> { lh.offsetX = v; save(); }),
-                new SliderSetting("Offset Y", -1.0f, 1.0f, 0.01f, () -> lh.offsetY, v -> { lh.offsetY = v; save(); }),
-                new SliderSetting("Offset Z", -1.0f, 1.0f, 0.01f, () -> lh.offsetZ, v -> { lh.offsetZ = v; save(); }));
+                new SliderSetting("Scale",    0.5f, 2.0f, 0.01f, () -> lh.scale,   v -> lh.scale = v),
+                new SliderSetting("Offset X", -1.0f, 1.0f, 0.01f, () -> lh.offsetX, v -> lh.offsetX = v),
+                new SliderSetting("Offset Y", -1.0f, 1.0f, 0.01f, () -> lh.offsetY, v -> lh.offsetY = v),
+                new SliderSetting("Offset Z", -1.0f, 1.0f, 0.01f, () -> lh.offsetZ, v -> lh.offsetZ = v));
         return new Module("Hands", "Reposition and scale the first-person hands.", IconGlyph.HANDS,
             () -> c.hands.enabled, v -> { c.hands.enabled = v; save(); },
             () -> { c.hands.enabled = true;

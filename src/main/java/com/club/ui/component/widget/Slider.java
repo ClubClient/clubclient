@@ -39,6 +39,7 @@ public final class Slider extends Container {
     private final float min, max, step;
     private float value;
     private FloatConsumer onChange;
+    private Runnable onRelease;   // commit hook: apply value live via onChange, persist to disk here
     private boolean showValue = true;
     private float lastFormatted = Float.NaN;   // cache: reformat readout only when value changes (alloc-free)
 
@@ -53,6 +54,9 @@ public final class Slider extends Container {
     }
 
     public Slider onChange(FloatConsumer cb) { this.onChange = cb; return this; }
+    /** Fired once when a gesture COMMITS (drag release, or each keyboard step) — persist to disk here,
+     *  not in {@link #onChange}, so a 150-step drag is ONE file write, applied live throughout. */
+    public Slider onRelease(Runnable cb) { this.onRelease = cb; return this; }
     public Slider showValue(boolean s) { this.showValue = s; built = false; return this; }
     /** Overrides the accent colour (fill/knob/focus ring); 0 restores the theme accent. */
     public Slider accent(int color) { this.accent = color; return this; }
@@ -73,10 +77,14 @@ public final class Slider extends Container {
         return integral ? Integer.toString(Math.round(v)) : String.format(Locale.ROOT, "%.1f", v);
     }
 
-    private void setValue(float v) {
+    /** Apply a value LIVE (fires onChange, no disk write). Returns true if the value actually moved. */
+    private boolean setValue(float v) {
         float q = quantize(v, min, max, step);
-        if (q != value) { value = q; if (onChange != null) onChange.accept(value); }
+        if (q != value) { value = q; if (onChange != null) onChange.accept(value); return true; }
+        return false;
     }
+    /** Persist the current value (the drag/step gesture committed). */
+    private void commit() { if (onRelease != null) onRelease.run(); }
 
     private void build() {
         row = new Row().gap(Tokens.spacing().md()).crossAlign(CrossAlign.CENTER);
@@ -101,8 +109,9 @@ public final class Slider extends Container {
     @Override public boolean keyPressed(int key, int scan, int mods) {
         if (!enabled) return false;
         float d = step > 0f ? step : (max - min) / 100f;
-        if (key == GLFW_KEY_LEFT)  { setValue(value - d); return true; }
-        if (key == GLFW_KEY_RIGHT) { setValue(value + d); return true; }
+        // each arrow step is its own commit — a keyboard nudge is discrete, not a 150-event flood
+        if (key == GLFW_KEY_LEFT)  { if (setValue(value - d)) commit(); return true; }
+        if (key == GLFW_KEY_RIGHT) { if (setValue(value + d)) commit(); return true; }
         return false;
     }
 
@@ -159,7 +168,9 @@ public final class Slider extends Container {
         @Override public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
             mapTo(mx); return true;
         }
-        @Override public boolean mouseReleased(double mx, double my, int button) { pressed = false; return true; }
+        @Override public boolean mouseReleased(double mx, double my, int button) {
+            pressed = false; commit(); return true;   // gesture end → ONE disk write for the whole drag
+        }
 
         /** Map cursor x → value across the inset travel range (so the ends map to the puck's extremes). */
         private void mapTo(double mx) {
