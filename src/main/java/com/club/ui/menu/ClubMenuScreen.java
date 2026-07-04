@@ -519,10 +519,14 @@ public final class ClubMenuScreen extends Screen {
 
         // Ambient halo BEHIND the window (Stage 22): thin rings, quadratic falloff — a shadow that
         // HUGS the window and dissipates fast, not a dark buffer. World separation, not UI depth.
-        for (int i = HALO_ALPHAS.length; i >= 1; i--) {
-            float s = i * HALO_STEP;
-            r.roundedRect(winX - s, winY - s + s * 0.3f, winW + 2 * s, winH + 2 * s, lg + s,
-                    Color.withAlpha(0xFF000000, HALO_ALPHAS[i - 1]));
+        // Gated off on LEGACY (Stage 26): pushOpacity is a no-op there, so the rings would render
+        // as a stack of solid black frames instead of a whisper.
+        if (Ui.backend() == Ui.Backend.MODERN) {
+            for (int i = HALO_ALPHAS.length; i >= 1; i--) {
+                float s = i * HALO_STEP;
+                r.roundedRect(winX - s, winY - s + s * 0.3f, winW + 2 * s, winH + 2 * s, lg + s,
+                        Color.withAlpha(0xFF000000, HALO_ALPHAS[i - 1]));
+            }
         }
 
         // Passe-partout (Stage 22): ONE frame tone + two wells whose edges do the separating —
@@ -532,13 +536,16 @@ public final class ClubMenuScreen extends Screen {
         r.roundedRect(railWX, railWY, railWW, railWH, md, Tokens.surface().wellShallow());
         r.roundedRect(wellX, wellY, wellW, wellH, md, Tokens.surface().well());
 
-        // header — CLUB wordmark centred on the category tray's axis (the header sits on the grid)
+        // header — CLUB wordmark centred on the category tray's axis (the header sits on the grid).
+        // On LEGACY the logo glyph can't draw — don't reserve its width (Stage 26), the wordmark
+        // re-centres alone instead of hanging beside an invisible hole.
         float logoSz = 15f;
+        float logoAdv = IconGlyph.available() ? logoSz + 7 : 0;
         float clubTextW = uiCtx.text().width("CLUB", ty.display().weight(), ty.display().size());
-        float clubX = railWX + (railWW - (logoSz + 7 + clubTextW)) / 2f;
-        IconGlyph.LOGO.draw(uiCtx, clubX, winY + (headH - logoSz) / 2f, logoSz,
+        float clubX = railWX + (railWW - (logoAdv + clubTextW)) / 2f;
+        if (logoAdv > 0) IconGlyph.LOGO.draw(uiCtx, clubX, winY + (headH - logoSz) / 2f, logoSz,
                 Color.scaleAlpha(Tokens.accent().accent(), ep));
-        uiCtx.text().draw("CLUB", clubX + logoSz + 7, winY + (headH - ty.display().lineHeight()) / 2f,
+        uiCtx.text().draw("CLUB", clubX + logoAdv, winY + (headH - ty.display().lineHeight()) / 2f,
                 TextStyle.of(ty.display().weight(), ty.display().size(), Color.scaleAlpha(Tokens.palette().textHi(), ep)));
 
         // footer — the profile chip (the future switcher: mark + name + chevron) on the tray axis,
@@ -546,8 +553,14 @@ public final class ClubMenuScreen extends Screen {
         float fooY = winY + winH - footH;
         float chipCy = fooY + footH / 2f;
         r.roundedRect(railWX, chipCy - 8, 16, 16, 8, Color.withAlpha(Tokens.accent().accent(), 0x24));
-        IconGlyph.LOGO.draw(uiCtx, railWX + 3.5f, chipCy - 8 + 3.5f, 9,
-                Color.scaleAlpha(Tokens.accent().accent(), ep));
+        if (IconGlyph.available()) {
+            IconGlyph.LOGO.draw(uiCtx, railWX + 3.5f, chipCy - 8 + 3.5f, 9,
+                    Color.scaleAlpha(Tokens.accent().accent(), ep));
+        } else {   // LEGACY letter fallback (Stage 26): the pill keeps an identity, not an empty circle
+            float cw = uiCtx.text().width("C", ty.label().weight(), 9f);
+            uiCtx.text().draw("C", railWX + (16 - cw) / 2f, chipCy - uiCtx.text().lineHeight(ty.label().weight(), 9f) / 2f,
+                    TextStyle.of(ty.label().weight(), 9f, Color.scaleAlpha(Tokens.accent().accent(), ep)));
+        }
         float profX = railWX + 16 + 8;
         uiCtx.text().draw("Default", profX, chipCy - ty.label().lineHeight() / 2f,
                 TextStyle.of(ty.label().weight(), ty.label().size(), Color.scaleAlpha(stFootMutCol, ep)));
@@ -637,11 +650,14 @@ public final class ClubMenuScreen extends Screen {
                 // under the Stage-22 depth grammar (darker = recessed) the old bg2 ground + strong
                 // border read as a punched-out box. Card tone one step above the window ground,
                 // the window's quadratic mini-halo instead of a loud border, and a quiet hairline
-                // to hold the edge where the sheet crosses the light wells.
-                for (int i = POP_HALO_ALPHAS.length; i >= 1; i--) {
-                    float hs = i * HALO_STEP;
-                    r.roundedRect(popX - hs, popY - hs, popW + 2 * hs, drawnH + 2 * hs, pr + hs,
-                            Color.withAlpha(0xFF000000, POP_HALO_ALPHAS[i - 1]));
+                // to hold the edge where the sheet crosses the light wells. Halo gated on LEGACY
+                // (Stage 26) like the window halo — no pushOpacity there means solid black rings.
+                if (Ui.backend() == Ui.Backend.MODERN) {
+                    for (int i = POP_HALO_ALPHAS.length; i >= 1; i--) {
+                        float hs = i * HALO_STEP;
+                        r.roundedRect(popX - hs, popY - hs, popW + 2 * hs, drawnH + 2 * hs, pr + hs,
+                                Color.withAlpha(0xFF000000, POP_HALO_ALPHAS[i - 1]));
+                    }
                 }
                 r.roundedRect(popX, popY, popW, drawnH, pr, Tokens.surface().surface());
                 r.border(popX, popY, popW, drawnH, pr, Tokens.border().thickness(), Tokens.border().defaultColor());
@@ -652,6 +668,7 @@ public final class ClubMenuScreen extends Screen {
             }
         }
         r.popOpacity();
+        com.club.ui.LegacyNotice.draw(uiCtx, width);   // loud fallback plaque (draws nothing on MODERN)
     }
 
     private void initStyles() {
@@ -909,8 +926,16 @@ public final class ClubMenuScreen extends Screen {
                                     Color.withAlpha(accent, 0x30), onv);
             int iconCol = Color.lerp(Tokens.palette().textFaint(), accent, onv);
             r.roundedRect(chipX, chipY, CHIP, CHIP, CHIP_RAD, Color.scaleAlpha(chipBg, ta));
-            m.icon().draw(ctx, chipX + (CHIP - CHIP_ICON) / 2f, chipY + (CHIP - CHIP_ICON) / 2f, CHIP_ICON,
-                    Color.scaleAlpha(iconCol, screenAlpha * ta));
+            if (IconGlyph.available()) {
+                m.icon().draw(ctx, chipX + (CHIP - CHIP_ICON) / 2f, chipY + (CHIP - CHIP_ICON) / 2f, CHIP_ICON,
+                        Color.scaleAlpha(iconCol, screenAlpha * ta));
+            } else {   // LEGACY letter fallback (Stage 26): the module's initial, not an empty square
+                String ini = m.name().isEmpty() ? "?" : m.name().substring(0, 1).toUpperCase(Locale.ROOT);
+                float iw = ctx.text().width(ini, Tokens.type().heading().weight(), 13f);
+                float ilh = ctx.text().lineHeight(Tokens.type().heading().weight(), 13f);
+                ctx.text().draw(ini, chipX + (CHIP - iw) / 2f, chipY + (CHIP - ilh) / 2f,
+                        TextStyle.of(Tokens.type().heading().weight(), 13f, Color.scaleAlpha(iconCol, screenAlpha * ta)));
+            }
             int stripeCol = Color.lerp(Tokens.border().strong(), accent, onv);
             r.roundedRect(chipX + (CHIP - STRIPE_W) / 2f, chipY + CHIP + STRIPE_GAP,
                     STRIPE_W, STRIPE_H, STRIPE_H / 2f, Color.scaleAlpha(stripeCol, ta));

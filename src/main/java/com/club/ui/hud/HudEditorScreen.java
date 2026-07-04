@@ -73,9 +73,11 @@ public final class HudEditorScreen extends Screen {
     // card tone above the ground, quadratic mini-halo instead of a loud border, quiet hairline.
     private static final int[] SHEET_HALO = {8, 6, 4, 3, 2, 1};
     private void sheet(com.club.ui.UiRenderer r, float x, float y, float w, float h, float rad) {
-        for (int i = SHEET_HALO.length; i >= 1; i--) {
-            float s = i * 2f;
-            r.roundedRect(x - s, y - s, w + 2 * s, h + 2 * s, rad + s, Color.withAlpha(0xFF000000, SHEET_HALO[i - 1]));
+        if (Ui.backend() == Ui.Backend.MODERN) {   // Stage 26: LEGACY renders halo rings solid — gate them
+            for (int i = SHEET_HALO.length; i >= 1; i--) {
+                float s = i * 2f;
+                r.roundedRect(x - s, y - s, w + 2 * s, h + 2 * s, rad + s, Color.withAlpha(0xFF000000, SHEET_HALO[i - 1]));
+            }
         }
         r.roundedRect(x, y, w, h, rad, Tokens.surface().surface());
         r.border(x, y, w, h, rad, Tokens.border().thickness(), Tokens.border().defaultColor());

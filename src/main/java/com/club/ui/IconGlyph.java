@@ -14,8 +14,10 @@ import com.club.ui.text.Weight;
  * this same glyph drawn large at low alpha. Unlike the retired procedural Icon enum, diagonals
  * are fully supported (no R8 limitation on this path).</p>
  *
- * <p>On the LEGACY backend icons are skipped silently — module names stay readable and no
- * vanilla '?' boxes appear.</p>
+ * <p>On the LEGACY backend the glyph path cannot draw ({@link #draw} no-ops, no vanilla '?'
+ * boxes). Surfaces that would lose identity check {@link #available()} and fall back to a
+ * LETTER initial (Stage 26): menu card chips, Effects rows, Armor slots, the footer chip;
+ * the header simply stops reserving the logo's width.</p>
  */
 public enum IconGlyph {
     // categories (rail)
@@ -78,6 +80,10 @@ public enum IconGlyph {
 
     /** The glyph as a 1-char string (PUA is BMP) — for direct text-pipeline composition. */
     public String str() { return str; }
+
+    /** Whether the SDF glyph path can draw at all (MODERN backend). Callers that must keep an
+     *  identity on LEGACY branch to a letter fallback when this is false. */
+    public static boolean available() { return Ui.backend() == Ui.Backend.MODERN; }
 
     /** Draws the icon with its 24-grid content box at (x, y)..(x+size, y+size), tinted {@code color}. */
     public void draw(UiContext ctx, float x, float y, float size, int color) {

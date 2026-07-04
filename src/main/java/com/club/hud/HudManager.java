@@ -47,6 +47,7 @@ public final class HudManager {
             CANVAS.setScreen(mc.getWindow().getScaledWidth(), mc.getWindow().getScaledHeight());
             CANVAS.layoutFromConfig(mc);
             CANVAS.render(UI);
+            com.club.ui.LegacyNotice.draw(UI, mc.getWindow().getScaledWidth());   // loud fallback plaque
         });
     }
 

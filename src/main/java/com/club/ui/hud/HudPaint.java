@@ -3,6 +3,8 @@ package com.club.ui.hud;
 import com.club.ui.Color;
 import com.club.ui.UiContext;
 import com.club.ui.text.TextEffect;
+import com.club.ui.text.TextStyle;
+import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
 
 /**
@@ -61,6 +63,18 @@ final class HudPaint {
         r.roundedRect(bx, by, bw, bh, rr, Color.scaleAlpha(Color.scaleAlpha(Tokens.surface().surfaceHi(), 0.6f), a));
         float f = Math.max(0f, Math.min(1f, frac));
         if (f > 0f) r.roundedRect(bx, by, Math.max(bh, bw * f), bh, rr, Color.scaleAlpha(color, a));
+    }
+
+    /** LEGACY letter fallback (Stage 26): the slot's/effect's INITIAL centered in the icon box —
+     *  keeps the row an identity when neither the duotone bake nor the SDF glyph could draw.
+     *  Same tint as the icon it stands in for; the vanilla-font letter is the honest parachute. */
+    static void iconLetter(UiContext ctx, String initial, float x, float y, float box, float s, int color, float a) {
+        if (a <= 0f) return;
+        float size = 12f * s;
+        float w = ctx.text().width(initial, Weight.SEMIBOLD, size);
+        float lh = ctx.text().lineHeight(Weight.SEMIBOLD, size);
+        ctx.text().draw(initial, x + (box * s - w) / 2f, y + (box * s - lh) / 2f,
+                TextStyle.of(Weight.SEMIBOLD, size, Color.scaleAlpha(color, a)).effect(textShadow(a)));
     }
 
     /** A row's live line INSIDE a capsule (Armor): recessed pill + state fill at the given spot —

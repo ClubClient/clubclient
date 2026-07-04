@@ -27,7 +27,12 @@ import java.util.HashMap;
  * warms toward amber over the last ~30% (smooth, never a snap). The game doesn't store the total,
  * so it's tracked as the max duration seen per effect+amplifier (re-application resets the scale —
  * exactly what the eye expects). Vertical stack (default) or a horizontal row of cells.
- * On LEGACY the icons are skipped (times/lines still show) — emergency mode only.
+ *
+ * <p>Icon fallback chain (Stage 26): the duotone vanilla sprite ({@code PixelIcons}) draws on BOTH
+ * backends — it goes through the DrawContext seam, not the V2 renderer. The SDF glyph is the
+ * fallback for a failed bake (broken/modded texture) and needs MODERN; if neither can draw
+ * (failed bake on LEGACY) the row shows the effect's LETTER initial in its association color —
+ * identity is never silently dropped.</p>
  */
 public final class EffectsElement extends HudElement {
     private static final int ICON = 16, GAP = 5;              // icon content box; icon ↔ text gap
@@ -193,10 +198,13 @@ public final class EffectsElement extends HudElement {
             float cx = ox + (PAD_X + (horizontal ? i * (cell + CELL_GAP) : 0)) * s;
             float cy = oy + (PAD_Y + (horizontal ? 0 : i * (ROW_BLOCK + ROW_GAP))) * s;
 
-            // duotone vanilla effect sprite (18px art, centered on the 16px box); SDF glyph fallback
+            // duotone vanilla effect sprite (18px art, centered on the 16px box); SDF glyph fallback;
+            // letter initial when neither path can draw (failed bake on LEGACY — Stage 26)
             if (row.tex() == null
-                    || !com.club.hud.PixelIcons.draw(row.tex(), cx - s, cy - s, (ICON + 2) * s, 18, row.color(), a))
-                row.icon().draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(row.color(), a));
+                    || !com.club.hud.PixelIcons.draw(row.tex(), cx - s, cy - s, (ICON + 2) * s, 18, row.color(), a)) {
+                if (IconGlyph.available()) row.icon().draw(ctx, cx, cy, ICON * s, Color.scaleAlpha(row.color(), a));
+                else HudPaint.iconLetter(ctx, initial(row.key()), cx, cy, ICON, s, row.color(), a);
+            }
             // countdown right-aligned in the shared column (tabular — a ticking second never jitters);
             // like Armor's values it carries a whisper of its effect's color (25%) — no sterile white
             float timeW = HudText.width(row.time(), TIME_WEIGHT, base);
@@ -233,5 +241,12 @@ public final class EffectsElement extends HudElement {
     private static boolean hasRow(Fx[] rows, String key) {
         for (Fx row : rows) if (row.key().equals(key)) return true;
         return false;
+    }
+
+    /** Effect initial for the LEGACY letter fallback — from the row key ("minecraft:speed#0" → "S"). */
+    private static String initial(String key) {
+        int colon = key.lastIndexOf(':');
+        String path = colon >= 0 ? key.substring(colon + 1) : key;
+        return path.isEmpty() ? "?" : path.substring(0, 1).toUpperCase(java.util.Locale.ROOT);
     }
 }

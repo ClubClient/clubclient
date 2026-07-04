@@ -25,8 +25,12 @@ import net.minecraft.item.Items;
  * <p>Two layouts ({@code armorLayout}, owner Stage 18 — the old horizontal-cells view is retired):
  * 0 = COLUMN, rows of [icon  value] with the gauge under each icon; 1 = LINE, icons in a row with
  * the exact value ABOVE each icon (label size, centered) and the gauge below — value stays
- * available in both (Percent/Count). Empty pieces are skipped. On LEGACY the icon glyphs are
- * skipped (values/lines remain).</p>
+ * available in both (Percent/Count). Empty pieces are skipped.</p>
+ *
+ * <p>Icon fallback chain (Stage 26): the duotone item texture ({@code PixelIcons}) draws on BOTH
+ * backends (DrawContext seam). The SDF silhouette is the fallback for a failed bake and needs
+ * MODERN; if neither can draw (failed bake on LEGACY) the slot shows its LETTER initial
+ * (H/C/L/B, E for elytra) in the material tint — identity is never silently dropped.</p>
  */
 public final class ArmorElement extends HudElement {
     private static final int ICON = 16, GAP = 5;             // icon size; icon ↔ value gap (COLUMN)
@@ -176,9 +180,12 @@ public final class ArmorElement extends HudElement {
                 HudText.draw(ctx, v, ox + (cell - tw) * s,
                         iconY + ((ICON - Ui.text().lineHeight(VAL_WEIGHT, vSize)) * 0.5f + VAL_NUDGE) * s, style, vSize, s);
             }
-            // duotone vanilla item icon (Stage 17, owner pick A); SDF silhouette is the fallback
-            if (!com.club.hud.PixelIcons.draw(itemTexture(st), iconX, iconY, ICON * s, 16, tint, alpha))
-                icon(slot, st).draw(ctx, iconX, iconY, ICON * s, Color.scaleAlpha(tint, alpha));
+            // duotone vanilla item icon (Stage 17, owner pick A); SDF silhouette is the fallback;
+            // letter initial when neither path can draw (failed bake on LEGACY — Stage 26)
+            if (!com.club.hud.PixelIcons.draw(itemTexture(st), iconX, iconY, ICON * s, 16, tint, alpha)) {
+                if (IconGlyph.available()) icon(slot, st).draw(ctx, iconX, iconY, ICON * s, Color.scaleAlpha(tint, alpha));
+                else HudPaint.iconLetter(ctx, initial(slot, st), iconX, iconY, ICON, s, tint, alpha);
+            }
             // the piece's live line — UNDER THE ICON only (its gauge, echoing the menu card stripe;
             // spanning the whole cell read as an element divider)
             HudPaint.rowBar(ctx, iconX, iconY + (ICON + BAR_GAP) * s, ICON * s, BAR_H, f, stateColor(f), s, alpha);
@@ -200,6 +207,15 @@ public final class ArmorElement extends HudElement {
             case 1  -> IconGlyph.ARMOR_CHEST;
             case 2  -> IconGlyph.ARMOR_LEGS;
             default -> IconGlyph.ARMOR_BOOTS;
+        };
+    }
+
+    /** Slot → letter initial for the LEGACY fallback (see the class javadoc). */
+    private static String initial(int slot, ItemStack st) {
+        if (st.getItem() instanceof ElytraItem) return "E";
+        return switch (slot) {
+            case 0 -> "H"; case 1 -> "C"; case 2 -> "L";
+            default -> "B";
         };
     }
 
