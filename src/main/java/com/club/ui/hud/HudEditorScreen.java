@@ -285,7 +285,30 @@ public final class HudEditorScreen extends Screen {
     }
     @Override public boolean keyPressed(int k, int scan, int mods) {
         if (k == GLFW_KEY_ESCAPE) { close(); return true; }
-        return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
+        if (k == GLFW_KEY_TAB) { if ((mods & GLFW_MOD_SHIFT) != 0) focus.previous(); else focus.next(); return true; }
+        if (focus.keyPressed(k, scan, mods)) return true;   // a focused popover control (slider arrows) wins
+        if (nudgeSelected(k, mods)) return true;
+        return super.keyPressed(k, scan, mods);
+    }
+
+    /** Arrow-nudge the selected element (Stage 32): 1px per press, Shift = the 8px grid step —
+     *  pixel-precise placement without fighting the mouse. Mirrors the drag path exactly
+     *  (cfgX/cfgY + layout for live hit-tests + save), including auto-positioned elements
+     *  becoming fixed the same way a drag fixes them. */
+    private boolean nudgeSelected(int k, int mods) {
+        HudElement sel = canvas.selected();
+        if (sel == null) return false;
+        int dx = k == GLFW_KEY_LEFT ? -1 : k == GLFW_KEY_RIGHT ? 1 : 0;
+        int dy = k == GLFW_KEY_UP   ? -1 : k == GLFW_KEY_DOWN  ? 1 : 0;
+        if (dx == 0 && dy == 0) return false;
+        int step = (mods & GLFW_MOD_SHIFT) != 0 ? HudCanvas.GRID_STEP : 1;
+        int w = (int) sel.width(), h = (int) sel.height();
+        int nx = HudSnap.clampAxis((int) sel.xLeft() + dx * step, w, width);
+        int ny = HudSnap.clampAxis((int) sel.yTop()  + dy * step, h, height);
+        sel.cfgX(nx); sel.cfgY(ny);
+        sel.layout(nx, ny, w, h);
+        save();
+        return true;
     }
     @Override public void close() { if (client != null) client.setScreen(parent); }
     @Override public boolean shouldPause() { return false; }

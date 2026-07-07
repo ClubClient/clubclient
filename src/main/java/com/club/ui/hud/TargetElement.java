@@ -149,13 +149,23 @@ public final class TargetElement extends HudElement {
         return Math.max(MIN_W, 2 * PAD_X + hpW + GAP + nameW);
     }
 
+    // fitName cache (Stage 32): the truncation loop measures strings — per-frame it churned on long
+    // names. The target name changes rarely; re-fit only when the input differs from the last one.
+    private String fitIn, fitOut;
+
     /** Truncate {@code name} with an ellipsis to fit {@code availW} (px, unscaled) at the name style. */
     private String fitName(String name, float availW) {
-        if (Ui.text().width(name, Weight.MEDIUM, NAME_SIZE) <= availW) return name;
-        String cut = name;
-        while (cut.length() > 1 && Ui.text().width(cut + "…", Weight.MEDIUM, NAME_SIZE) > availW)
-            cut = cut.substring(0, cut.length() - 1);
-        return cut + "…";
+        if (name.equals(fitIn)) return fitOut;
+        String out;
+        if (Ui.text().width(name, Weight.MEDIUM, NAME_SIZE) <= availW) out = name;
+        else {
+            String cut = name;
+            while (cut.length() > 1 && Ui.text().width(cut + "…", Weight.MEDIUM, NAME_SIZE) > availW)
+                cut = cut.substring(0, cut.length() - 1);
+            out = cut + "…";
+        }
+        fitIn = name; fitOut = out;
+        return out;
     }
 
     /** Refresh the cached target data. A lost target keeps the last real values (so the fade-out / death frame

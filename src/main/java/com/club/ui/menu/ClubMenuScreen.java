@@ -885,9 +885,15 @@ public final class ClubMenuScreen extends Screen {
         }
     }
 
+    // Key-parse cache (Stage 32): fromTranslationKey does a registry/string parse — 7 bindings × 20
+    // ticks/s churned it for a value that only changes on a rebind. Keyed by the translation-key
+    // STRING, so a mid-session rebind naturally misses the cache and re-parses.
+    private static final java.util.Map<String, InputUtil.Key> KEY_CACHE = new java.util.HashMap<>();
+
     /** True if the physical key a binding is bound to is currently held (keyboard-bound only). */
     private static boolean rawKeyDown(long handle, KeyBinding binding) {
-        InputUtil.Key key = InputUtil.fromTranslationKey(binding.getBoundKeyTranslationKey());
+        InputUtil.Key key = KEY_CACHE.computeIfAbsent(
+                binding.getBoundKeyTranslationKey(), InputUtil::fromTranslationKey);
         if (key.getCategory() != InputUtil.Type.KEYSYM) return false;   // mouse-bound → leave to vanilla
         int code = key.getCode();
         return code != GLFW_KEY_UNKNOWN && InputUtil.isKeyPressed(handle, code);
