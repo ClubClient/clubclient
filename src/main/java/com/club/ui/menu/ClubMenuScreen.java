@@ -15,6 +15,7 @@ import com.club.ui.component.widget.Checkbox;
 import com.club.ui.component.widget.Label;
 import com.club.ui.component.widget.ScrollArea;
 import com.club.ui.component.widget.Slider;
+import com.club.ui.component.widget.TextEditState;
 import com.club.ui.component.widget.Toggle;
 import com.club.ui.hud.HudEditorScreen;
 import com.club.ui.layout.Column;
@@ -147,6 +148,10 @@ public final class ClubMenuScreen extends Screen {
     // search reflow that drops it just re-seeds to the first card.
     private boolean gridFocused;
     private Module gridFocus;
+    // Space-opened popover hands the zone OFF to the popover controls and hands it BACK on a
+    // keyboard close (Esc) — without this the grid ring and the popover focus were live at once
+    // (Stage 31 fix of a Stage 27 rough edge). Any mouse interaction cancels the hand-back.
+    private boolean popFromGrid;
 
     private int stFootMutCol;      // footer tone (colour only — styles are built inline now: fade needs live alpha)
     private boolean stylesInit;
@@ -363,13 +368,18 @@ public final class ClubMenuScreen extends Screen {
         return true;
     }
 
-    /** Space on a focused card opens (or closes) its settings popover, anchored to the card. */
+    /** Space on a focused card opens (or closes) its settings popover, anchored to the card. The
+     *  grid zone hands off to the popover controls while it's open (one keyboard owner at a time)
+     *  and is restored when the popover closes via keyboard. */
     private void openPopoverForFocused(Module m) {
         if (!hasConfigurable(m)) return;
         ModuleTile t = tileOf(m);
         if (t == null) return;
         if (popModule == m && !popClosing) closePopover();
-        else openPopover(m, t.xLeft(), t.yTop(), t.width(), t.height());
+        else {
+            openPopover(m, t.xLeft(), t.yTop(), t.width(), t.height());
+            gridFocused = false; popFromGrid = true;
+        }
     }
 
     // ---- popover -------------------------------------------------------------
@@ -414,6 +424,7 @@ public final class ClubMenuScreen extends Screen {
         popReveal = null; popClosing = false;
         focus.clear();
         if (search != null) focus.register(search);
+        if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // hand the zone back (Space → Esc round-trip)
     }
 
     private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -756,6 +767,7 @@ public final class ClubMenuScreen extends Screen {
     @Override public boolean mouseClicked(double mx, double my, int b) {
         if (closing) return true;   // window is fading out — swallow clicks
         gridFocused = false;        // any mouse interaction leaves the keyboard grid zone (ring hides)
+        popFromGrid = false;        //   …and cancels the popover's pending zone hand-back
         focus.clickFocus(mx, my);
         if (insidePop(mx, my)) {
             popScroll.mouseClicked(mx, my, 0); pressOwner = 1; return true;   // RMB behaves as LMB inside; never closes
@@ -797,14 +809,13 @@ public final class ClubMenuScreen extends Screen {
         if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)
                 && !(search != null && search.isFocused())) { beginClose(); return true; }
 
-        // ESC precedence (Stage 27): popover → clear a live query → blur the focused search →
-        // leave the grid zone. Never closes the menu (shouldCloseOnEsc = false).
+        // ESC precedence (Stage 27, chain widened in Stage 31): popover → clear a live query (from
+        // ANY zone — arrowing the filtered grid then Esc no longer strands the filter) → blur the
+        // focused search → leave the grid zone. Never closes the menu (shouldCloseOnEsc = false).
         if (k == GLFW_KEY_ESCAPE) {
             if (popModule != null) { closePopover(); return true; }
-            if (search != null && search.isFocused()) {
-                if (!query.isEmpty()) { search.clear(); query = ""; rebuildGrid(GridRebuild.SEARCH); layoutAll(); return true; }
-                focus.blur(); return true;   // second Esc drops focus
-            }
+            if (!query.isEmpty() && search != null) { search.clear(); query = ""; rebuildGrid(GridRebuild.SEARCH); layoutAll(); return true; }
+            if (search != null && search.isFocused()) { focus.blur(); return true; }
             if (gridFocused) { gridFocused = false; return true; }
             return false;
         }
@@ -1030,16 +1041,17 @@ public final class ClubMenuScreen extends Screen {
     }
 
     /** Minimal single-line search input: leading glyph, placeholder when idle, blinking caret when
-     *  focused. Full text editing (Stage 27): caret ←→, Home/End, Delete, Ctrl+Backspace (word),
-     *  Ctrl+A (select all), a selection span, Enter = submit (activate the first result). Inner
+     *  focused. The editing model lives in {@link TextEditState} (unit-tested, Stage 31); the field
+     *  keeps only pixel concerns — caret hit-testing, drag-select, double-click word select, the
+     *  system clipboard (Ctrl+C/X/V) and drawing. Enter = submit (activate the first result). Inner
      *  (non-static) so its text/glyph colours can ride the whole-window fade. */
     private final class SearchField extends Component {
         private final String placeholder;
-        private String text = "";
-        private int caret;            // caret index in [0, text.length()]
-        private int selAnchor = -1;   // selection origin; -1 = no selection (caret is a point)
+        private final TextEditState st = new TextEditState();
         private Consumer<String> onChange;
         private Runnable onSubmit;
+        private long lastClickMs;     // double-click (word select) detection
+        private int lastClickCaret = -1;
         private final Transition focusT =
                 new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
         private final Transition hoverT =
@@ -1048,58 +1060,52 @@ public final class ClubMenuScreen extends Screen {
         SearchField(String placeholder) { this.placeholder = placeholder; }
         SearchField onChange(Consumer<String> cb) { this.onChange = cb; return this; }
         SearchField onSubmit(Runnable cb) { this.onSubmit = cb; return this; }
-        void clear() { text = ""; caret = 0; selAnchor = -1; }
+        void clear() { st.clear(); }
 
-        // --- selection helpers ---
-        private boolean hasSel() { return selAnchor >= 0 && selAnchor != caret; }
-        private int selLo() { return Math.min(selAnchor, caret); }
-        private int selHi() { return Math.max(selAnchor, caret); }
-        private void notifyChange() { if (onChange != null) onChange.accept(text); }
-        /** Delete the current selection if any; returns true if it removed anything. */
-        private boolean deleteSel() {
-            if (!hasSel()) return false;
-            int lo = selLo(), hi = selHi();
-            text = text.substring(0, lo) + text.substring(hi);
-            caret = lo; selAnchor = -1;
-            return true;
-        }
-        private void insert(String s) {
-            deleteSel();
-            text = text.substring(0, caret) + s + text.substring(caret);
-            caret += s.length(); selAnchor = -1;
-            notifyChange();
-        }
-        /** Move the caret, extending or dropping the selection depending on Shift. */
-        private void moveCaret(int to, boolean shift) {
-            to = Math.max(0, Math.min(text.length(), to));
-            if (shift) { if (selAnchor < 0) selAnchor = caret; }
-            else selAnchor = -1;
-            caret = to;
-        }
+        private void notifyChange() { if (onChange != null) onChange.accept(st.text()); }
 
         @Override public Size measure(float aw, float ah) {
             return new Size(160f, Tokens.type().body().lineHeight() + Tokens.spacing().md());
         }
 
         private float textStartX() { return x + Tokens.spacing().md() + 13f + 6f; }
-        @Override public boolean mouseClicked(double mx, double my, int b) {
-            if (!(enabled && contains(mx, my))) return false;
-            // place the caret at the click (nearest character boundary); no drag-select (short queries)
+
+        /** Caret index nearest to pixel {@code mx} (character-boundary hit test). */
+        private int caretAt(double mx) {
             float base = textStartX();
             var weight = Tokens.type().body().weight();
             float size = Tokens.type().body().size();
+            String text = st.text();
             int best = text.length(); float bestD = Float.MAX_VALUE;
             for (int i = 0; i <= text.length(); i++) {
                 float cx = base + Ui.text().width(text.substring(0, i), weight, size);
                 float d = Math.abs((float) mx - cx);
                 if (d < bestD) { bestD = d; best = i; }
             }
-            caret = best; selAnchor = -1;
+            return best;
+        }
+
+        @Override public boolean mouseClicked(double mx, double my, int b) {
+            if (!(enabled && contains(mx, my))) return false;
+            int at = caretAt(mx);
+            long nowMs = System.currentTimeMillis();
+            if (nowMs - lastClickMs < 300 && at == lastClickCaret) {   // double-click → word select
+                st.selectWordAt(at);
+            } else {
+                st.moveCaret(at, hasShiftDown());   // Shift+click extends the selection
+            }
+            lastClickMs = nowMs; lastClickCaret = at;
+            return true;
+        }
+
+        /** Drag extends the selection from the press point (pointer capture routes the drag here). */
+        @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) {
+            st.moveCaret(caretAt(mx), true);
             return true;
         }
 
         @Override public boolean charTyped(char c, int mods) {
-            if (c >= 32) { insert(String.valueOf(c)); return true; }
+            if (c >= 32) { if (st.insert(String.valueOf(c))) notifyChange(); return true; }
             return false;
         }
 
@@ -1109,45 +1115,44 @@ public final class ClubMenuScreen extends Screen {
                 case GLFW_KEY_ENTER, GLFW_KEY_KP_ENTER:
                     if (onSubmit != null) onSubmit.run();
                     return true;
-                case GLFW_KEY_LEFT:  moveCaret(caret - 1, shift); return true;
-                case GLFW_KEY_RIGHT: moveCaret(caret + 1, shift); return true;
-                case GLFW_KEY_HOME:  moveCaret(0, shift); return true;
-                case GLFW_KEY_END:   moveCaret(text.length(), shift); return true;
+                case GLFW_KEY_LEFT:  st.left(shift); return true;
+                case GLFW_KEY_RIGHT: st.right(shift); return true;
+                case GLFW_KEY_HOME:  st.home(shift); return true;
+                case GLFW_KEY_END:   st.end(shift); return true;
                 case GLFW_KEY_A:
-                    if (ctrl) { selAnchor = 0; caret = text.length(); return true; }
+                    if (ctrl) { st.selectAll(); return true; }
+                    return false;
+                case GLFW_KEY_C:
+                    if (ctrl) { copySelection(); return true; }
+                    return false;
+                case GLFW_KEY_X:
+                    if (ctrl) { copySelection(); if (st.deleteSelection()) notifyChange(); return true; }
+                    return false;
+                case GLFW_KEY_V:
+                    if (ctrl) { if (st.insert(sanitizeClipboard())) notifyChange(); return true; }
                     return false;
                 case GLFW_KEY_BACKSPACE:
-                    if (deleteSel()) { notifyChange(); return true; }
-                    if (caret > 0) {
-                        int from = ctrl ? wordStart(caret) : caret - 1;
-                        text = text.substring(0, from) + text.substring(caret);
-                        caret = from; notifyChange();
-                    }
+                    if (st.backspace(ctrl)) notifyChange();
                     return true;
                 case GLFW_KEY_DELETE:
-                    if (deleteSel()) { notifyChange(); return true; }
-                    if (caret < text.length()) {
-                        int to = ctrl ? wordEnd(caret) : caret + 1;
-                        text = text.substring(0, caret) + text.substring(to);
-                        notifyChange();
-                    }
+                    if (st.delete(ctrl)) notifyChange();
                     return true;
                 default:
                     return false;
             }
         }
 
-        /** Start of the word left of {@code i} (skip spaces, then non-spaces) — for Ctrl+Backspace. */
-        private int wordStart(int i) {
-            while (i > 0 && text.charAt(i - 1) == ' ') i--;
-            while (i > 0 && text.charAt(i - 1) != ' ') i--;
-            return i;
+        private void copySelection() {
+            if (st.hasSelection()) MinecraftClient.getInstance().keyboard.setClipboard(st.selectedText());
         }
-        /** End of the word right of {@code i} — for Ctrl+Delete. */
-        private int wordEnd(int i) {
-            while (i < text.length() && text.charAt(i) == ' ') i++;
-            while (i < text.length() && text.charAt(i) != ' ') i++;
-            return i;
+
+        /** Clipboard text flattened for a single-line query: control chars (incl. newlines) stripped. */
+        private String sanitizeClipboard() {
+            String s = MinecraftClient.getInstance().keyboard.getClipboard();
+            if (s == null || s.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder(s.length());
+            for (int i = 0; i < s.length(); i++) { char c = s.charAt(i); if (c >= 32) sb.append(c); }
+            return sb.toString();
         }
 
         @Override public void render(UiContext ctx) {
@@ -1157,8 +1162,8 @@ public final class ClubMenuScreen extends Screen {
             float rad = Tokens.radius().md();
             float pad = Tokens.spacing().md();
             boolean foc = isFocused();
+            String text = st.text();
             boolean empty = text.isEmpty();
-            caret = Math.max(0, Math.min(text.length(), caret));   // clamp after any external text change
             focusT.target(foc ? 1f : 0f, now);
             hoverT.target(isHovered() ? 1f : 0f, now);
             float fv = focusT.value(now), hv = hoverT.value(now);
@@ -1193,9 +1198,9 @@ public final class ClubMenuScreen extends Screen {
             var weight = ty.body().weight();
             float size = ty.body().size();
             r.pushClip(textX, y, x + w - pad - textX, h);
-            if (hasSel()) {   // selection highlight behind the text (faint accent well)
-                float sx = textX + ctx.text().width(text.substring(0, selLo()), weight, size);
-                float ex = textX + ctx.text().width(text.substring(0, selHi()), weight, size);
+            if (st.hasSelection()) {   // selection highlight behind the text (faint accent well)
+                float sx = textX + ctx.text().width(text.substring(0, st.selectionStart()), weight, size);
+                float ex = textX + ctx.text().width(text.substring(0, st.selectionEnd()), weight, size);
                 r.roundedRect(sx, ty0, Math.max(1f, ex - sx), ty.body().lineHeight(), 2f,
                         Color.scaleAlpha(Color.withAlpha(acc, 0x3A), screenAlpha));
             }
@@ -1208,7 +1213,7 @@ public final class ClubMenuScreen extends Screen {
             }
             if (fv > 0.001f) {   // caret at the edit position: smooth ~1 Hz sine pulse, inside the clip
                 float blink = 0.15f + 0.85f * (0.5f + 0.5f * (float) Math.sin(now * 2f * (float) Math.PI));
-                float cx = textX + ctx.text().width(text.substring(0, caret), weight, size);
+                float cx = textX + ctx.text().width(text.substring(0, st.caret()), weight, size);
                 r.rect(cx + 1f, ty0, 1f, ty.body().lineHeight(), Color.scaleAlpha(acc, fv * blink));
             }
             r.popClip();
