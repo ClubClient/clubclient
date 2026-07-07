@@ -8,6 +8,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Persistent settings stored in {@code .minecraft/config/club_settings.json}.
@@ -106,7 +107,8 @@ public class ClubConfig {
             if (Files.exists(path)) {
                 String json = Files.readString(path);
                 ClubConfig cfg = GSON.fromJson(json, ClubConfig.class);
-                INSTANCE = (cfg != null) ? cfg : new ClubConfig();
+                if (cfg == null) throw new IOException("config file is empty/blank");
+                INSTANCE = cfg;
                 INSTANCE.sanitize();
                 INSTANCE.migrate();
             } else {
@@ -114,16 +116,63 @@ public class ClubConfig {
                 save();
             }
         } catch (Exception e) {
-            ClubMod.LOGGER.warn("[Club] Failed to load config, using defaults", e);
+            // Stage 30: NEVER silently discard the user's settings. Preserve the unreadable file as
+            // *.corrupt (HUD layout, hand offsets etc. stay recoverable by hand) and start clean.
+            ClubMod.LOGGER.warn("[Club] Failed to load config — preserving it as club_settings.json.corrupt "
+                    + "and starting with defaults", e);
+            try {
+                Files.move(path, path.resolveSibling(path.getFileName() + ".corrupt"),
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException m) {
+                ClubMod.LOGGER.warn("[Club] Could not preserve the broken config file", m);
+            }
             INSTANCE = new ClubConfig();
         }
     }
 
+    // Stage 30: config writes are ASYNC + ATOMIC. save() serializes on the caller thread (the render
+    // thread mutates INSTANCE, so the snapshot must be taken there — serializing on the writer thread
+    // would race live edits) and hands the string to one background writer, so toggling a module never
+    // blocks a frame on disk I/O. The writer stages into *.tmp and atomically moves over the real file:
+    // a crash mid-write can no longer leave a truncated JSON that load() would junk.
+    private static final java.util.concurrent.ExecutorService IO =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "club-config-io");
+                t.setDaemon(true);   // flushed explicitly via close() on client stop
+                return t;
+            });
+
     public static void save() {
         if (INSTANCE == null || path == null) return;
+        String json = GSON.toJson(INSTANCE);
+        try {
+            IO.execute(() -> write(json));
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            write(json);   // writer already closed (client stopping) — write inline, never drop
+        }
+    }
+
+    /** Drains any queued write and stops the writer (client shutdown — daemon thread wouldn't finish). */
+    public static void close() {
+        IO.shutdown();
+        try {
+            if (!IO.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS))
+                ClubMod.LOGGER.warn("[Club] Config writer did not drain before shutdown");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static void write(String json) {
         try {
             Files.createDirectories(path.getParent());
-            Files.writeString(path, GSON.toJson(INSTANCE));
+            Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+            Files.writeString(tmp, json);
+            try {
+                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING);   // best effort on exotic FS
+            }
         } catch (IOException e) {
             ClubMod.LOGGER.warn("[Club] Failed to save config", e);
         }

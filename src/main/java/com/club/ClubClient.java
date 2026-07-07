@@ -6,6 +6,7 @@ import com.club.ui.Ui;
 import com.club.hud.PixelIcons;
 import com.club.hud.HudManager;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
@@ -56,6 +57,9 @@ public class ClubClient implements ClientModInitializer {
                 }
             }
         });
+
+        // config writes are async (Stage 30) — drain the writer before the JVM goes down
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ClubConfig.close());
 
         ClubMod.LOGGER.info("[Club] client initialized");
     }
