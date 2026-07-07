@@ -17,7 +17,9 @@ jobs:
       - name: setup jdk
         uses: actions/setup-java@v5
         with:
-          java-version: '25'
+          # Stage 33: pinned to the project's actual toolchain (Java 21, see build.gradle) — the
+          # template's JDK 25 wasn't what local builds run on.
+          java-version: '21'
           distribution: 'microsoft'
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
