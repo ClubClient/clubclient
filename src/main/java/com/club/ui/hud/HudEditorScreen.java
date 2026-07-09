@@ -56,6 +56,10 @@ public final class HudEditorScreen extends Screen {
     private boolean tbResetArmed;
     private float tbResetArmAt;
 
+    // Last cursor position in GUI px (fed by render each frame) — the arrow-nudge hover target
+    // resolves against it, and a cursor-follow nudge advances it (Stage 36).
+    private int lastMx, lastMy;
+
     private void disarmReset() {
         tbResetArmed = false;
         if (tbReset != null) tbReset.label("Reset").variant(Button.Variant.GHOST);
@@ -227,6 +231,7 @@ public final class HudEditorScreen extends Screen {
         // armed Reset decays back to the quiet ghost when the hold expires (Stage 35)
         if (tbResetArmed && uiCtx.time() - tbResetArmAt > RESET_ARM_HOLD) disarmReset();
 
+        lastMx = mx; lastMy = my;   // arrow-nudge hover target resolves against this (Stage 36)
         canvas.mouseMoved(mx, my);
         canvas.render(uiCtx);
 
@@ -313,24 +318,41 @@ public final class HudEditorScreen extends Screen {
         return super.keyPressed(k, scan, mods);
     }
 
-    /** Arrow-nudge the selected element (Stage 32): 1px per press, Shift = the 8px grid step —
-     *  pixel-precise placement without fighting the mouse. Mirrors the drag path exactly
-     *  (cfgX/cfgY + layout for live hit-tests + save), including auto-positioned elements
-     *  becoming fixed the same way a drag fixes them. */
+    /** Arrow-nudge (Stage 32; hover-first + magnet since Stage 36): point at a HUD element and tap
+     *  arrows — the HOVERED element moves 1px per press (Shift = the 8px grid step) with the drag's
+     *  edge/centre magnetism and guide lines ({@link HudCanvas#keyNudge}). The OS cursor rides the
+     *  element (same applied delta, magnet jumps included), so the hover never slips off mid-nudge.
+     *  With nothing hovered, the selected element (open popover) still nudges — cursor stays put. */
     private boolean nudgeSelected(int k, int mods) {
-        HudElement sel = canvas.selected();
-        if (sel == null) return false;
         int dx = k == GLFW_KEY_LEFT ? -1 : k == GLFW_KEY_RIGHT ? 1 : 0;
         int dy = k == GLFW_KEY_UP   ? -1 : k == GLFW_KEY_DOWN  ? 1 : 0;
         if (dx == 0 && dy == 0) return false;
+        HudElement hover = canvas.elementAt(lastMx, lastMy);
+        HudElement target = hover != null ? hover : canvas.selected();
+        if (target == null) return false;
         int step = (mods & GLFW_MOD_SHIFT) != 0 ? HudCanvas.GRID_STEP : 1;
-        int w = (int) sel.width(), h = (int) sel.height();
-        int nx = HudSnap.clampAxis((int) sel.xLeft() + dx * step, w, width);
-        int ny = HudSnap.clampAxis((int) sel.yTop()  + dy * step, h, height);
-        sel.cfgX(nx); sel.cfgY(ny);
-        sel.layout(nx, ny, w, h);
-        save();
+        int[] applied = canvas.keyNudge(target, dx * step, dy * step, uiCtx.time());
+        if (applied[0] != 0 || applied[1] != 0) {
+            save();
+            if (target == hover) {   // cursor rides the element so it can't slip off
+                moveCursorBy(applied[0], applied[1]);
+                lastMx += applied[0]; lastMy += applied[1];
+            }
+        }
         return true;
+    }
+
+    /** Shift the OS cursor by a GUI-px delta (window-scaled), keeping MC's tracked position in sync
+     *  so the move never lands as a phantom look/hover delta. glfwSetCursorPos fires no callback. */
+    private void moveCursorBy(int dxGui, int dyGui) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        var win = mc.getWindow();
+        double sx = (double) win.getWidth()  / Math.max(1, win.getScaledWidth());
+        double sy = (double) win.getHeight() / Math.max(1, win.getScaledHeight());
+        double nx = mc.mouse.getX() + dxGui * sx, ny = mc.mouse.getY() + dyGui * sy;
+        glfwSetCursorPos(win.getHandle(), nx, ny);
+        var mouse = (com.club.mixin.MouseAccessor) mc.mouse;
+        mouse.club$setX(nx); mouse.club$setY(ny);
     }
     @Override public void close() { if (client != null) client.setScreen(parent); }
     @Override public boolean shouldPause() { return false; }

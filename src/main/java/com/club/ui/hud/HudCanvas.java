@@ -62,13 +62,51 @@ public final class HudCanvas extends Container {
 
     public void layoutFromConfig(MinecraftClient mc) { for (HudElement e : elements) e.layoutFromConfig(mc); }
 
-    private HudElement elementAt(double mx, double my) {
+    /** Top-most element under (mx,my) with the same 4px grace the click hit-test uses (package-private:
+     *  the editor resolves its arrow-nudge target from the hover position, Stage 36). */
+    HudElement elementAt(double mx, double my) {
         for (int i = elements.size() - 1; i >= 0; i--) {              // top-most first
             HudElement e = elements.get(i);
             if (mx >= e.xLeft() - 4 && mx <= e.xLeft() + e.width() + 4
              && my >= e.yTop()  - 4 && my <= e.yTop()  + e.height() + 4) return e;
         }
         return null;
+    }
+
+    // Keyboard-nudge guides (Stage 36): a nudge has no "release" to clear the lines, so they hold
+    // for a beat and fade out on their own; any drag takes over the guide state as before.
+    private static final float GUIDE_HOLD = 0.6f;
+    private float guideHold;
+
+    /**
+     * Keyboard nudge (Stage 36): move {@code e} by (dx,dy) GUI px with the drag's edge/centre
+     * magnetism — a snapped axis shows its guide line for {@link #GUIDE_HOLD}. Only a MOVED axis
+     * snaps, and only when the magnet pulls IN the nudge direction: stepping off a line the element
+     * sits on escapes it (1px out), and a magnet behind the movement never yanks it backwards.
+     * Mirrors the drag path (cfgX/cfgY + layout); returns the APPLIED delta {dx,dy} ({0,0} = clamped
+     * into place, nothing moved). Grid snap is not applied — Shift already steps by the grid.
+     */
+    int[] keyNudge(HudElement e, int dx, int dy, float now) {
+        int w = (int) e.width(), h = (int) e.height();
+        int ox = (int) e.xLeft(), oy = (int) e.yTop();
+        int nx = ox + dx, ny = oy + dy;
+        int gx = HudSnap.NO_GUIDE, gy = HudSnap.NO_GUIDE;
+        if (dx != 0) {
+            HudSnap.Snap s = HudSnap.snapAxis(nx, w, screenW);
+            if (s.guide() != HudSnap.NO_GUIDE && (s.pos() - ox) * dx > 0) { nx = s.pos(); gx = s.guide(); }
+        }
+        if (dy != 0) {
+            HudSnap.Snap s = HudSnap.snapAxis(ny, h, screenH);
+            if (s.guide() != HudSnap.NO_GUIDE && (s.pos() - oy) * dy > 0) { ny = s.pos(); gy = s.guide(); }
+        }
+        nx = HudSnap.clampAxis(nx, w, screenW);
+        ny = HudSnap.clampAxis(ny, h, screenH);
+        guideX = gx; guideY = gy;
+        guideHold = (gx != HudSnap.NO_GUIDE || gy != HudSnap.NO_GUIDE) ? now + GUIDE_HOLD : 0f;
+        if (nx == ox && ny == oy) return new int[]{0, 0};
+        e.cfgX(nx); e.cfgY(ny);
+        e.layout(nx, ny, w, h);
+        return new int[]{nx - ox, ny - oy};
     }
 
     @Override public boolean mouseClicked(double mx, double my, int button) {
@@ -108,6 +146,7 @@ public final class HudCanvas extends Container {
     @Override public boolean mouseReleased(double mx, double my, int button) {
         if (!editor || button != 0) return false;
         guideX = guideY = HudSnap.NO_GUIDE;
+        guideHold = 0f;
         boolean handled = pressed != null;
         if (pressed != null && moved) saver.run();   // commit a left-drag move; a tap (no move) does nothing
         pressed = null; moved = false;
@@ -126,6 +165,11 @@ public final class HudCanvas extends Container {
         }
         MinecraftClient mc = MinecraftClient.getInstance();
         float now = ctx.time();
+        // nudge guides expire after their hold (a drag owns the guide state while pressed)
+        if (editor && guideHold > 0f && now >= guideHold && pressed == null) {
+            guideX = guideY = HudSnap.NO_GUIDE;
+            guideHold = 0f;
+        }
         for (HudElement e : elements) {
             if (editor) { e.renderPlaceholder(ctx); continue; }   // editor = clean layout map: area + name, no content
             // in-world: fade the element in when it gains content, out when it loses it (panel + text)
