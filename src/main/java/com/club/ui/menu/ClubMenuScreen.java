@@ -450,10 +450,10 @@ public final class ClubMenuScreen extends Screen {
                 int cur = clampIdx(d);
                 Row row = new Row().crossAlign(CrossAlign.CENTER);
                 row.add(new Label(d.label(), Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
-                Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST).accent(accent)
+                Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST).accent(accent).compact()
                         .onClick(() -> { openDrop = (openDrop == d) ? null : d; rebuildPopover(); });
                 row.add(field);
-                col.add(row); focus.register(field);
+                col.add(new LaneRow(row)); focus.register(field);
                 if (openDrop == d) {
                     for (int i = 0; i < d.options().length; i++) {
                         final int oi = i;
@@ -463,13 +463,13 @@ public final class ClubMenuScreen extends Screen {
                 }
             } else if (s instanceof ActionSetting) {
                 Component ctrl = buildControl(s, accent);
-                Row rr = new Row(); rr.add(ctrl); col.add(rr); focus.register(ctrl);
+                Row rr = new Row().crossAlign(CrossAlign.CENTER); rr.add(ctrl); col.add(rr); focus.register(ctrl);
             } else {
                 Component ctrl = buildControl(s, accent);
                 Row rr = new Row().crossAlign(CrossAlign.CENTER);
                 rr.add(new Label(s.label(), Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
                 rr.add(ctrl);
-                col.add(rr); focus.register(ctrl);
+                col.add(new LaneRow(rr)); focus.register(ctrl);
             }
         }
 
@@ -1223,6 +1223,23 @@ public final class ClubMenuScreen extends Screen {
                 r.rect(cx + 1f, ty0, 1f, ty.body().lineHeight(), Color.scaleAlpha(acc, fv * blink));
             }
             r.popClip();
+        }
+    }
+
+    /** One settings row pinned to the 24px control LANE (Stage 34): the Slider's lane (spacing.xl)
+     *  is the popover's rhythm unit — a dropdown field (34px button) or a toggle (22px) must not
+     *  stretch/shrink its row. Content-driven row heights made the Animations / Screen Stretch
+     *  popovers breathe unevenly next to the all-slider Hands popover (owner's ideal). */
+    private static final class LaneRow extends Container {
+        private final Row row;
+        LaneRow(Row row) { this.row = row; addChild(row); }
+        @Override public Size measure(float aw, float ah) {
+            Size s = row.measure(aw, ah);
+            return new Size(s.w(), Math.max(Tokens.spacing().xl(), s.h()));
+        }
+        @Override public void layout(float x, float y, float w, float h) {
+            super.layout(x, y, w, h);
+            row.layout(x, y, w, h);   // CrossAlign.CENTER inside the row centres shorter controls in the lane
         }
     }
 

@@ -20,6 +20,7 @@ public final class Button extends Control {
     private final Label label;
     private Variant variant = Variant.PRIMARY;
     private Runnable onClick;
+    private boolean compact;   // pin to the 24px control lane (popover value fields, Stage 34)
     private int accent;   // 0 = theme accent; set for category-tinted contexts (Stage 11.9)
     private final Transition hover =
             new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
@@ -31,6 +32,12 @@ public final class Button extends Control {
     public Button onClick(Runnable r) { this.onClick = r; return this; }
     /** Overrides the accent colour (PRIMARY fill / GHOST hover tint / focus ring); 0 = theme accent. */
     public Button accent(int color) { this.accent = color; this.styleInit = false; return this; }
+    /** Pin the height to the 24px control lane (spacing.xl — the Slider's lane): an inline value field
+     *  in a settings row must not stretch the row taller than the slider rows around it (Stage 34). */
+    public Button compact() { this.compact = true; return this; }
+    /** Swap the label text in place (armed/confirm states) — bounds are kept, callers pass a narrower
+     *  or equal label so no re-layout is needed. */
+    public Button label(String text) { this.label.text(text); return this; }
 
     /** Package-private for same-package tests (NOT public §3 API). */
     Variant variantValue() { return variant; }
@@ -42,7 +49,7 @@ public final class Button extends Control {
         // Generous horizontal padding (lg/side) + a min-width floor (xxl*3) so a row of buttons
         // aligns to a common width instead of hugging each label — the key "designed" signal.
         float w = Math.max(t.w() + Tokens.spacing().lg() * 2f, Tokens.spacing().xxl() * 3f);
-        return new Size(w, t.h() + Tokens.spacing().sm() * 2f);
+        return new Size(w, compact ? Tokens.spacing().xl() : t.h() + Tokens.spacing().sm() * 2f);
     }
 
     @Override public void layout(float x, float y, float w, float h) {
