@@ -116,6 +116,11 @@ public final class ClubMenuScreen extends Screen {
     private final java.util.LinkedHashMap<Module, ModuleTile> leaving = new java.util.LinkedHashMap<>();
     private Transition noteFade;   // "No matching modules" — single smooth fade in/out
 
+    // Reset confirmation (Stage 35): first click arms, second executes; the arm decays on timeout.
+    private static final float RESET_ARM_HOLD = 3f;
+    private boolean resetArmed;
+    private float resetArmAt;
+
     // settings popover (RMB), anchored to a card
     private Module popModule;
     private Column popCol;
@@ -386,6 +391,7 @@ public final class ClubMenuScreen extends Screen {
 
     private void openPopover(Module m, float ax, float ay, float aw, float ah) {
         popModule = m; popAX = ax; popAY = ay; popAH = ah; tabIndex = 0; openDrop = null;
+        resetArmed = false;                     // a fresh popover never opens pre-armed
         popClosing = false; popReveal = null;   // render() plays the grow-in on the first frame
         segSlide = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         rebuildPopover();
@@ -421,7 +427,7 @@ public final class ClubMenuScreen extends Screen {
 
     private void reallyClosePopover() {
         popModule = null; popCol = null; popScroll = null; openDrop = null;
-        popReveal = null; popClosing = false;
+        popReveal = null; popClosing = false; resetArmed = false;
         focus.clear();
         if (search != null) focus.register(search);
         if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // hand the zone back (Space → Esc round-trip)
@@ -474,9 +480,18 @@ public final class ClubMenuScreen extends Screen {
         }
 
         if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
-            Button reset = new Button("Reset to Default").variant(Button.Variant.GHOST).accent(accent)
-                    .onClick(() -> { m.reset().run(); openDrop = null; rebuildPopover(); });
-            Row rr = new Row(); rr.add(Spacer.fill()); rr.add(reset);
+            // Stage 35: a destructive action asks first. Click 1 ARMS the button — it turns into the
+            // category-accent PRIMARY "Sure? Reset" (the loudest voice this popover has, reserved for
+            // exactly this moment); click 2 within the hold executes. The arm decays back to the quiet
+            // ghost after RESET_ARM_HOLD (checked per-frame in render), or with the popover.
+            Button reset = new Button(resetArmed ? "Sure? Reset" : "Reset to Default")
+                    .variant(resetArmed ? Button.Variant.PRIMARY : Button.Variant.GHOST).accent(accent)
+                    .onClick(() -> {
+                        if (resetArmed) { resetArmed = false; m.reset().run(); openDrop = null; }
+                        else { resetArmed = true; resetArmAt = uiCtx.time(); }
+                        rebuildPopover();
+                    });
+            Row rr = new Row().crossAlign(CrossAlign.CENTER); rr.add(Spacer.fill()); rr.add(reset);
             col.add(rr); focus.register(reset);
         }
         return col;
@@ -686,6 +701,12 @@ public final class ClubMenuScreen extends Screen {
             r.roundedRect(railWX, indY + 4, 4, RAIL_ROW - 8, 2f, railBarColor(now));
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
+
+        // armed reset decays back to the quiet ghost when the hold expires (Stage 35)
+        if (resetArmed && now - resetArmAt > RESET_ARM_HOLD) {
+            resetArmed = false;
+            if (popModule != null && !popClosing) rebuildPopover();
+        }
 
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
         if (popModule != null && popScroll != null) {

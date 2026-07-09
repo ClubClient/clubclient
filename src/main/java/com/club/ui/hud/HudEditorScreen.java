@@ -50,6 +50,17 @@ public final class HudEditorScreen extends Screen {
     private int pressOwner;   // which surface owns the active gesture: 0 none, 1 toolbar, 2 popover, 3 canvas
     private final Screen parent;
 
+    // Toolbar Reset confirmation (Stage 35): first click arms, second executes; the arm decays.
+    private static final float RESET_ARM_HOLD = 3f;
+    private Button tbReset;
+    private boolean tbResetArmed;
+    private float tbResetArmAt;
+
+    private void disarmReset() {
+        tbResetArmed = false;
+        if (tbReset != null) tbReset.label("Reset").variant(Button.Variant.GHOST);
+    }
+
     public HudEditorScreen() { this(null); }
     public HudEditorScreen(Screen parent) { super(Text.literal("HUD Editor")); this.parent = parent; }
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
@@ -93,11 +104,19 @@ public final class HudEditorScreen extends Screen {
         float btnY = tbY + (tbH - TB_BTN_H) / 2f;
         Toggle grid = new Toggle(canvas.gridSnap()).accent(QUIET_ACC).onChange(canvas::setGridSnap);
         grid.layout(toggleX, tbY + (tbH - TB_TOGGLE_H) / 2f, TB_TOGGLE_W, TB_TOGGLE_H);
-        Button reset = new Button("Reset").variant(Button.Variant.GHOST).onClick(this::resetPositions);
-        reset.layout(toggleX + TB_TOGGLE_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
+        // Stage 35: Reset wipes EVERY element's position — it asks first. Click 1 arms ("Sure?",
+        // quiet-accent PRIMARY — the muted token, full brand screams on the utility overlay);
+        // click 2 within the hold executes; the arm decays back in render(). Label swaps in place
+        // (fixed TB_BTN_W bounds), no toolbar rebuild.
+        tbReset = new Button("Reset").variant(Button.Variant.GHOST).accent(QUIET_ACC)
+                .onClick(() -> {
+                    if (tbResetArmed) { disarmReset(); resetPositions(); }
+                    else { tbResetArmed = true; tbResetArmAt = uiCtx.time(); tbReset.label("Sure?").variant(Button.Variant.PRIMARY); }
+                });
+        tbReset.layout(toggleX + TB_TOGGLE_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
         Button done = new Button("Done").variant(Button.Variant.GHOST).onClick(this::close);
         done.layout(toggleX + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
-        toolbar.add(grid); toolbar.add(reset); toolbar.add(done);
+        toolbar.add(grid); toolbar.add(tbReset); toolbar.add(done);
     }
 
     private static final int POP_HEAD = 28, POP_ROW = 26, POP_PAD_B = 8;
@@ -204,6 +223,9 @@ public final class HudEditorScreen extends Screen {
         canvas.setScreen(width, height);
         canvas.layoutFromConfig(MinecraftClient.getInstance());
         Decals.watermark(uiCtx); Decals.crosshair(uiCtx, width, height);
+
+        // armed Reset decays back to the quiet ghost when the hold expires (Stage 35)
+        if (tbResetArmed && uiCtx.time() - tbResetArmAt > RESET_ARM_HOLD) disarmReset();
 
         canvas.mouseMoved(mx, my);
         canvas.render(uiCtx);
