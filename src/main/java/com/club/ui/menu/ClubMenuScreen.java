@@ -87,6 +87,15 @@ public final class ClubMenuScreen extends Screen {
     private Transition[] railText;   // per-category label colour ease (hover / active)
     private Transition entrance;     // screen open: scrim fades in + window rises a few px (no scale)
     private float entranceYOff;      // current window rise offset (added to winY in layoutAll)
+    // Stage 37: returning from the HUD editor replays a CALM entrance — fast fade, no 12px rise
+    // (the full rise on every Done read as a jerk, owner 2026-07-09). Right-Shift open keeps the
+    // full motion; beginClose restores it so the close always plays the polished reverse.
+    private boolean reentry;         // next init() = a return from a child screen (HUD editor)
+    private float entranceRise = 12f;
+    // Background scrim (Stage 37, owner 2026-07-09: the bright world drowned the menu — "мало
+    // контраста и довольно ярко"). A flat dark veil, NOT blur (blur stays rejected, 49bc69b);
+    // the world remains visible through it so live settings still read. Rides the entrance fade.
+    private static final int SCRIM = 0x9006090C;   // ~56% near-black ink
     // Rail accent bar: eases between CATEGORY colours on switch (identity colour — Stage 11 palette A)
     private int railBarFrom;
     private Transition railBarBlend;
@@ -163,7 +172,10 @@ public final class ClubMenuScreen extends Screen {
 
     public ClubMenuScreen() { super(Text.literal("Club")); }
 
-    private void openHudEditor() { MinecraftClient.getInstance().setScreen(new HudEditorScreen(this)); }
+    private void openHudEditor() {
+        reentry = true;   // coming back from the editor replays a calm, fade-only entrance (Stage 37)
+        MinecraftClient.getInstance().setScreen(new HudEditorScreen(this));
+    }
 
     @Override protected void init() {
         headH = 48; footH = 36;   // footer slimmed with its divider gone (Stage 22)
@@ -185,7 +197,14 @@ public final class ClubMenuScreen extends Screen {
         for (int i = 0; i < cats.size(); i++)
             railText[i] = new Transition(i == catIndex ? 1f : 0f,
                     Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
-        entrance = new Transition(0f, Tokens.motion().durations().slow(), Tokens.motion().easings().decelerate());
+        if (reentry) {   // back from the HUD editor: quick fade into place, no rise (Stage 37)
+            reentry = false;
+            entrance = new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
+            entranceRise = 0f;
+        } else {
+            entrance = new Transition(0f, Tokens.motion().durations().slow(), Tokens.motion().easings().decelerate());
+            entranceRise = 12f;
+        }
         railBarFrom = catAccent(catIndex);
         railBarBlend = new Transition(1f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
     }
@@ -570,7 +589,7 @@ public final class ClubMenuScreen extends Screen {
         float now = uiCtx.time();
         float ep = 1f;
         if (entrance != null) { entrance.target(closing ? 0f : 1f, now); ep = entrance.value(now); }
-        entranceYOff = (1f - ep) * 12f;   // window rises into place on open; sinks back out on close
+        entranceYOff = (1f - ep) * entranceRise;   // window rises into place on open; sinks back out on close
         if (closing && ep <= 0.001f) {    // reverse animation finished — really close now
             MinecraftClient.getInstance().setScreen(null);
             return;
@@ -583,8 +602,11 @@ public final class ClubMenuScreen extends Screen {
         Typography ty = Tokens.type();
         float catLh = ty.label().lineHeight();
 
-        // No background scrim: the world stays fully visible so settings apply live (e.g. adjust a hand slider
-        // and watch the hand move behind/around the window).
+        // Background scrim (Stage 37): a flat ~56% ink veil — the bright world was drowning the menu
+        // (owner: «мало контраста и довольно ярко»). Translucent, so settings still apply live and
+        // visibly (hand sliders etc.); NOT blur (rejected, 49bc69b). Inside pushOpacity → it rides
+        // the entrance/close fade with the window.
+        r.rect(0, 0, width, height, SCRIM);
 
         // Ambient halo BEHIND the window (Stage 22): thin rings, quadratic falloff — a shadow that
         // HUGS the window and dissipates fast, not a dark buffer. World separation, not UI depth.
@@ -771,6 +793,14 @@ public final class ClubMenuScreen extends Screen {
      *  already-locked guard. Clicks are swallowed by the closing guard meanwhile. */
     private void beginClose() {
         if (closing) return;
+        // A calm (post-editor) entrance must not shortchange the CLOSE — restore the polished
+        // reverse: re-seed the standard slow transition at the current value, rise back on.
+        if (entranceRise == 0f && entrance != null) {
+            Transition t = new Transition(entrance.value(uiCtx.time()),
+                    Tokens.motion().durations().slow(), Tokens.motion().easings().decelerate());
+            entrance = t;
+            entranceRise = 12f;
+        }
         closing = true;
         closePopover();
         MinecraftClient mc = MinecraftClient.getInstance();
