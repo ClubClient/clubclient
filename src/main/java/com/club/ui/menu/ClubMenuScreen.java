@@ -137,6 +137,7 @@ public final class ClubMenuScreen extends Screen {
     // every other key route, including the menu-close key.
     private boolean bindListening;
     private Module bindModule;
+    private Button popBindBtn;   // the live Bind button of the open popover (focus handback after capture)
 
     // settings popover (RMB), anchored to a card
     private Module popModule;
@@ -458,7 +459,7 @@ public final class ClubMenuScreen extends Screen {
     private void reallyClosePopover() {
         popModule = null; popCol = null; popScroll = null; openDrop = null;
         popReveal = null; popClosing = false; resetArmed = false; popResetBtn = null;
-        bindListening = false; bindModule = null;
+        bindListening = false; bindModule = null; popBindBtn = null;
         focus.clear();
         if (search != null) focus.register(search);
         if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // hand the zone back (Space → Esc round-trip)
@@ -524,11 +525,12 @@ public final class ClubMenuScreen extends Screen {
                 bindListening = !was; bindModule = bindListening ? m : null;
                 rebuildPopover();
             });
+            popBindBtn = bind;
             Row rr = new Row().crossAlign(CrossAlign.CENTER);
             rr.add(new Label("Bind", Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
             rr.add(bind);
             col.add(new LaneRow(rr)); focus.register(bind);
-        }
+        } else popBindBtn = null;
 
         if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
             // Stage 35 (hardened in 38): a destructive action asks first. Click 1 ARMS the button — it
@@ -911,15 +913,19 @@ public final class ClubMenuScreen extends Screen {
         boolean shift = (mods & GLFW_MOD_SHIFT) != 0, ctrl = (mods & GLFW_MOD_CONTROL) != 0;
 
         // Keybind capture wins over EVERYTHING (incl. the menu-close key): the next key assigns,
-        // Esc cancels, Backspace/Delete clears (Stage 43).
+        // Esc cancels, Backspace/Delete clears (Stage 43, hardened 45).
         if (bindListening && bindModule != null) {
             if (k == GLFW_KEY_ESCAPE) { /* cancel — keep the current bind */ }
             else if (k == GLFW_KEY_BACKSPACE || k == GLFW_KEY_DELETE)
                 com.club.modules.binds.ModuleBinds.set(bindModule.name(), null);
+            else if (k == GLFW_KEY_UNKNOWN)
+                return true;   // no GLFW keycode → would be a dead SCANCODE bind; ignore, keep listening
+            else if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)) { /* reserved — don't bind the menu key */ }
             else com.club.modules.binds.ModuleBinds.set(bindModule.name(),
                     InputUtil.fromKeyCode(k, scan).getTranslationKey());
             bindListening = false; bindModule = null;
             rebuildPopover();
+            if (popBindBtn != null) focus.focusKeyboard(popBindBtn);   // keyboard flow continues on the Bind row
             return true;
         }
 

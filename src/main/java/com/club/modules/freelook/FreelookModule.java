@@ -45,6 +45,10 @@ public final class FreelookModule {
             active = false;
             if (prev != null) mc.options.setPerspective(prev);
             prev = null;
+        } else if (want && active && mc.options.getPerspective() != Perspective.THIRD_PERSON_BACK) {
+            // F5 must not escape freelook mid-hold: re-assert it (else the camera would apply the
+            // free rotation in first person while the crosshair tracks the player — a view/aim desync).
+            mc.options.setPerspective(Perspective.THIRD_PERSON_BACK);
         }
     }
 }

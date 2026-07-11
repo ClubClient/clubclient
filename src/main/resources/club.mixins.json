@@ -9,6 +9,7 @@
     "MixinLivingEntity",
     "MixinCamera",
     "MixinInGameHud",
+    "MixinLightmapTextureManager",
     "MixinMouse",
     "MixinSimpleOption",
     "MouseAccessor"

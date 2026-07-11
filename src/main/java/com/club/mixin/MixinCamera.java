@@ -14,7 +14,9 @@ public class MixinCamera {
     @ModifyArgs(method = "update", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/render/Camera;setRotation(FF)V"))
     private void club$freelook(Args args) {
-        if (FreelookModule.active()) {
+        // Only in third person: a stray first-person frame (F5 spam before tick re-asserts) must not
+        // get the free rotation, or the view desyncs from the player's real (crosshair) rotation.
+        if (FreelookModule.active() && ((Camera) (Object) this).isThirdPerson()) {
             args.set(0, FreelookModule.camYaw());
             args.set(1, FreelookModule.camPitch());
         }

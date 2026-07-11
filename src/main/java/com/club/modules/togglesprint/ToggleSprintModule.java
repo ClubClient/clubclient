@@ -23,12 +23,15 @@ public final class ToggleSprintModule {
                 && !mc.options.getSprintToggled().getValue();
     }
 
-    /** END_CLIENT_TICK: force-hold, and cleanly release the key when the module turns off —
-     *  a forced pressed state would otherwise stick until the next physical key event. */
+    /** END_CLIENT_TICK: force-hold, and cleanly release when the module turns off. The off-edge
+     *  EXPLICITLY unpresses the key first (Stage 45): updatePressedStates() only resets KEYSYM keys
+     *  with a known code, so a mouse-bound or UNBOUND sprint key would keep the forced press stuck
+     *  and the player would auto-sprint forever. updatePressedStates() then restores a physically
+     *  held keyboard key. */
     public static void tick(MinecraftClient mc) {
         boolean force = active(mc);
         if (force) mc.options.sprintKey.setPressed(true);
-        else if (wasForcing) KeyBinding.updatePressedStates();   // re-read the real key state once
+        else if (wasForcing) { mc.options.sprintKey.setPressed(false); KeyBinding.updatePressedStates(); }
         wasForcing = force;
     }
 }
