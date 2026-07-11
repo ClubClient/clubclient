@@ -2,7 +2,9 @@ package com.club.mixin;
 
 import com.club.config.ClubConfig;
 import com.club.modules.screenstretch.ScreenStretchModule;
+import com.club.modules.zoom.ZoomModule;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
+import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -27,6 +29,15 @@ public class MixinGameRenderer {
         if (ClubConfig.get().noBobbing) {
             ci.cancel();
         }
+    }
+
+    /** Zoom (Stage 39): divide the WORLD fov by the eased zoom divisor. Only the changingFov pass
+     *  (world render) zooms — the hand pass keeps its FOV, so the viewmodel doesn't balloon. */
+    @ModifyReturnValue(method = "getFov", at = @At("RETURN"))
+    private double club$zoom(double fov, Camera camera, float tickDelta, boolean changingFov) {
+        if (!changingFov) return fov;
+        float d = ZoomModule.fovDivisor();   // also advances the ease + release-persist state
+        return d > 1.0005f ? fov / d : fov;
     }
 
     /** ScreenStretch: scale the world projection horizontally to fake an aspect ratio. */

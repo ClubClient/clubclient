@@ -25,6 +25,7 @@ public class ClubConfig {
     // --- module sections ---
     public Hands hands = new Hands();
     public Animations animations = new Animations();
+    public Zoom zoom = new Zoom();
     public ScreenStretch screenStretch = new ScreenStretch();
     public boolean noHurtCam = true;
     public boolean noFireOverlay = true;
@@ -57,6 +58,12 @@ public class ClubConfig {
         public String type = "CLASSIC"; // AnimationType name
         public float speed = 1.0f;       // 0.5 - 2.0
         public float amplitude = 1.0f;   // 0.5 - 1.5
+    }
+
+    public static class Zoom {
+        public boolean enabled = true;  // master toggle; the hold-key only works when on
+        public float factor = 4.0f;     // world-FOV divisor while zoomed (2..8, scroll-adjustable)
+        public boolean smooth = true;   // eased zoom in/out (0.18s decelerate) vs instant
     }
 
     public static class ScreenStretch {
@@ -184,6 +191,8 @@ public class ClubConfig {
         if (hands.rightHand == null) hands.rightHand = new HandSide();
         if (hands.leftHand == null) hands.leftHand = new HandSide();
         if (animations == null) animations = new Animations();
+        if (zoom == null) zoom = new Zoom();
+        zoom.factor = Math.max(2f, Math.min(8f, zoom.factor));
         if (screenStretch == null) screenStretch = new ScreenStretch();
         if (hud == null) hud = new Hud();
         // Canonicalize armorLayout ONCE here (Stage 29) instead of clamping at every read site: an

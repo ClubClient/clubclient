@@ -20,6 +20,7 @@ import org.lwjgl.glfw.GLFW;
 
 public class ClubClient implements ClientModInitializer {
     public static KeyBinding openMenuKey;
+    public static KeyBinding zoomKey;
 
     @Override
     public void onInitializeClient() {
@@ -47,6 +48,14 @@ public class ClubClient implements ClientModInitializer {
                 "key.club.open_menu",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_RIGHT_SHIFT,
+                "key.category.club"
+        ));
+
+        // keybind: Zoom (hold; default C, the OptiFine muscle-memory spot)
+        zoomKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.club.zoom",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_C,
                 "key.category.club"
         ));
 

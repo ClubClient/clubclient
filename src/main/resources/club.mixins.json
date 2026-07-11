@@ -8,6 +8,7 @@
     "MixinHeldItemRenderer",
     "MixinLivingEntity",
     "MixinInGameHud",
+    "MixinMouse",
     "MouseAccessor"
   ],
   "injectors": {

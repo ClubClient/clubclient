@@ -73,6 +73,7 @@ public final class MenuContent {
         return List.of(
             new Category("Combat", IconGlyph.COMBAT, List.of(animations(c))),
             new Category("Visuals", IconGlyph.VISUALS, List.of(
+                zoom(c),
                 screenStretch(c),
                 flag("No Hurt Cam",     "Removes the red damage screen tilt.",       IconGlyph.NO_HURT_CAM, () -> c.noHurtCam,     v -> { c.noHurtCam = v; save(); }),
                 flag("No Fire Overlay", "Hides the first-person flames while burning.", IconGlyph.NO_FIRE_OVERLAY, () -> c.noFireOverlay, v -> { c.noFireOverlay = v; save(); }),
@@ -102,6 +103,15 @@ public final class MenuContent {
                         i -> { c.animations.type = at[i].name(); save(); }),
                 new SliderSetting("Speed", 0.5f, 2.0f, 0.01f, () -> c.animations.speed, v -> c.animations.speed = v),
                 new SliderSetting("Amplitude", 0.5f, 1.5f, 0.01f, () -> c.animations.amplitude, v -> c.animations.amplitude = v)));
+    }
+
+    private static Module zoom(ClubConfig c) {
+        return new Module("Zoom", "Hold the zoom key to magnify the view.", IconGlyph.ZOOM,
+            () -> c.zoom.enabled, v -> { c.zoom.enabled = v; save(); },
+            () -> { c.zoom.factor = 4f; c.zoom.smooth = true; c.zoom.enabled = true; save(); },
+            List.of(
+                new SliderSetting("Factor", 2f, 8f, 0.5f, () -> c.zoom.factor, v -> c.zoom.factor = v),
+                new ToggleSetting("Smooth", () -> c.zoom.smooth, v -> { c.zoom.smooth = v; save(); })));
     }
 
     private static Module screenStretch(ClubConfig c) {
