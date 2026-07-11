@@ -530,6 +530,11 @@ public final class ClubMenuScreen extends Screen {
             rr.add(new Label("Bind", Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
             rr.add(bind);
             col.add(new LaneRow(rr)); focus.register(bind);
+            // Discoverable clear (Stage 46): the hint appears only while listening — arm the bind, then
+            // Del clears it. Faint caption, disappears with the capture (the popover eases the resize).
+            if (listening)
+                col.add(new Label("Esc cancels · Del clears", Tokens.type().caption())
+                        .color(Tokens.palette().textFaint()));
         } else popBindBtn = null;
 
         if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
@@ -547,7 +552,9 @@ public final class ClubMenuScreen extends Screen {
                 if (resetArmed) {
                     boolean kb = popResetBtn != null && popResetBtn.isFocusVisible();
                     resetArmed = false;
-                    m.reset().run(); openDrop = null;
+                    m.reset().run();
+                    com.club.modules.binds.ModuleBinds.set(m.name(), null);   // Reset also clears the keybind (Stage 46)
+                    openDrop = null;
                     rebuildPopover();
                     if (kb && popResetBtn != null) focus.focusKeyboard(popResetBtn);
                 } else {

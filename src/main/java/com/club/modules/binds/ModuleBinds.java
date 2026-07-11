@@ -82,10 +82,16 @@ public final class ModuleBinds {
         return k == null ? null : k.getLocalizedText().getString();
     }
 
-    /** Assign (translation key) or clear (null) a module's bind; persists immediately. */
+    /** Assign (translation key) or clear (null) a module's bind; persists immediately. Assigning a
+     *  key already held by ANOTHER module steals it (Stage 46) — one press must not toggle two
+     *  modules (the tick loop would fire both). */
     public static void set(String moduleName, String translationKey) {
-        if (translationKey == null) ClubConfig.get().moduleBinds.remove(moduleName);
-        else ClubConfig.get().moduleBinds.put(moduleName, translationKey);
+        Map<String, String> binds = ClubConfig.get().moduleBinds;
+        if (translationKey == null) binds.remove(moduleName);
+        else {
+            binds.entrySet().removeIf(e -> !e.getKey().equals(moduleName) && translationKey.equals(e.getValue()));
+            binds.put(moduleName, translationKey);
+        }
         down.remove(moduleName);   // a fresh bind must not inherit a stale held-edge
         ClubConfig.save();
     }
