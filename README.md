@@ -1,3 +1,5 @@
+<img src="docs/icon.png" width="110" align="right" alt="Club icon">
+
 # Club
 
 A clean, **flat** first-person utility client for Minecraft (Fabric 1.21.1). Zoom, fullbright,

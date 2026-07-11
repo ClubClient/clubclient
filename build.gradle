@@ -84,6 +84,58 @@ tasks.register("genIconPreviews") {
 	}
 }
 
+// Brand icon (512x512): a rounded dark tile (brand gradient) + the club-suit trefoil in accent,
+// matching the in-game logo geometry (tools/icons/src/E021_logo.svg). Run: ./gradlew genPromoIcon
+// Writes docs/icon.png (Modrinth/promo) and the mod-list icon (assets/club/icon.png).
+tasks.register("genPromoIcon") {
+	group = "club"
+	description = "Render the 512x512 brand icon to docs/icon.png and assets/club/icon.png."
+	doLast {
+		System.setProperty("java.awt.headless", "true")
+		int S = 512
+		def img = new java.awt.image.BufferedImage(S, S, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+		def g = img.createGraphics()
+		g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON)
+		g.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY)
+		g.setRenderingHint(java.awt.RenderingHints.KEY_STROKE_CONTROL, java.awt.RenderingHints.VALUE_STROKE_PURE)
+		// rounded tile clip → transparent corners
+		double rad = 112d
+		def tile = new java.awt.geom.RoundRectangle2D.Double(0d, 0d, (double) S, (double) S, rad * 2, rad * 2)
+		g.setClip(tile)
+		// brand vertical gradient background (neutral-dark, no glow)
+		g.setPaint(new java.awt.GradientPaint(0f, 0f, new java.awt.Color(0x16, 0x1F, 0x30),
+				0f, (float) S, new java.awt.Color(0x0A, 0x10, 0x18)))
+		g.fillRect(0, 0, S, S)
+		// whisper of inner light on the top edge (recessed polish, not glow)
+		g.setColor(new java.awt.Color(255, 255, 255, 16))
+		g.fill(new java.awt.geom.RoundRectangle2D.Double(0d, 0d, (double) S, 5d, rad, rad))
+		// trefoil (union of 3 circles + stem) built in the 24-unit logo space, then fitted
+		def area = new java.awt.geom.Area()
+		area.add(new java.awt.geom.Area(new java.awt.geom.Ellipse2D.Double(7.8d, 3.2d, 8.4d, 8.4d)))    // top   (12, 7.4)
+		area.add(new java.awt.geom.Area(new java.awt.geom.Ellipse2D.Double(2.9d, 9.7d, 8.4d, 8.4d)))    // left  (7.1, 13.9)
+		area.add(new java.awt.geom.Area(new java.awt.geom.Ellipse2D.Double(12.7d, 9.7d, 8.4d, 8.4d)))   // right (16.9, 13.9)
+		area.add(new java.awt.geom.Area(new java.awt.geom.RoundRectangle2D.Double(10.8d, 13.5d, 2.4d, 7.0d, 2.4d, 2.4d)))
+		double target = 300.0                 // mark width in px
+		double scale = target / 18.2          // logo bbox width ≈ 18.2 (x 2.9..21.1)
+		def at = new java.awt.geom.AffineTransform()
+		at.translate(S / 2.0, S / 2.0 + 6.0)  // nudge down: the top lobe is smaller than the base pair
+		at.scale(scale, scale)
+		at.translate(-12.0, -11.85)           // logo bbox centre
+		def mark = area.createTransformedArea(at)
+		// subtle accent gradient on the mark (promo asset — richer than the flat in-game chrome)
+		def b = mark.getBounds2D()
+		g.setPaint(new java.awt.GradientPaint((float) b.getMinX(), (float) b.getMinY(), new java.awt.Color(0x9C, 0xC2, 0xFF),
+				(float) b.getMinX(), (float) b.getMaxY(), new java.awt.Color(0x6C, 0x97, 0xEC)))
+		g.fill(mark)
+		g.dispose()
+		def promo = file("docs/icon.png"); promo.parentFile.mkdirs()
+		javax.imageio.ImageIO.write(img, "png", promo)
+		def modIcon = file("src/main/resources/assets/club/icon.png")
+		javax.imageio.ImageIO.write(img, "png", modIcon)
+		logger.lifecycle("wrote ${promo} and ${modIcon}")
+	}
+}
+
 // Offline MSDF atlas generation. Downloads a pinned msdf-atlas-gen and renders
 // Inter weights to assets/club/ui/font/msdf/. Run manually: ./gradlew genMsdfAtlas
 tasks.register("genMsdfAtlas") {
