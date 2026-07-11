@@ -126,9 +126,11 @@ public final class ClubMenuScreen extends Screen {
     private Transition noteFade;   // "No matching modules" — single smooth fade in/out
 
     // Reset confirmation (Stage 35): first click arms, second executes; the arm decays on timeout.
+    // Arm/decay swap the button IN PLACE (Stage 38) — see the buildSettings reset block.
     private static final float RESET_ARM_HOLD = 3f;
     private boolean resetArmed;
     private float resetArmAt;
+    private Button popResetBtn;   // the live reset button of the open popover (null when none)
 
     // settings popover (RMB), anchored to a card
     private Module popModule;
@@ -446,7 +448,7 @@ public final class ClubMenuScreen extends Screen {
 
     private void reallyClosePopover() {
         popModule = null; popCol = null; popScroll = null; openDrop = null;
-        popReveal = null; popClosing = false; resetArmed = false;
+        popReveal = null; popClosing = false; resetArmed = false; popResetBtn = null;
         focus.clear();
         if (search != null) focus.register(search);
         if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // hand the zone back (Space → Esc round-trip)
@@ -499,20 +501,32 @@ public final class ClubMenuScreen extends Screen {
         }
 
         if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
-            // Stage 35: a destructive action asks first. Click 1 ARMS the button — it turns into the
-            // category-accent PRIMARY "Sure? Reset" (the loudest voice this popover has, reserved for
-            // exactly this moment); click 2 within the hold executes. The arm decays back to the quiet
-            // ghost after RESET_ARM_HOLD (checked per-frame in render), or with the popover.
+            // Stage 35 (hardened in 38): a destructive action asks first. Click 1 ARMS the button — it
+            // turns into the category-accent PRIMARY "Sure? Reset" (the loudest voice this popover has,
+            // reserved for exactly this moment); click 2 within the hold executes. Arm and decay swap
+            // IN PLACE (label/variant only, width pinned to the idle box) — a rebuild here would orphan
+            // an in-flight slider drag (losing its save-on-release) and wipe keyboard focus. Only the
+            // CONFIRM rebuilds (the controls must re-seed to the reset values); keyboard focus is handed
+            // to the fresh button so Enter-Enter works end to end.
             Button reset = new Button(resetArmed ? "Sure? Reset" : "Reset to Default")
-                    .variant(resetArmed ? Button.Variant.PRIMARY : Button.Variant.GHOST).accent(accent)
-                    .onClick(() -> {
-                        if (resetArmed) { resetArmed = false; m.reset().run(); openDrop = null; }
-                        else { resetArmed = true; resetArmAt = uiCtx.time(); }
-                        rebuildPopover();
-                    });
+                    .variant(resetArmed ? Button.Variant.PRIMARY : Button.Variant.GHOST).accent(accent);
+            reset.minWidth(new Button("Reset to Default").measure(10_000f, 22f).w());
+            reset.onClick(() -> {
+                if (resetArmed) {
+                    boolean kb = popResetBtn != null && popResetBtn.isFocusVisible();
+                    resetArmed = false;
+                    m.reset().run(); openDrop = null;
+                    rebuildPopover();
+                    if (kb && popResetBtn != null) focus.focusKeyboard(popResetBtn);
+                } else {
+                    resetArmed = true; resetArmAt = uiCtx.time();
+                    if (popResetBtn != null) popResetBtn.label("Sure? Reset").variant(Button.Variant.PRIMARY);
+                }
+            });
+            popResetBtn = reset;
             Row rr = new Row().crossAlign(CrossAlign.CENTER); rr.add(Spacer.fill()); rr.add(reset);
             col.add(rr); focus.register(reset);
-        }
+        } else popResetBtn = null;
         return col;
     }
 
@@ -597,16 +611,20 @@ public final class ClubMenuScreen extends Screen {
 
         layoutAll();
         screenAlpha = ep;
+
+        // Background scrim (Stage 37): a flat ~56% ink veil — the bright world was drowning the menu
+        // (owner: «мало контраста и довольно ярко»). Translucent, so settings still apply live and
+        // visibly (hand sliders etc.); NOT blur (rejected, 49bc69b). Faded EXPLICITLY (scaleAlpha,
+        // outside pushOpacity) so it truly rides the entrance/close on LEGACY too, where pushOpacity
+        // is a no-op. During a calm post-editor re-entry the veil HOLDS full (Stage 38): the editor
+        // was already dark — fading in from 0 flashed the bright world between two dark states.
+        float scrimA = (entranceRise == 0f && !closing) ? 1f : ep;
+        r.rect(0, 0, width, height, Color.scaleAlpha(SCRIM, scrimA));
+
         r.pushOpacity(ep);   // whole-window fade: shapes here; text/glyphs multiply screenAlpha
         float lg = Tokens.radius().lg();
         Typography ty = Tokens.type();
         float catLh = ty.label().lineHeight();
-
-        // Background scrim (Stage 37): a flat ~56% ink veil — the bright world was drowning the menu
-        // (owner: «мало контраста и довольно ярко»). Translucent, so settings still apply live and
-        // visibly (hand sliders etc.); NOT blur (rejected, 49bc69b). Inside pushOpacity → it rides
-        // the entrance/close fade with the window.
-        r.rect(0, 0, width, height, SCRIM);
 
         // Ambient halo BEHIND the window (Stage 22): thin rings, quadratic falloff — a shadow that
         // HUGS the window and dissipates fast, not a dark buffer. World separation, not UI depth.
@@ -724,10 +742,12 @@ public final class ClubMenuScreen extends Screen {
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
-        // armed reset decays back to the quiet ghost when the hold expires (Stage 35)
+        // armed reset decays back to the quiet ghost when the hold expires (Stage 35). In place —
+        // NO rebuild (Stage 38): a timer-driven rebuild would orphan an in-flight slider drag
+        // (freezing it and skipping its save-on-release) and silently clear keyboard focus.
         if (resetArmed && now - resetArmAt > RESET_ARM_HOLD) {
             resetArmed = false;
-            if (popModule != null && !popClosing) rebuildPopover();
+            if (popResetBtn != null) popResetBtn.label("Reset to Default").variant(Button.Variant.GHOST);
         }
 
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
@@ -794,12 +814,14 @@ public final class ClubMenuScreen extends Screen {
     private void beginClose() {
         if (closing) return;
         // A calm (post-editor) entrance must not shortchange the CLOSE — restore the polished
-        // reverse: re-seed the standard slow transition at the current value, rise back on.
+        // reverse: re-seed the standard slow transition at the current value. The 12px sink comes
+        // back ONLY from a settled window (Stage 38): mid-fade, flipping the rise would teleport
+        // the window down by (1-ep)*12 in a single frame — the exact jerk Stage 37 removed.
         if (entranceRise == 0f && entrance != null) {
-            Transition t = new Transition(entrance.value(uiCtx.time()),
+            float cur = entrance.value(uiCtx.time());
+            entrance = new Transition(cur,
                     Tokens.motion().durations().slow(), Tokens.motion().easings().decelerate());
-            entrance = t;
-            entranceRise = 12f;
+            if (cur >= 0.999f) entranceRise = 12f;
         }
         closing = true;
         closePopover();

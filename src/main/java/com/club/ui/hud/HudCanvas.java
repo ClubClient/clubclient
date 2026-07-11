@@ -56,6 +56,8 @@ public final class HudCanvas extends Container {
     public boolean gridSnap() { return gridSnap; }
     public void saver(Runnable r) { this.saver = r; }
     public HudElement selected() { return selected; }
+    /** True while a left-drag gesture owns an element — the keyboard nudge must not fight it (Stage 38). */
+    public boolean dragging() { return pressed != null; }
     public void clearSelection() { if (selected != null) { selected = null; onSelectionChanged.run(); } }
     public int guideX() { return guideX; }
     public int guideY() { return guideY; }

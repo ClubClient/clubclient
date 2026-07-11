@@ -100,6 +100,8 @@ public final class HudEditorScreen extends Screen {
 
     private void buildToolbar() {
         toolbar.clear();
+        tbResetArmed = false;   // a rebuilt toolbar (init/resize/F11) shows the unarmed button — the
+                                // flag must match, or a click on the quiet "Reset" would fire instantly
         tbH = 40;
         tbW = TB_PAD + TB_LABEL_W + 8 + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP + TB_BTN_W + TB_PAD;
         tbX = (width - tbW) / 2f;
@@ -327,7 +329,10 @@ public final class HudEditorScreen extends Screen {
         int dx = k == GLFW_KEY_LEFT ? -1 : k == GLFW_KEY_RIGHT ? 1 : 0;
         int dy = k == GLFW_KEY_UP   ? -1 : k == GLFW_KEY_DOWN  ? 1 : 0;
         if (dx == 0 && dy == 0) return false;
-        HudElement hover = canvas.elementAt(lastMx, lastMy);
+        if (canvas.dragging()) return true;   // a held drag owns the element AND the guide lines — arrows wait
+        // The hover hit-test must not look THROUGH the floating overlays: a cursor resting on the
+        // popover/toolbar hovers nothing (click routing agrees) — the selected element still nudges.
+        HudElement hover = overOverlay(lastMx, lastMy) ? null : canvas.elementAt(lastMx, lastMy);
         HudElement target = hover != null ? hover : canvas.selected();
         if (target == null) return false;
         int step = (mods & GLFW_MOD_SHIFT) != 0 ? HudCanvas.GRID_STEP : 1;
@@ -340,6 +345,13 @@ public final class HudEditorScreen extends Screen {
             }
         }
         return true;
+    }
+
+    /** True when (x,y) rests on a floating overlay — the toolbar or the open settings popover. */
+    private boolean overOverlay(double x, double y) {
+        if (x >= tbX && x <= tbX + tbW && y >= tbY && y <= tbY + tbH) return true;
+        return hasPopover && !popClosing
+                && x >= popX && x <= popX + popW && y >= popY && y <= popY + popH;
     }
 
     /** Shift the OS cursor by a GUI-px delta (window-scaled), keeping MC's tracked position in sync

@@ -21,6 +21,7 @@ public final class Button extends Control {
     private Variant variant = Variant.PRIMARY;
     private Runnable onClick;
     private boolean compact;   // pin to the 24px control lane (popover value fields, Stage 34)
+    private float minWidth;    // width floor — an armed/confirm label swap must not shrink the box (Stage 38)
     private int accent;   // 0 = theme accent; set for category-tinted contexts (Stage 11.9)
     private final Transition hover =
             new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
@@ -38,6 +39,9 @@ public final class Button extends Control {
     /** Swap the label text in place (armed/confirm states) — bounds are kept, callers pass a narrower
      *  or equal label so no re-layout is needed. */
     public Button label(String text) { this.label.text(text); return this; }
+    /** Width floor in px: a state-swapped label (e.g. armed "Sure? Reset") keeps the idle box, so the
+     *  click target never shrinks under the cursor between the two clicks of a confirmation. */
+    public Button minWidth(float px) { this.minWidth = px; return this; }
 
     /** Package-private for same-package tests (NOT public §3 API). */
     Variant variantValue() { return variant; }
@@ -48,7 +52,7 @@ public final class Button extends Control {
         Size t = label.measure(availW, availH);
         // Generous horizontal padding (lg/side) + a min-width floor (xxl*3) so a row of buttons
         // aligns to a common width instead of hugging each label — the key "designed" signal.
-        float w = Math.max(t.w() + Tokens.spacing().lg() * 2f, Tokens.spacing().xxl() * 3f);
+        float w = Math.max(Math.max(t.w() + Tokens.spacing().lg() * 2f, Tokens.spacing().xxl() * 3f), minWidth);
         return new Size(w, compact ? Tokens.spacing().xl() : t.h() + Tokens.spacing().sm() * 2f);
     }
 
