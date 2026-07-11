@@ -332,6 +332,9 @@ public final class ClubMenuScreen extends Screen {
 
     private boolean hasConfigurable(Module m) {
         if (m.hasTabs()) return true;
+        // Every toggleable module carries a Bind row since Stage 43 — flag modules (Fullbright,
+        // Freelook, No-*) must open a popover too, or their keybind would be unreachable.
+        if (m.hasToggle()) return true;
         for (Setting s : m.settings()) if (!(s instanceof ActionSetting)) return true;
         return false;
     }
