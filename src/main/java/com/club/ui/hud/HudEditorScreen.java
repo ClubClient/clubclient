@@ -111,14 +111,13 @@ public final class HudEditorScreen extends Screen {
         float btnY = tbY + (tbH - TB_BTN_H) / 2f;
         Toggle grid = new Toggle(canvas.gridSnap()).accent(QUIET_ACC).onChange(canvas::setGridSnap);
         grid.layout(toggleX, tbY + (tbH - TB_TOGGLE_H) / 2f, TB_TOGGLE_W, TB_TOGGLE_H);
-        // Stage 35: Reset wipes EVERY element's position — it asks first. Click 1 arms ("Sure?",
-        // quiet-accent PRIMARY — the muted token, full brand screams on the utility overlay);
-        // click 2 within the hold executes; the arm decays back in render(). Label swaps in place
-        // (fixed TB_BTN_W bounds), no toolbar rebuild.
+        // Stage 35: Reset wipes EVERY element's position — it asks first. Click 1 arms it to the
+        // soft-accent "Confirm?" (Stage 50); click 2 within the hold executes; the arm decays back in
+        // render(). Label swaps in place (fixed TB_BTN_W bounds), no toolbar rebuild.
         tbReset = new Button("Reset").variant(Button.Variant.GHOST).accent(QUIET_ACC)
                 .onClick(() -> {
                     if (tbResetArmed) { disarmReset(); resetPositions(); }
-                    else { tbResetArmed = true; tbResetArmAt = uiCtx.time(); tbReset.label("Sure?").armed(true); }
+                    else { tbResetArmed = true; tbResetArmAt = uiCtx.time(); tbReset.label("Confirm?").armed(true); }
                 });
         tbReset.layout(toggleX + TB_TOGGLE_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
         Button done = new Button("Done").variant(Button.Variant.GHOST).onClick(this::close);

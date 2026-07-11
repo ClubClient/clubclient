@@ -512,14 +512,14 @@ public final class ClubMenuScreen extends Screen {
         }
 
         if (m.hasToggle() && openDrop == null) {
-            // Stage 43: per-module toggle keybind. The value field shows the bound key ("None" when
-            // unbound); click → listening ("Press a key…", the accent voice): the next key assigns,
-            // Esc cancels, Backspace/Delete clears. Width pinned to the widest state.
+            // Stage 43: per-module toggle hotkey. The value field shows the assigned key ("Not set"
+            // when unbound; English key names via ModuleBinds); click → listening ("Press any key…").
+            // Width pinned to the widest state.
             String cur = com.club.modules.binds.ModuleBinds.label(m.name());
             boolean listening = bindListening && bindModule == m;
-            Button bind = new Button(listening ? "Press a key…" : (cur != null ? cur : "None"))
+            Button bind = new Button(listening ? "Press any key…" : (cur != null ? cur : "Not set"))
                     .variant(Button.Variant.GHOST).armed(listening).accent(accent).compact();
-            bind.minWidth(new Button("Press a key…").compact().measure(10_000f, 22f).w());
+            bind.minWidth(new Button("Press any key…").compact().measure(10_000f, 22f).w());
             bind.onClick(() -> {
                 boolean was = bindListening && bindModule == m;
                 bindListening = !was; bindModule = bindListening ? m : null;
@@ -527,25 +527,23 @@ public final class ClubMenuScreen extends Screen {
             });
             popBindBtn = bind;
             Row rr = new Row().crossAlign(CrossAlign.CENTER);
-            rr.add(new Label("Bind", Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
+            rr.add(new Label("Hotkey", Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
             rr.add(bind);
             col.add(new LaneRow(rr)); focus.register(bind);
-            // Discoverable clear (Stage 46): the hint appears only while listening — arm the bind, then
-            // Del clears it. Faint caption, disappears with the capture (the popover eases the resize).
+            // Discoverable clear (Stage 46/51): a plain-English hint appears only while listening.
             if (listening)
-                col.add(new Label("Esc cancels · Del clears", Tokens.type().caption())
+                col.add(new Label("Esc to cancel · Delete to remove", Tokens.type().caption())
                         .color(Tokens.palette().textFaint()));
         } else popBindBtn = null;
 
         if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
             // Stage 35 (hardened in 38): a destructive action asks first. Click 1 ARMS the button — it
-            // turns into the category-accent PRIMARY "Sure? Reset" (the loudest voice this popover has,
-            // reserved for exactly this moment); click 2 within the hold executes. Arm and decay swap
-            // IN PLACE (label/variant only, width pinned to the idle box) — a rebuild here would orphan
-            // an in-flight slider drag (losing its save-on-release) and wipe keyboard focus. Only the
-            // CONFIRM rebuilds (the controls must re-seed to the reset values); keyboard focus is handed
-            // to the fresh button so Enter-Enter works end to end.
-            Button reset = new Button(resetArmed ? "Sure? Reset" : "Reset to Default")
+            // becomes the soft-accent "Confirm reset?" (Stage 50); click 2 within the hold executes.
+            // Arm and decay swap IN PLACE (label/armed only, width pinned to the idle box) — a rebuild
+            // here would orphan an in-flight slider drag (losing its save-on-release) and wipe keyboard
+            // focus. Only the CONFIRM rebuilds (controls must re-seed to the reset values); keyboard
+            // focus is handed to the fresh button so Enter-Enter works end to end.
+            Button reset = new Button(resetArmed ? "Confirm reset?" : "Reset to Default")
                     .variant(Button.Variant.GHOST).armed(resetArmed).accent(accent);
             reset.minWidth(new Button("Reset to Default").measure(10_000f, 22f).w());
             reset.onClick(() -> {
@@ -559,7 +557,7 @@ public final class ClubMenuScreen extends Screen {
                     if (kb && popResetBtn != null) focus.focusKeyboard(popResetBtn);
                 } else {
                     resetArmed = true; resetArmAt = uiCtx.time();
-                    if (popResetBtn != null) popResetBtn.label("Sure? Reset").armed(true);
+                    if (popResetBtn != null) popResetBtn.label("Confirm reset?").armed(true);
                 }
             });
             popResetBtn = reset;

@@ -76,10 +76,28 @@ public final class ModuleBinds {
         if (healed) ClubConfig.save();
     }
 
-    /** Human label for a bound key ("R", "Left Alt"), or null when unbound / unparseable. */
+    /** Human label for a bound key ("K", "Left Shift", "Space"), or null when unbound / unparseable.
+     *  Derived from the translation key so it's consistent ENGLISH in the mod's all-English UI —
+     *  not the game-localized name (which is Cyrillic in a Russian client and read as "random"). */
     public static String label(String moduleName) {
-        InputUtil.Key k = key(ClubConfig.get().moduleBinds.get(moduleName));
-        return k == null ? null : k.getLocalizedText().getString();
+        String t = ClubConfig.get().moduleBinds.get(moduleName);
+        if (t == null || key(t) == null) return null;   // key() also validates (unparseable → unbound)
+        return englishKeyName(t);
+    }
+
+    /** "key.keyboard.left.shift" → "Left Shift"; "key.keyboard.k" → "K"; "key.keyboard.space" → "Space". */
+    private static String englishKeyName(String t) {
+        String s = t;
+        if (s.startsWith("key.keyboard.")) s = s.substring("key.keyboard.".length());
+        else if (s.startsWith("key.mouse.")) s = "mouse." + s.substring("key.mouse.".length());
+        else if (s.startsWith("key.")) s = s.substring("key.".length());
+        StringBuilder sb = new StringBuilder();
+        for (String p : s.split("[._]")) {
+            if (p.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(Character.toUpperCase(p.charAt(0))).append(p.substring(1));
+        }
+        return sb.length() == 0 ? t : sb.toString();
     }
 
     /** Assign (translation key) or clear (null) a module's bind; persists immediately. Assigning a
