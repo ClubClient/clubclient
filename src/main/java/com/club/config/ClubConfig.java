@@ -26,6 +26,7 @@ public class ClubConfig {
     public Hands hands = new Hands();
     public Animations animations = new Animations();
     public Zoom zoom = new Zoom();
+    public ToggleSprint toggleSprint = new ToggleSprint();
     public ScreenStretch screenStretch = new ScreenStretch();
     public boolean noHurtCam = true;
     public boolean noFireOverlay = true;
@@ -67,6 +68,10 @@ public class ClubConfig {
         public boolean smooth = true;   // eased zoom in/out (0.18s decelerate) vs instant
     }
 
+    public static class ToggleSprint {
+        public boolean enabled = true;  // hold the sprint key down for the player (vanilla-toggle-safe)
+    }
+
     public static class ScreenStretch {
         public boolean enabled = true; // master toggle; when false no stretch is applied
         public String preset = "R16_9"; // StretchPreset name
@@ -102,6 +107,11 @@ public class ClubConfig {
         public int infoX = 8;
         public int infoY = 120;
         public float infoScale = 1.0f;
+        // V2 HUD: Toggle Sprint indicator chip (Stage 41); -1/-1 = auto bottom-left
+        public boolean sprint = true;
+        public int sprintX = -1;
+        public int sprintY = -1;
+        public float sprintScale = 1.0f;
     }
 
     public static ClubConfig get() {
@@ -194,6 +204,7 @@ public class ClubConfig {
         if (animations == null) animations = new Animations();
         if (zoom == null) zoom = new Zoom();
         zoom.factor = Math.max(2f, Math.min(8f, zoom.factor));
+        if (toggleSprint == null) toggleSprint = new ToggleSprint();
         if (screenStretch == null) screenStretch = new ScreenStretch();
         if (hud == null) hud = new Hud();
         // Canonicalize armorLayout ONCE here (Stage 29) instead of clamping at every read site: an

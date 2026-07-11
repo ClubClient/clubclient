@@ -79,7 +79,7 @@ public final class MenuContent {
                 flag("No Hurt Cam",     "Removes the red damage screen tilt.",       IconGlyph.NO_HURT_CAM, () -> c.noHurtCam,     v -> { c.noHurtCam = v; save(); }),
                 flag("No Fire Overlay", "Hides the first-person flames while burning.", IconGlyph.NO_FIRE_OVERLAY, () -> c.noFireOverlay, v -> { c.noFireOverlay = v; save(); }),
                 flag("No Bobbing",      "Stops the view bobbing as you walk.",        IconGlyph.NO_BOBBING, () -> c.noBobbing,     v -> { c.noBobbing = v; save(); }))),
-            new Category("Player", IconGlyph.PLAYER, List.of(hands(c))),
+            new Category("Player", IconGlyph.PLAYER, List.of(hands(c), toggleSprint(c))),
             new Category("Misc", IconGlyph.MISC, List.of(
                 hudEditor(openHudEditor),
                 flag("Hide Effects", "Hide the vanilla status-effect overlay.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
@@ -104,6 +104,13 @@ public final class MenuContent {
                         i -> { c.animations.type = at[i].name(); save(); }),
                 new SliderSetting("Speed", 0.5f, 2.0f, 0.01f, () -> c.animations.speed, v -> c.animations.speed = v),
                 new SliderSetting("Amplitude", 0.5f, 1.5f, 0.01f, () -> c.animations.amplitude, v -> c.animations.amplitude = v)));
+    }
+
+    private static Module toggleSprint(ClubConfig c) {
+        return new Module("Toggle Sprint", "Sprint automatically — no key holding.", IconGlyph.TOGGLE_SPRINT,
+            () -> c.toggleSprint.enabled, v -> { c.toggleSprint.enabled = v; save(); },
+            () -> { c.toggleSprint.enabled = true; c.hud.sprint = true; save(); },
+            List.of(new ToggleSetting("Indicator", () -> c.hud.sprint, v -> { c.hud.sprint = v; save(); })));
     }
 
     /** Fullbright is a flag module whose state must ALSO mirror into the module's static (the gamma

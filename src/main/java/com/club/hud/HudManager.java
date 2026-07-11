@@ -24,7 +24,8 @@ public final class HudManager {
 
     // The in-world V2 HUD: a non-editor canvas (real data, hides disabled/empty elements), built once.
     private static final HudCanvas CANVAS = new HudCanvas(false)
-            .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement()).add(new ArmorElement());
+            .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement()).add(new ArmorElement())
+            .add(new com.club.ui.hud.SprintElement());
     private static final UiContextImpl UI = new UiContextImpl();
     private static final long START = System.nanoTime();
 

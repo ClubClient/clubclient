@@ -36,7 +36,8 @@ public final class HudEditorScreen extends Screen {
     private final long start = System.nanoTime();
 
     private final HudCanvas canvas = new HudCanvas(true)
-            .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement()).add(new ArmorElement());
+            .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement()).add(new ArmorElement())
+            .add(new SprintElement());
     private final Pane toolbar = new Pane();
     private float tbX, tbY, tbW, tbH;   // compact floating toolbar (top-centre overlay)
     private final Pane popover = new Pane();
@@ -202,12 +203,14 @@ public final class HudEditorScreen extends Screen {
         if (e instanceof EffectsElement) h().potions = v;
         else if (e instanceof TargetElement) h().target = v;
         else if (e instanceof ArmorElement) h().armor = v;
+        else if (e instanceof SprintElement) h().sprint = v;
         else h().info = v;
     }
     private void setScale(HudElement e, float v) {
         if (e instanceof EffectsElement) h().potionScale = v;
         else if (e instanceof TargetElement) h().targetScale = v;
         else if (e instanceof ArmorElement) h().armorScale = v;
+        else if (e instanceof SprintElement) h().sprintScale = v;
         else h().infoScale = v;
     }
     private void save() { ClubConfig.save(); }
@@ -215,6 +218,7 @@ public final class HudEditorScreen extends Screen {
     private void resetPositions() {
         ClubConfig.Hud c = h();
         c.potionX = 8; c.potionY = 70; c.targetX = -1; c.targetY = -1; c.infoX = 8; c.infoY = 120; c.armorX = 8; c.armorY = 8;
+        c.sprintX = -1; c.sprintY = -1;
         save(); canvas.clearSelection(); rebuildPopover();
     }
 

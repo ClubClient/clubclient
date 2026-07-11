@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- toggle sprint: double speed chevrons -->
+  <line x1="6" y1="6.5" x2="11.5" y2="12" stroke-width="2"/>
+  <line x1="11.5" y1="12" x2="6" y2="17.5" stroke-width="2"/>
+  <line x1="13" y1="6.5" x2="18.5" y2="12" stroke-width="2"/>
+  <line x1="18.5" y1="12" x2="13" y2="17.5" stroke-width="2"/>
+</svg>

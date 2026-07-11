@@ -67,6 +67,7 @@ public class ClubClient implements ClientModInitializer {
                     client.setScreen(new ClubMenuScreen());
                 }
             }
+            com.club.modules.togglesprint.ToggleSprintModule.tick(client);
         });
 
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
