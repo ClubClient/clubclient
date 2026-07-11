@@ -85,6 +85,12 @@ public class ClubClient implements ClientModInitializer {
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ClubConfig.close());
 
+        // Dev-only self-driving verification harness (inert unless CLUB_HARNESS env var is set).
+        if (com.club.harness.ClubHarness.enabled()) {
+            ClubMod.LOGGER.info("[Club] verification harness ARMED");
+            com.club.harness.ClubHarness.start();
+        }
+
         ClubMod.LOGGER.info("[Club] client initialized");
     }
 }

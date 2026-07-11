@@ -21,6 +21,7 @@ public final class Button extends Control {
     private Variant variant = Variant.PRIMARY;
     private Runnable onClick;
     private boolean compact;   // pin to the 24px control lane (popover value fields, Stage 34)
+    private boolean armed;     // confirm/listening state — a SOFT accent chip, not a solid fill (Stage 50)
     private float minWidth;    // width floor — an armed/confirm label swap must not shrink the box (Stage 38)
     private int accent;   // 0 = theme accent; set for category-tinted contexts (Stage 11.9)
     private final Transition hover =
@@ -36,6 +37,10 @@ public final class Button extends Control {
     /** Pin the height to the 24px control lane (spacing.xl — the Slider's lane): an inline value field
      *  in a settings row must not stretch the row taller than the slider rows around it (Stage 34). */
     public Button compact() { this.compact = true; return this; }
+    /** Armed / listening state (confirm-reset, keybind capture): a SOFT accent chip — subtle tinted
+     *  fill + accent border + accent text — instead of a solid PRIMARY fill, which read as a garish
+     *  pastel block against the flat dark UI (owner, Stage 50). Distinct and urgent, still premium. */
+    public Button armed(boolean v) { this.armed = v; this.styleInit = false; return this; }
     /** Swap the label text in place (armed/confirm states) — bounds are kept, callers pass a narrower
      *  or equal label so no re-layout is needed. */
     public Button label(String text) { this.label.text(text); return this; }
@@ -68,7 +73,12 @@ public final class Button extends Control {
         hover.target(hovered ? 1f : 0f, now);
         float hv = hover.value(now);                    // animated via int colors only (alloc-free)
 
-        if (variant == Variant.PRIMARY) {
+        if (armed) {   // soft accent chip: tinted fill + accent border + accent text (Stage 50)
+            int a = WidgetPaint.acc(accent);
+            ctx.renderer().roundedRect(x, y, w, h, r, Color.withAlpha(a, 0x2B));
+            ctx.renderer().border(x, y, w, h, r, Tokens.border().thickness(), a);
+            if (pressed) WidgetPaint.pressOverlay(ctx, x, y, w, h, r);
+        } else if (variant == Variant.PRIMARY) {
             ctx.renderer().roundedRect(x, y, w, h, r, Color.lerp(WidgetPaint.acc(accent), WidgetPaint.accHi(accent), hv));
             if (pressed) WidgetPaint.pressOverlay(ctx, x, y, w, h, r);
         } else { // GHOST — premium outline: a visible strong hairline that tints toward accent on hover.
@@ -80,7 +90,8 @@ public final class Button extends Control {
 
         // Discrete label color: Label rebuilds its TextStyle only on a state change, never per-frame (alloc-free).
         if (!styleInit || hovered != lastHovered) {
-            label.color(variant == Variant.PRIMARY ? Tokens.accent().onAccent()
+            label.color(armed ? WidgetPaint.acc(accent)
+                        : variant == Variant.PRIMARY ? Tokens.accent().onAccent()
                         : (hovered ? WidgetPaint.acc(accent) : Tokens.palette().textHi()));
             lastHovered = hovered;
             styleInit = true;

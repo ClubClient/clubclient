@@ -14,12 +14,18 @@ public final class Decals {
     private static TextStyle st(Typography.Role r, int c) { return TextStyle.of(r.weight(), r.size(), c); }
     private static float tw(String s, Typography.Role r) { return Ui.text().width(s, r.weight(), r.size()); }
 
+    // Real mod version (matches the menu footer) — no stale hardcoded string in the editor watermark.
+    private static final String VERSION = "v" + net.fabricmc.loader.api.FabricLoader.getInstance()
+            .getModContainer("club")
+            .map(c -> c.getMetadata().getVersion().getFriendlyString())
+            .orElse("1.0.0");
+
     public static void watermark(UiContext ctx) {
         var t = ctx.text(); Typography ty = Tokens.type();
         int hi = Tokens.palette().textHi(), faint = Tokens.palette().textFaint(), accent = Tokens.accent().accent();
         IconGlyph.LOGO.draw(ctx, 17, 20.5f, 13, accent);   // trefoil centred on the title's line box (16 + (22-13)/2)
         t.draw("CLUB", 34, 16, st(ty.title(), hi));
-        t.draw("v2.5", 34 + tw("CLUB", ty.title()) + 8, 19, st(ty.label(), faint));
+        t.draw(VERSION, 34 + tw("CLUB", ty.title()) + 8, 19, st(ty.label(), faint));
     }
 
     public static void crosshair(UiContext ctx, int w, int h) {

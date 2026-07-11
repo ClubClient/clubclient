@@ -63,7 +63,7 @@ public final class HudEditorScreen extends Screen {
 
     private void disarmReset() {
         tbResetArmed = false;
-        if (tbReset != null) tbReset.label("Reset").variant(Button.Variant.GHOST);
+        if (tbReset != null) tbReset.label("Reset").armed(false);
     }
 
     public HudEditorScreen() { this(null); }
@@ -118,7 +118,7 @@ public final class HudEditorScreen extends Screen {
         tbReset = new Button("Reset").variant(Button.Variant.GHOST).accent(QUIET_ACC)
                 .onClick(() -> {
                     if (tbResetArmed) { disarmReset(); resetPositions(); }
-                    else { tbResetArmed = true; tbResetArmAt = uiCtx.time(); tbReset.label("Sure?").variant(Button.Variant.PRIMARY); }
+                    else { tbResetArmed = true; tbResetArmAt = uiCtx.time(); tbReset.label("Sure?").armed(true); }
                 });
         tbReset.layout(toggleX + TB_TOGGLE_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
         Button done = new Button("Done").variant(Button.Variant.GHOST).onClick(this::close);

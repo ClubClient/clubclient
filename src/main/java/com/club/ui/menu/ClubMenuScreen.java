@@ -518,7 +518,7 @@ public final class ClubMenuScreen extends Screen {
             String cur = com.club.modules.binds.ModuleBinds.label(m.name());
             boolean listening = bindListening && bindModule == m;
             Button bind = new Button(listening ? "Press a key…" : (cur != null ? cur : "None"))
-                    .variant(listening ? Button.Variant.PRIMARY : Button.Variant.GHOST).accent(accent).compact();
+                    .variant(Button.Variant.GHOST).armed(listening).accent(accent).compact();
             bind.minWidth(new Button("Press a key…").compact().measure(10_000f, 22f).w());
             bind.onClick(() -> {
                 boolean was = bindListening && bindModule == m;
@@ -546,7 +546,7 @@ public final class ClubMenuScreen extends Screen {
             // CONFIRM rebuilds (the controls must re-seed to the reset values); keyboard focus is handed
             // to the fresh button so Enter-Enter works end to end.
             Button reset = new Button(resetArmed ? "Sure? Reset" : "Reset to Default")
-                    .variant(resetArmed ? Button.Variant.PRIMARY : Button.Variant.GHOST).accent(accent);
+                    .variant(Button.Variant.GHOST).armed(resetArmed).accent(accent);
             reset.minWidth(new Button("Reset to Default").measure(10_000f, 22f).w());
             reset.onClick(() -> {
                 if (resetArmed) {
@@ -559,7 +559,7 @@ public final class ClubMenuScreen extends Screen {
                     if (kb && popResetBtn != null) focus.focusKeyboard(popResetBtn);
                 } else {
                     resetArmed = true; resetArmAt = uiCtx.time();
-                    if (popResetBtn != null) popResetBtn.label("Sure? Reset").variant(Button.Variant.PRIMARY);
+                    if (popResetBtn != null) popResetBtn.label("Sure? Reset").armed(true);
                 }
             });
             popResetBtn = reset;
@@ -786,7 +786,7 @@ public final class ClubMenuScreen extends Screen {
         // (freezing it and skipping its save-on-release) and silently clear keyboard focus.
         if (resetArmed && now - resetArmAt > RESET_ARM_HOLD) {
             resetArmed = false;
-            if (popResetBtn != null) popResetBtn.label("Reset to Default").variant(Button.Variant.GHOST);
+            if (popResetBtn != null) popResetBtn.label("Reset to Default").armed(false);
         }
 
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
