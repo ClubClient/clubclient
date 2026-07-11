@@ -21,6 +21,7 @@ import org.lwjgl.glfw.GLFW;
 public class ClubClient implements ClientModInitializer {
     public static KeyBinding openMenuKey;
     public static KeyBinding zoomKey;
+    public static KeyBinding freelookKey;
 
     @Override
     public void onInitializeClient() {
@@ -61,6 +62,14 @@ public class ClubClient implements ClientModInitializer {
                 "key.category.club"
         ));
 
+        // keybind: Freelook (hold; default LEFT ALT)
+        freelookKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.club.freelook",
+                InputUtil.Type.KEYSYM,
+                GLFW.GLFW_KEY_LEFT_ALT,
+                "key.category.club"
+        ));
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openMenuKey.wasPressed()) {
                 if (client.player != null) {
@@ -68,6 +77,7 @@ public class ClubClient implements ClientModInitializer {
                 }
             }
             com.club.modules.togglesprint.ToggleSprintModule.tick(client);
+            com.club.modules.freelook.FreelookModule.tick(client);
         });
 
         // config writes are async (Stage 30) — drain the writer before the JVM goes down

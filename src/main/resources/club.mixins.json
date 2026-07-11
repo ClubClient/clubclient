@@ -7,6 +7,7 @@
     "MixinInGameOverlayRenderer",
     "MixinHeldItemRenderer",
     "MixinLivingEntity",
+    "MixinCamera",
     "MixinInGameHud",
     "MixinMouse",
     "MixinSimpleOption",

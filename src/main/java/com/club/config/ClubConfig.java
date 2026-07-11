@@ -27,6 +27,7 @@ public class ClubConfig {
     public Animations animations = new Animations();
     public Zoom zoom = new Zoom();
     public ToggleSprint toggleSprint = new ToggleSprint();
+    public Freelook freelook = new Freelook();
     public ScreenStretch screenStretch = new ScreenStretch();
     public boolean noHurtCam = true;
     public boolean noFireOverlay = true;
@@ -70,6 +71,10 @@ public class ClubConfig {
 
     public static class ToggleSprint {
         public boolean enabled = true;  // hold the sprint key down for the player (vanilla-toggle-safe)
+    }
+
+    public static class Freelook {
+        public boolean enabled = true;  // master toggle; the hold-key only works when on
     }
 
     public static class ScreenStretch {
@@ -205,6 +210,7 @@ public class ClubConfig {
         if (zoom == null) zoom = new Zoom();
         zoom.factor = Math.max(2f, Math.min(8f, zoom.factor));
         if (toggleSprint == null) toggleSprint = new ToggleSprint();
+        if (freelook == null) freelook = new Freelook();
         if (screenStretch == null) screenStretch = new ScreenStretch();
         if (hud == null) hud = new Hud();
         // Canonicalize armorLayout ONCE here (Stage 29) instead of clamping at every read site: an

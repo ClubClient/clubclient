@@ -79,7 +79,11 @@ public final class MenuContent {
                 flag("No Hurt Cam",     "Removes the red damage screen tilt.",       IconGlyph.NO_HURT_CAM, () -> c.noHurtCam,     v -> { c.noHurtCam = v; save(); }),
                 flag("No Fire Overlay", "Hides the first-person flames while burning.", IconGlyph.NO_FIRE_OVERLAY, () -> c.noFireOverlay, v -> { c.noFireOverlay = v; save(); }),
                 flag("No Bobbing",      "Stops the view bobbing as you walk.",        IconGlyph.NO_BOBBING, () -> c.noBobbing,     v -> { c.noBobbing = v; save(); }))),
-            new Category("Player", IconGlyph.PLAYER, List.of(hands(c), toggleSprint(c))),
+            new Category("Player", IconGlyph.PLAYER, List.of(
+                hands(c),
+                toggleSprint(c),
+                flag("Freelook", "Hold the freelook key to swing the camera freely.", IconGlyph.FREELOOK,
+                        () -> c.freelook.enabled, v -> { c.freelook.enabled = v; save(); }))),
             new Category("Misc", IconGlyph.MISC, List.of(
                 hudEditor(openHudEditor),
                 flag("Hide Effects", "Hide the vanilla status-effect overlay.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
