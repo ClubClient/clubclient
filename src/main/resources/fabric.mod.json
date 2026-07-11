@@ -5,7 +5,7 @@
   "name": "Club",
   "description": "A clean, flat first-person utility client for Fabric: zoom, fullbright, freelook, toggle-sprint, custom hands and attack animations, screen stretch, a movable HUD, and per-module hotkeys.",
   "authors": ["Club Dev"],
-  "license": "MIT",
+  "license": "ARR",
   "environment": "client",
   "icon": "assets/club/icon.png",
   "entrypoints": {

@@ -74,4 +74,6 @@ Java 21 and an internet connection (for the first dependency fetch) are required
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+**All Rights Reserved** — see [LICENSE](LICENSE). You may download and use the official build for your
+own gameplay. Copying, re-uploading, mirroring, or redistributing it anywhere is not permitted. The only
+official download is the author's Modrinth page.
