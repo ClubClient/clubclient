@@ -3,9 +3,10 @@
   "id": "club",
   "version": "${version}",
   "name": "Club",
-  "description": "Premium Dark Glass utility client: hands, animations, screen stretch, visual tweaks and HUD.",
-  "authors": ["You"],
-  "environment": "*",
+  "description": "A clean, flat first-person utility client for Fabric: zoom, fullbright, freelook, toggle-sprint, custom hands and attack animations, screen stretch, a movable HUD, and per-module hotkeys.",
+  "authors": ["Club Dev"],
+  "license": "MIT",
+  "environment": "client",
   "icon": "assets/club/icon.png",
   "entrypoints": {
     "main": ["com.club.ClubMod"],
