@@ -146,7 +146,7 @@ public final class ClubMenuScreen extends Screen {
     private int tabIndex;
     private Transition segSlide;    // segmented-tab pill position — outer, so it survives popover rebuilds
     private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
-    private float popX, popY, popW, popH, popAX, popAY, popAH;
+    private float popX, popY, popW, popH, popAX, popAY, popAH, popContentH;
     private int pressOwner;
     // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
     // (dropdown expand, tab switch). Content is clipped to the eased height so any resize reveals smoothly.
@@ -435,24 +435,24 @@ public final class ClubMenuScreen extends Screen {
         popCol = buildSettings(popModule);
         popW = Math.min(236f, Math.max(160f, winW - 16f));   // never wider than the window
         float innerW = popW - 2 * POP_PAD;
-        float contentH = popCol.measure(innerW, 99999f).h();
-        // Cap to the BODY height (below header, above footer) so a tall popover scrolls instead of
-        // clamping over the header/cards (Stage 56).
-        float maxPopH = Math.min(winH - headH - footH - 12f, 300f);
-        popH = Math.min(contentH + 2 * POP_PAD, maxPopH);
+        popContentH = popCol.measure(innerW, 99999f).h();
         popScroll = new ScrollArea(popCol);
-        positionPopover();
+        positionPopover();   // sets popY + popH below the card grid, capped so long content scrolls
         popScroll.scrollOffset(prevOffset);                  // restore scroll after layout has set the clamp bounds
     }
 
+    /** The popover opens as a tidy panel BELOW the card grid — it never covers the cards (owner). Its
+     *  height fits the content, capped to the room between the grid and the well's bottom; anything
+     *  taller scrolls inside (ScrollArea draws the side scrollbar). X follows the clicked card's
+     *  column so it reads as "this card's settings", clamped to stay in the well. */
     private void positionPopover() {
-        popX = clamp(popAX, winX + 8, winX + winW - popW - 8);
-        // Keep the popover inside the BODY (below the header, above the footer) — a tall popover used
-        // to clamp up into the header/wordmark (Stage 56).
-        float bodyTop = winY + headH + 4, bodyBot = winY + winH - footH - 4;
-        float below = popAY + popAH + 8;
-        popY = (below + popH <= bodyBot) ? below : (popAY - popH - 8);
-        popY = clamp(popY, bodyTop, Math.max(bodyTop, bodyBot - popH));
+        float gridTop = wellY + 12;
+        int rows = Math.max(1, (grid.children().size() + GRID_COLS - 1) / GRID_COLS);
+        float gridBottom = gridTop + rows * TILE_H + (rows - 1) * Tokens.spacing().sm();
+        popX = clamp(popAX, wellX + 12, wellX + wellW - 12 - popW);
+        popY = gridBottom + 8;
+        float avail = (wellY + wellH - 8) - popY;             // room from below the cards to the well bottom
+        popH = Math.max(1f, Math.min(popContentH + 2 * POP_PAD, avail));
         popScroll.layout(popX + POP_PAD, popY + POP_PAD, popW - 2 * POP_PAD, popH - 2 * POP_PAD);
     }
 
@@ -473,7 +473,9 @@ public final class ClubMenuScreen extends Screen {
     private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
 
     private Column buildSettings(Module m) {
-        Column col = new Column().gap(Tokens.spacing().sm()).crossAlign(CrossAlign.STRETCH);
+        // Tight row gap (Stage 57): the popover lives BELOW the cards now, so a simple popover must fit
+        // that room without scrolling — xs keeps the rows neat but compact; only tall ones (Hands) scroll.
+        Column col = new Column().gap(Tokens.spacing().xs()).crossAlign(CrossAlign.STRETCH);
         int accent = catAccent(catIndex);   // 11.9: the popover speaks its category's colour
 
         List<Setting> settings;
@@ -805,11 +807,6 @@ public final class ClubMenuScreen extends Screen {
             if (popClosing && popReveal.gone(now)) {
                 reallyClosePopover();
             } else {
-                // Dim the card grid behind the popover so overlapped cards recede into the background
-                // instead of poking out around the panel (Stage 56 — reads as focus, not a bug).
-                float dimP = popReveal.progress(now);
-                if (dimP > 0.001f)
-                    r.roundedRect(wellX, wellY, wellW, wellH, md, Color.withAlpha(0xFF060A11, Math.round(0x86 * dimP)));
                 float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
                 float pr = Tokens.radius().md();
                 // Stage 25 (owner board, variant A): the popover is a RAISED SHEET, not a hole —
