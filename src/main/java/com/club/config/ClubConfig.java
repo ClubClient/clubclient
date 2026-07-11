@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 5; // bumped when new fields are added, for migration
+    public int version = 6; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -276,6 +276,14 @@ public class ClubConfig {
             hud.info = true;
             hud.infoX = 8; hud.infoY = 120; hud.infoScale = 1.0f;
             version = 5;
+            changed = true;
+        }
+        if (version < 6) {
+            // v0.1 kit (Zoom/Fullbright/ToggleSprint/Freelook) + Sprint HUD chip. New modules, so no
+            // carry-over — just the safety-net defaults for hand-edited/partial files (Fullbright OFF).
+            fullbright = false;
+            hud.sprint = true; hud.sprintX = -1; hud.sprintY = -1; hud.sprintScale = 1.0f;
+            version = 6;
             changed = true;
         }
         if (changed) save();

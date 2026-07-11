@@ -20,7 +20,7 @@ public final class SprintElement extends HudElement {
     private static final float TEXT_SIZE = 12f;
     private static final float PAD_X = 8f;
     private static final int CONTENT_H = 20;
-    private static final String LABEL = "Sprint (Toggled)";
+    private static final String LABEL = "Sprint";
 
     public SprintElement() { super("sprint"); }
     @Override public String displayName() { return "Sprint"; }
@@ -37,11 +37,10 @@ public final class SprintElement extends HudElement {
     @Override protected float panelPadX() { return 0f; }
     @Override protected float panelPadY() { return 0f; }
 
-    /** Default: bottom-left, above the vanilla chat entry line. */
+    /** Default: the mod's top-left stack, one line below the FPS whisper — clear of the vanilla chat
+     *  and hotbar (a bottom-left default sat on top of the chat history). Movable in the editor. */
     @Override public int autoX(MinecraftClient mc) { return mc != null ? 8 : -1; }
-    @Override public int autoY(MinecraftClient mc) {
-        return mc != null ? mc.getWindow().getScaledHeight() - CONTENT_H - 8 : -1;
-    }
+    @Override public int autoY(MinecraftClient mc) { return mc != null ? 148 : -1; }
 
     /** In-world the chip exists only while the module is on (the editor always shows the sample). */
     @Override public boolean hasContent(MinecraftClient mc) {
