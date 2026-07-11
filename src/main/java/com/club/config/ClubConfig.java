@@ -33,6 +33,9 @@ public class ClubConfig {
     public boolean noFireOverlay = true;
     public boolean noBobbing = true;
     public boolean fullbright = false; // gamma READ override (15.0) — off by default, mirrored in FullbrightModule
+    // Per-module toggle keybinds (Stage 43): module name → InputUtil translation key ("key.keyboard.r").
+    // Bound from each module's popover; fired by ModuleBinds on key edges while no screen is open.
+    public java.util.Map<String, String> moduleBinds = new java.util.HashMap<>();
     public Hud hud = new Hud();
 
     // (menuX/menuY removed 2026-07-02: the menu is fixed centred — stale keys in old files are ignored by Gson)
@@ -211,6 +214,7 @@ public class ClubConfig {
         zoom.factor = Math.max(2f, Math.min(8f, zoom.factor));
         if (toggleSprint == null) toggleSprint = new ToggleSprint();
         if (freelook == null) freelook = new Freelook();
+        if (moduleBinds == null) moduleBinds = new java.util.HashMap<>();
         if (screenStretch == null) screenStretch = new ScreenStretch();
         if (hud == null) hud = new Hud();
         // Canonicalize armorLayout ONCE here (Stage 29) instead of clamping at every read site: an

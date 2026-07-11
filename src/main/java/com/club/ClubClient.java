@@ -78,7 +78,9 @@ public class ClubClient implements ClientModInitializer {
             }
             com.club.modules.togglesprint.ToggleSprintModule.tick(client);
             com.club.modules.freelook.FreelookModule.tick(client);
+            com.club.modules.binds.ModuleBinds.tick(client);
         });
+        com.club.modules.binds.ModuleBinds.init();
 
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ClubConfig.close());

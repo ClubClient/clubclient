@@ -132,6 +132,12 @@ public final class ClubMenuScreen extends Screen {
     private float resetArmAt;
     private Button popResetBtn;   // the live reset button of the open popover (null when none)
 
+    // Module keybind capture (Stage 43): the popover's Bind button arms listening; the next
+    // keyPressed assigns (Esc cancels, Backspace/Delete clears). Screen-level so it wins over
+    // every other key route, including the menu-close key.
+    private boolean bindListening;
+    private Module bindModule;
+
     // settings popover (RMB), anchored to a card
     private Module popModule;
     private Column popCol;
@@ -449,6 +455,7 @@ public final class ClubMenuScreen extends Screen {
     private void reallyClosePopover() {
         popModule = null; popCol = null; popScroll = null; openDrop = null;
         popReveal = null; popClosing = false; resetArmed = false; popResetBtn = null;
+        bindListening = false; bindModule = null;
         focus.clear();
         if (search != null) focus.register(search);
         if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // hand the zone back (Space → Esc round-trip)
@@ -498,6 +505,26 @@ public final class ClubMenuScreen extends Screen {
                 rr.add(ctrl);
                 col.add(new LaneRow(rr)); focus.register(ctrl);
             }
+        }
+
+        if (m.hasToggle() && openDrop == null) {
+            // Stage 43: per-module toggle keybind. The value field shows the bound key ("None" when
+            // unbound); click → listening ("Press a key…", the accent voice): the next key assigns,
+            // Esc cancels, Backspace/Delete clears. Width pinned to the widest state.
+            String cur = com.club.modules.binds.ModuleBinds.label(m.name());
+            boolean listening = bindListening && bindModule == m;
+            Button bind = new Button(listening ? "Press a key…" : (cur != null ? cur : "None"))
+                    .variant(listening ? Button.Variant.PRIMARY : Button.Variant.GHOST).accent(accent).compact();
+            bind.minWidth(new Button("Press a key…").compact().measure(10_000f, 22f).w());
+            bind.onClick(() -> {
+                boolean was = bindListening && bindModule == m;
+                bindListening = !was; bindModule = bindListening ? m : null;
+                rebuildPopover();
+            });
+            Row rr = new Row().crossAlign(CrossAlign.CENTER);
+            rr.add(new Label("Bind", Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
+            rr.add(bind);
+            col.add(new LaneRow(rr)); focus.register(bind);
         }
 
         if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
@@ -841,6 +868,10 @@ public final class ClubMenuScreen extends Screen {
         if (closing) return true;   // window is fading out — swallow clicks
         gridFocused = false;        // any mouse interaction leaves the keyboard grid zone (ring hides)
         popFromGrid = false;        //   …and cancels the popover's pending zone hand-back
+        if (bindListening) {        // a click cancels key capture (clicking the Bind button re-arms it)
+            bindListening = false; bindModule = null;
+            rebuildPopover();
+        }
         focus.clickFocus(mx, my);
         if (insidePop(mx, my)) {
             popScroll.mouseClicked(mx, my, 0); pressOwner = 1; return true;   // RMB behaves as LMB inside; never closes
@@ -875,6 +906,19 @@ public final class ClubMenuScreen extends Screen {
     }
     @Override public boolean keyPressed(int k, int scan, int mods) {
         boolean shift = (mods & GLFW_MOD_SHIFT) != 0, ctrl = (mods & GLFW_MOD_CONTROL) != 0;
+
+        // Keybind capture wins over EVERYTHING (incl. the menu-close key): the next key assigns,
+        // Esc cancels, Backspace/Delete clears (Stage 43).
+        if (bindListening && bindModule != null) {
+            if (k == GLFW_KEY_ESCAPE) { /* cancel — keep the current bind */ }
+            else if (k == GLFW_KEY_BACKSPACE || k == GLFW_KEY_DELETE)
+                com.club.modules.binds.ModuleBinds.set(bindModule.name(), null);
+            else com.club.modules.binds.ModuleBinds.set(bindModule.name(),
+                    InputUtil.fromKeyCode(k, scan).getTranslationKey());
+            bindListening = false; bindModule = null;
+            rebuildPopover();
+            return true;
+        }
 
         // The menu closes on the SAME key that opens it (owner decision 2026-07-02) — with the
         // reverse-of-open animation, but NOT while typing in the search (the bound letter must
@@ -918,6 +962,7 @@ public final class ClubMenuScreen extends Screen {
         return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
     }
     @Override public boolean charTyped(char c, int mods) {
+        if (bindListening) return true;   // capturing a key — its char must not type/route anywhere
         // "/" jumps into the search (the keycap hint in the field advertises it); consumed so the
         // slash itself never lands in the query
         if (c == '/' && search != null && !search.isFocused() && !closing) { enterSearchZone(); return true; }
