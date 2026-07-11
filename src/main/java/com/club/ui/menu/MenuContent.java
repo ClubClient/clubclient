@@ -129,10 +129,10 @@ public final class MenuContent {
     private static Module zoom(ClubConfig c) {
         return new Module("Zoom", "Hold the zoom key to magnify the view.", IconGlyph.ZOOM,
             () -> c.zoom.enabled, v -> { c.zoom.enabled = v; save(); },
-            () -> { c.zoom.factor = 4f; c.zoom.smooth = true; c.zoom.enabled = true; save(); },
+            () -> { c.zoom.factor = 4f; c.zoom.smoothness = 0.5f; c.zoom.enabled = true; save(); },
             List.of(
-                new SliderSetting("Factor", 2f, 8f, 0.5f, () -> c.zoom.factor, v -> c.zoom.factor = v),
-                new ToggleSetting("Smooth", () -> c.zoom.smooth, v -> { c.zoom.smooth = v; save(); })));
+                new SliderSetting("Strength", 2f, 8f, 0.5f, () -> c.zoom.factor, v -> c.zoom.factor = v),
+                new SliderSetting("Smoothness", 0f, 1f, 0.05f, () -> c.zoom.smoothness, v -> c.zoom.smoothness = v)));
     }
 
     private static Module screenStretch(ClubConfig c) {

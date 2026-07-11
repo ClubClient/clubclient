@@ -117,15 +117,11 @@ public final class ClubHarness {
             // Zoom divisor math (smooth off → instant, so it's frame-independent). Force enabled so the
             // test is robust to whatever the persisted config holds.
             step(2, () -> {
-                boolean prevSmooth = cfg.zoom.smooth, prevEnabled = cfg.zoom.enabled;
-                cfg.zoom.smooth = false; cfg.zoom.enabled = true;
-                ClubClient.zoomKey.setPressed(true);
-                float dz = ZoomModule.fovDivisor();
-                ClubClient.zoomKey.setPressed(false);
-                float dz0 = ZoomModule.fovDivisor();
-                cfg.zoom.smooth = prevSmooth; cfg.zoom.enabled = prevEnabled;
-                check("zoom: held → FOV divided by factor (" + cfg.zoom.factor + ")", Math.abs(dz - cfg.zoom.factor) < 0.01f);
-                check("zoom: released → divisor 1 (no zoom)", Math.abs(dz0 - 1f) < 0.01f);
+                // divisor math (active state now comes from the RAW key, which the harness can't hold)
+                float f = cfg.zoom.factor;
+                check("zoom: full zoom divides FOV by factor", Math.abs(ZoomModule.divisorFor(f, 1f) - f) < 0.01f);
+                check("zoom: no zoom → divisor 1", Math.abs(ZoomModule.divisorFor(f, 0f) - 1f) < 0.01f);
+                check("zoom: not active while its key isn't held", !ZoomModule.active());
             });
 
             // Toggle Sprint force + clean release.
@@ -144,9 +140,9 @@ public final class ClubHarness {
 
             // Freelook: engages, forces third-person, rotates the free camera not the player.
             step(2, () -> {
+                // engage via apply() directly — active() reads the RAW key, which the harness can't hold
                 Perspective prevP = mc.options.getPerspective();
-                ClubClient.freelookKey.setPressed(true);
-                FreelookModule.tick(mc);
+                FreelookModule.apply(true, mc);
                 check("freelook: engages on hold", FreelookModule.active());
                 check("freelook: forces third-person", mc.options.getPerspective() == Perspective.THIRD_PERSON_BACK);
                 float playerYaw = mc.player.getYaw();
@@ -154,8 +150,7 @@ public final class ClubHarness {
                 FreelookModule.onLook(120, 0);
                 check("freelook: mouse rotates the FREE camera", FreelookModule.camYaw() != camY0);
                 check("freelook: player yaw is NOT changed by look", mc.player.getYaw() == playerYaw);
-                ClubClient.freelookKey.setPressed(false);
-                FreelookModule.tick(mc);
+                FreelookModule.apply(false, mc);
                 check("freelook: releases + restores perspective", !FreelookModule.active()
                         && mc.options.getPerspective() == prevP);
             });
@@ -239,6 +234,21 @@ public final class ClubHarness {
             step(2, () -> key(GLFW_KEY_ENTER));            // arm "Sure? Reset"
             step(5, () -> shot("reset-armed"));
             step(2, () -> ModuleBinds.set("Fullbright", null));   // clean up
+
+            // Hands popover — TALL (tabs + 4 sliders + hotkey + reset): checks the body-clamp + card dim
+            step(6, () -> mc.setScreen(new ClubMenuScreen()));
+            step(2, () -> key(GLFW_KEY_TAB, GLFW_MOD_CONTROL));   // Visuals → Player
+            step(4, () -> {});
+            step(2, () -> key(GLFW_KEY_TAB));                     // search focus
+            step(1, () -> type('h'));
+            step(1, () -> type('a'));
+            step(1, () -> type('n'));
+            step(1, () -> type('d'));
+            step(1, () -> type('s'));                             // grid → just Hands
+            step(6, () -> {});
+            step(2, () -> key(GLFW_KEY_TAB));                     // into grid → Hands
+            step(2, () -> key(GLFW_KEY_SPACE));                  // open Hands popover
+            step(10, () -> shot("hands-popover"));               // settle the grow-in before capture
 
             // search filter
             step(4, () -> mc.setScreen(new ClubMenuScreen()));

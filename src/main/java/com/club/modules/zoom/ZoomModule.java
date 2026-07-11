@@ -17,19 +17,23 @@ public final class ZoomModule {
     private ZoomModule() {}
 
     public static final float MIN_FACTOR = 2f, MAX_FACTOR = 8f;
-    private static final float STEP = 0.5f;   // one wheel notch
+    private static final float STEP = 0.5f;      // one wheel notch
+    private static final float MAX_SMOOTH = 0.45f;   // ease duration (s) at smoothness = 1
 
     private static final long START = System.nanoTime();
-    private static final Transition ease = new Transition(0f, 0.18f, Curves.DECELERATE);
+    // Ease is recreated when the smoothness setting changes (Transition duration is fixed at construction).
+    private static Transition ease = new Transition(0f, 0.22f, Curves.DECELERATE);
+    private static float curDur = 0.22f;
     private static boolean wasActive;    // release edge → persist a scroll-adjusted factor
     private static boolean factorDirty;
 
     private static float now() { return (System.nanoTime() - START) / 1_000_000_000f; }
 
-    /** The module is on, the zoom key is held, and no screen owns the keyboard. */
+    /** The module is on, the zoom key is physically held, and no screen owns the keyboard. Uses the
+     *  RAW key state (Keys.held) so zoom works even if its key is also bound to something else. */
     public static boolean active() {
         return ClubConfig.get().zoom.enabled
-                && com.club.ClubClient.zoomKey != null && com.club.ClubClient.zoomKey.isPressed()
+                && com.club.util.Keys.held(com.club.ClubClient.zoomKey)
                 && MinecraftClient.getInstance().currentScreen == null;
     }
 
@@ -39,12 +43,17 @@ public final class ZoomModule {
         ClubConfig.Zoom cfg = ClubConfig.get().zoom;
         boolean active = active();
         float t = now();
+        float dur = cfg.smoothness * MAX_SMOOTH;   // 0 → instant
+        if (dur != curDur) { ease = new Transition(ease.value(t), dur, Curves.DECELERATE); curDur = dur; }
         ease.target(active ? 1f : 0f, t);
-        float v = cfg.smooth ? ease.value(t) : (active ? 1f : 0f);
+        float v = ease.value(t);                    // duration 0 → returns the target instantly
         if (wasActive && !active && factorDirty) { factorDirty = false; ClubConfig.save(); }
         wasActive = active;
-        return 1f + (cfg.factor - 1f) * v;
+        return divisorFor(cfg.factor, v);
     }
+
+    /** Pure FOV divisor for a factor and eased amount {@code v} in [0,1] (1 = full zoom). */
+    public static float divisorFor(float factor, float v) { return 1f + (factor - 1f) * v; }
 
     /** Wheel while zooming: adjust the factor, consume the scroll. Returns true when consumed. */
     public static boolean onScroll(double vertical) {

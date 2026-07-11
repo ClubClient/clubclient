@@ -436,7 +436,9 @@ public final class ClubMenuScreen extends Screen {
         popW = Math.min(236f, Math.max(160f, winW - 16f));   // never wider than the window
         float innerW = popW - 2 * POP_PAD;
         float contentH = popCol.measure(innerW, 99999f).h();
-        float maxPopH = Math.min(winH - 16f, 300f);          // cap height so a long list scrolls instead of covering the grid
+        // Cap to the BODY height (below header, above footer) so a tall popover scrolls instead of
+        // clamping over the header/cards (Stage 56).
+        float maxPopH = Math.min(winH - headH - footH - 12f, 300f);
         popH = Math.min(contentH + 2 * POP_PAD, maxPopH);
         popScroll = new ScrollArea(popCol);
         positionPopover();
@@ -445,9 +447,12 @@ public final class ClubMenuScreen extends Screen {
 
     private void positionPopover() {
         popX = clamp(popAX, winX + 8, winX + winW - popW - 8);
+        // Keep the popover inside the BODY (below the header, above the footer) — a tall popover used
+        // to clamp up into the header/wordmark (Stage 56).
+        float bodyTop = winY + headH + 4, bodyBot = winY + winH - footH - 4;
         float below = popAY + popAH + 8;
-        popY = (below + popH <= winY + winH - 8) ? below : (popAY - popH - 8);
-        popY = clamp(popY, winY + 8, Math.max(winY + 8, winY + winH - 8 - popH));   // keep fully inside the window
+        popY = (below + popH <= bodyBot) ? below : (popAY - popH - 8);
+        popY = clamp(popY, bodyTop, Math.max(bodyTop, bodyBot - popH));
         popScroll.layout(popX + POP_PAD, popY + POP_PAD, popW - 2 * POP_PAD, popH - 2 * POP_PAD);
     }
 
@@ -543,9 +548,11 @@ public final class ClubMenuScreen extends Screen {
             // here would orphan an in-flight slider drag (losing its save-on-release) and wipe keyboard
             // focus. Only the CONFIRM rebuilds (controls must re-seed to the reset values); keyboard
             // focus is handed to the fresh button so Enter-Enter works end to end.
+            // Full-width Reset (Stage 56): a right-aligned button of its own width sat staggered next
+            // to the Hotkey field (ragged left edges). Spanning the popover reads deliberate and the
+            // armed "Confirm reset?" can't shift the box either.
             Button reset = new Button(resetArmed ? "Confirm reset?" : "Reset to Default")
                     .variant(Button.Variant.GHOST).armed(resetArmed).accent(accent);
-            reset.minWidth(new Button("Reset to Default").measure(10_000f, 22f).w());
             reset.onClick(() -> {
                 if (resetArmed) {
                     boolean kb = popResetBtn != null && popResetBtn.isFocusVisible();
@@ -561,7 +568,7 @@ public final class ClubMenuScreen extends Screen {
                 }
             });
             popResetBtn = reset;
-            Row rr = new Row().crossAlign(CrossAlign.CENTER); rr.add(Spacer.fill()); rr.add(reset);
+            Row rr = new Row(); rr.add(reset, Sizing.fill());
             col.add(rr); focus.register(reset);
         } else popResetBtn = null;
         return col;
@@ -798,6 +805,11 @@ public final class ClubMenuScreen extends Screen {
             if (popClosing && popReveal.gone(now)) {
                 reallyClosePopover();
             } else {
+                // Dim the card grid behind the popover so overlapped cards recede into the background
+                // instead of poking out around the panel (Stage 56 — reads as focus, not a bug).
+                float dimP = popReveal.progress(now);
+                if (dimP > 0.001f)
+                    r.roundedRect(wellX, wellY, wellW, wellH, md, Color.withAlpha(0xFF060A11, Math.round(0x86 * dimP)));
                 float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
                 float pr = Tokens.radius().md();
                 // Stage 25 (owner board, variant A): the popover is a RAISED SHEET, not a hole —

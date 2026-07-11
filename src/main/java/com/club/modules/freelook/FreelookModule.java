@@ -29,12 +29,19 @@ public final class FreelookModule {
         pitch = Math.max(-90f, Math.min(90f, pitch + (float) (dy * 0.15)));
     }
 
-    /** END_CLIENT_TICK: edge-driven engage/release on the hold key. */
+    /** END_CLIENT_TICK: edge-driven engage/release. Uses the RAW key (Keys.held) so freelook works
+     *  even if its key is also bound to something else. */
     public static void tick(MinecraftClient mc) {
         boolean want = ClubConfig.get().freelook.enabled
-                && com.club.ClubClient.freelookKey != null && com.club.ClubClient.freelookKey.isPressed()
+                && com.club.util.Keys.held(com.club.ClubClient.freelookKey)
                 && mc.player != null && mc.currentScreen == null
                 && mc.getCameraEntity() == mc.player;
+        apply(want, mc);
+    }
+
+    /** Engage / release / re-assert the freelook state for a desired hold. Extracted from tick() so
+     *  the engage cycle is testable without a real key press. */
+    public static void apply(boolean want, MinecraftClient mc) {
         if (want && !active) {
             active = true;
             yaw = mc.player.getYaw();

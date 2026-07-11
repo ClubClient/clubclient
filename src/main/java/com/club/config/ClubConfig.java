@@ -67,9 +67,9 @@ public class ClubConfig {
     }
 
     public static class Zoom {
-        public boolean enabled = true;  // master toggle; the hold-key only works when on
-        public float factor = 4.0f;     // world-FOV divisor while zoomed (2..8, scroll-adjustable)
-        public boolean smooth = true;   // eased zoom in/out (0.18s decelerate) vs instant
+        public boolean enabled = true;   // master toggle; the hold-key only works when on
+        public float factor = 4.0f;      // world-FOV divisor while zoomed (2..8, scroll-adjustable)
+        public float smoothness = 0.5f;  // 0 = instant, 1 = very smooth (maps to the ease duration)
     }
 
     public static class ToggleSprint {
@@ -212,6 +212,7 @@ public class ClubConfig {
         if (animations == null) animations = new Animations();
         if (zoom == null) zoom = new Zoom();
         zoom.factor = Math.max(2f, Math.min(8f, zoom.factor));
+        zoom.smoothness = Math.max(0f, Math.min(1f, zoom.smoothness));
         if (toggleSprint == null) toggleSprint = new ToggleSprint();
         if (freelook == null) freelook = new Freelook();
         if (moduleBinds == null) moduleBinds = new java.util.HashMap<>();
