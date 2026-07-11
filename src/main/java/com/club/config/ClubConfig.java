@@ -30,6 +30,7 @@ public class ClubConfig {
     public boolean noHurtCam = true;
     public boolean noFireOverlay = true;
     public boolean noBobbing = true;
+    public boolean fullbright = false; // gamma READ override (15.0) — off by default, mirrored in FullbrightModule
     public Hud hud = new Hud();
 
     // (menuX/menuY removed 2026-07-02: the menu is fixed centred — stale keys in old files are ignored by Gson)

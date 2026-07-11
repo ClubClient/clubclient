@@ -32,6 +32,8 @@ public class ClubClient implements ClientModInitializer {
 
         // load settings
         ClubConfig.load();
+        // seed the fullbright mirror — its mixin gates on a static flag, never a lazy config lookup
+        com.club.modules.fullbright.FullbrightModule.set(ClubConfig.get().fullbright);
 
         // HUD elements
         HudManager.init();

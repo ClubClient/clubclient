@@ -9,6 +9,7 @@
     "MixinLivingEntity",
     "MixinInGameHud",
     "MixinMouse",
+    "MixinSimpleOption",
     "MouseAccessor"
   ],
   "injectors": {

@@ -35,6 +35,7 @@ public enum IconGlyph {
     NO_BOBBING(0xE016),
     HIDE_EFFECTS(0xE017),
     ZOOM(0xE018),
+    FULLBRIGHT(0xE019),
     // service
     SEARCH(0xE020),
     /** The CLUB mark — the club card suit (trefoil), solid. Header wordmark + editor watermark. */

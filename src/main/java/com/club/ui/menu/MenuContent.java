@@ -75,6 +75,7 @@ public final class MenuContent {
             new Category("Visuals", IconGlyph.VISUALS, List.of(
                 zoom(c),
                 screenStretch(c),
+                fullbright(c),
                 flag("No Hurt Cam",     "Removes the red damage screen tilt.",       IconGlyph.NO_HURT_CAM, () -> c.noHurtCam,     v -> { c.noHurtCam = v; save(); }),
                 flag("No Fire Overlay", "Hides the first-person flames while burning.", IconGlyph.NO_FIRE_OVERLAY, () -> c.noFireOverlay, v -> { c.noFireOverlay = v; save(); }),
                 flag("No Bobbing",      "Stops the view bobbing as you walk.",        IconGlyph.NO_BOBBING, () -> c.noBobbing,     v -> { c.noBobbing = v; save(); }))),
@@ -103,6 +104,15 @@ public final class MenuContent {
                         i -> { c.animations.type = at[i].name(); save(); }),
                 new SliderSetting("Speed", 0.5f, 2.0f, 0.01f, () -> c.animations.speed, v -> c.animations.speed = v),
                 new SliderSetting("Amplitude", 0.5f, 1.5f, 0.01f, () -> c.animations.amplitude, v -> c.animations.amplitude = v)));
+    }
+
+    /** Fullbright is a flag module whose state must ALSO mirror into the module's static (the gamma
+     *  mixin gates on it) — and unlike the No-* flags its reset returns to OFF (surprise brightness
+     *  isn't a default). */
+    private static Module fullbright(ClubConfig c) {
+        BoolConsumer set = v -> { c.fullbright = v; com.club.modules.fullbright.FullbrightModule.set(v); save(); };
+        return new Module("Fullbright", "See in the dark — maximum brightness.", IconGlyph.FULLBRIGHT,
+            () -> c.fullbright, set, () -> set.accept(false), List.of());
     }
 
     private static Module zoom(ClubConfig c) {
