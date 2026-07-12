@@ -37,6 +37,8 @@ public final class ScrollArea extends Container {
 
     /** Set during layout; used in input handling and render. */
     private float contentH, viewportH;
+    /** Width the content is laid out at: the viewport, MINUS the scrollbar lane while it's showing. */
+    private float contentW;
 
     // Thumb-drag state (pointer-capture model) + hover, for the thumb affordance.
     private boolean draggingThumb, thumbHovered;
@@ -57,7 +59,14 @@ public final class ScrollArea extends Container {
 
     /** Public scroll-position access so a screen can preserve it across a content rebuild (clamped on set). */
     public float scrollOffset() { return offset; }
-    public void scrollOffset(float v) { offset = clampOffset(v, contentH, viewportH); }
+    /** Restores a scroll position. The VISUAL position jumps there too — a fresh ScrollArea starts its
+     *  ease at 0, so restoring only the logical offset made a rebuilt popover (tab switch, dropdown)
+     *  snap to the top and then glide back down (Stage 58 review). */
+    public void scrollOffset(float v) {
+        offset = clampOffset(v, contentH, viewportH);
+        displayOffset = offset;
+        needResync = true;   // re-base the ease from here on the next frame instead of animating into it
+    }
 
     /**
      * Clamps {@code off} into {@code [0, max(0, contentH - viewportH)]}.
@@ -80,12 +89,21 @@ public final class ScrollArea extends Container {
     @Override public void layout(float x, float y, float w, float h) {
         super.layout(x, y, w, h);
         viewportH = h;
+        // The scrollbar is drawn INSIDE the viewport, so a full-width content row ends up underneath
+        // it (a Slider's right-aligned value read as "cut off" — owner, Stage 58). Reserve its lane
+        // the moment it appears: measure at full width to learn whether we overflow, then re-measure
+        // narrowed. Rows here never reflow-grow when narrowed, so this settles in one pass.
         contentH = content.measure(w, h).h();
+        contentW = (contentH > viewportH) ? Math.max(1f, w - gutter()) : w;
+        if (contentW != w) contentH = content.measure(contentW, h).h();
         offset = clampOffset(offset, contentH, viewportH);
         // Virtualization seam (frozen §11): lay out all children at their natural height.
         // Drawn position uses the eased displayOffset; render() re-lays each frame as it advances.
-        content.layout(x, y - displayOffset, w, contentH);
+        content.layout(x, y - displayOffset, contentW, contentH);
     }
+
+    /** Space taken out of the content width while the scrollbar shows: the bar + a breath beside it. */
+    private float gutter() { return barW() + Tokens.spacing().xs(); }
 
     // -------------------------------------------------------------------------
     // Scroll input
@@ -184,7 +202,7 @@ public final class ScrollArea extends Container {
             scroll.set(offset, now);
             displayOffset = clampOffset(scroll.get(now), contentH, viewportH);
         }
-        content.layout(x, y - displayOffset, w, contentH);
+        content.layout(x, y - displayOffset, contentW > 0 ? contentW : w, contentH);
 
         // Clip content to the viewport rectangle (flat clip — not rounded).
         ctx.renderer().pushClip(x, y, w, viewportH);

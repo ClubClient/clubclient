@@ -26,6 +26,7 @@ public final class ZoomModule {
     private static float curDur = 0.22f;
     private static boolean wasActive;    // release edge → persist a scroll-adjusted factor
     private static boolean factorDirty;
+    private static float lastDivisor = 1f;   // this frame's divisor, read by the mouse hook (see sensitivityScale)
 
     private static float now() { return (System.nanoTime() - START) / 1_000_000_000f; }
 
@@ -49,11 +50,42 @@ public final class ZoomModule {
         float v = ease.value(t);                    // duration 0 → returns the target instantly
         if (wasActive && !active && factorDirty) { factorDirty = false; ClubConfig.save(); }
         wasActive = active;
-        return divisorFor(cfg.factor, v);
+        lastDivisor = divisorFor(cfg.factor, v);
+        return lastDivisor;
     }
 
     /** Pure FOV divisor for a factor and eased amount {@code v} in [0,1] (1 = full zoom). */
     public static float divisorFor(float factor, float v) { return 1f + (factor - 1f) * v; }
+
+    /**
+     * Look-sensitivity multiplier for this frame (1 = untouched). Zoomed in, the mouse must turn the
+     * view SLOWER — otherwise a 4× view flings around at 4× the on-screen speed and is unusable for
+     * the thing zoom exists for (owner, Stage 58; every mainstream zoom does this).
+     *
+     * <p>The ratio is the tangent of the half-FOVs, not a flat 1/divisor: that keeps the world moving
+     * at a CONSTANT speed across the screen at any zoom level, which is what "aiming feels the same"
+     * actually means. It rides the same eased divisor, so the slow-down ramps in with the zoom instead
+     * of snapping. Floored so an 8× zoom at a low FOV never reads as a dead mouse.</p>
+     */
+    public static float sensitivityScale() {
+        return scaleFor(lastDivisor, baseFov());
+    }
+
+    /** The player's FOV setting in degrees (the zoom divides it). */
+    private static float baseFov() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null || mc.options == null) return 70f;
+        return mc.options.getFov().getValue();
+    }
+
+    /** Pure: sensitivity multiplier for a divisor and a base FOV (degrees). Unit-testable, no GL. */
+    public static float scaleFor(float divisor, float baseFovDeg) {
+        if (divisor <= 1.0005f || baseFovDeg <= 0f) return 1f;
+        double half = Math.toRadians(baseFovDeg / 2.0);
+        double zoomedHalf = Math.toRadians(baseFovDeg / divisor / 2.0);
+        double s = Math.tan(zoomedHalf) / Math.tan(half);
+        return (float) Math.max(0.05, Math.min(1.0, s));
+    }
 
     /** Wheel while zooming: adjust the factor, consume the scroll. Returns true when consumed. */
     public static boolean onScroll(double vertical) {

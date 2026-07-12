@@ -138,6 +138,14 @@ public final class ClubMenuScreen extends Screen {
     private boolean bindListening;
     private Module bindModule;
     private Button popBindBtn;   // the live Bind button of the open popover (focus handback after capture)
+    // The menu key is reserved (it opens/closes this screen). Pressing it while listening used to
+    // silently CANCEL the capture — and the key's GLFW repeat then landed on the close route, so the
+    // menu shut itself (owner, Stage 58). It now KEEPS listening and says why, so no repeat can leak.
+    private boolean bindReserved;
+    /** Physical keys held right now (this screen's view). A press whose key is already in here is a
+     *  GLFW auto-repeat — see keyPressed. Cleared on init: a key released while a child screen owned
+     *  the keyboard would otherwise stay "down" forever. */
+    private final java.util.Set<Integer> keysDown = new java.util.HashSet<>();
 
     // settings popover (RMB), anchored to a card
     private Module popModule;
@@ -146,7 +154,7 @@ public final class ClubMenuScreen extends Screen {
     private int tabIndex;
     private Transition segSlide;    // segmented-tab pill position — outer, so it survives popover rebuilds
     private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
-    private float popX, popY, popW, popH, popAX, popAY, popAH, popContentH;
+    private float popX, popY, popW, popH, popAX, popAY, popAH, popContentH, popInnerW;
     private int pressOwner;
     // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
     // (dropdown expand, tab switch). Content is clipped to the eased height so any resize reveals smoothly.
@@ -190,6 +198,7 @@ public final class ClubMenuScreen extends Screen {
         headH = 48; footH = 36;   // footer slimmed with its divider gone (Stage 22)
         query = ""; popModule = null; popCol = null; openDrop = null; pressOwner = 0;
         gridFocused = false; gridFocus = null;
+        bindListening = false; bindModule = null; bindReserved = false; keysDown.clear();
         search = new SearchField("Search modules")
                 .onChange(q -> { query = q; rebuildGrid(GridRebuild.SEARCH); layoutAll(); })
                 .onSubmit(this::submitSearch);   // Enter activates the first result
@@ -432,9 +441,13 @@ public final class ClubMenuScreen extends Screen {
         float prevOffset = (popScroll != null) ? popScroll.scrollOffset() : 0f;   // survive dropdown-expand / tab-switch rebuild
         focus.clear();
         focus.register(search);
-        popCol = buildSettings(popModule);
-        popW = Math.min(236f, Math.max(160f, winW - 16f));   // never wider than the window
+        // Width FIRST — the rows size their label column against it. Never wider than the WELL it lives
+        // in: clamping to the window let a 236px sheet spill past the well (and invert the popX clamp)
+        // once the window shrank, i.e. at GUI scale 4 (Stage 58).
+        popW = Math.min(POP_W, Math.max(POP_W_MIN, wellW - 24f));
         float innerW = popW - 2 * POP_PAD;
+        popInnerW = innerW;
+        popCol = buildSettings(popModule);
         popContentH = popCol.measure(innerW, 99999f).h();
         popScroll = new ScrollArea(popCol);
         positionPopover();   // sets popY + popH below the card grid, capped so long content scrolls
@@ -444,16 +457,38 @@ public final class ClubMenuScreen extends Screen {
     /** The popover opens as a tidy panel BELOW the card grid — it never covers the cards (owner). Its
      *  height fits the content, capped to the room between the grid and the well's bottom; anything
      *  taller scrolls inside (ScrollArea draws the side scrollbar). X follows the clicked card's
-     *  column so it reads as "this card's settings", clamped to stay in the well. */
+     *  column so it reads as "this card's settings", clamped to stay in the well.
+     *
+     *  <p>Escape hatch (Stage 58): on a SMALL window there may be no usable room under the cards at
+     *  all — at GUI scale 4 (the stock auto scale on 1080p) the whole menu shrinks to 432×222 and two
+     *  card rows leave a NEGATIVE strip below. Rather than render a 1px sliver with an unreachable
+     *  settings list, the sheet then takes the well and overlaps the cards: covering them is bad, but
+     *  being unusable is worse.</p> */
     private void positionPopover() {
         float gridTop = wellY + 12;
         int rows = Math.max(1, (grid.children().size() + GRID_COLS - 1) / GRID_COLS);
         float gridBottom = gridTop + rows * TILE_H + (rows - 1) * Tokens.spacing().sm();
+        float wellBottom = wellY + wellH - 8;
+        float want = popContentH + 2 * POP_PAD;
+        float below = wellBottom - (gridBottom + 8);          // room from under the cards to the well bottom
+        if (below >= Math.min(want, POP_H_MIN)) {             // normal: a tidy panel under the cards
+            popY = gridBottom + 8;
+            popH = Math.min(want, below);
+        } else {                                              // no usable room — take the well, overlap the cards
+            popH = Math.max(1f, Math.min(want, wellBottom - gridTop));
+            popY = Math.max(gridTop, wellBottom - popH);
+        }
         popX = clamp(popAX, wellX + 12, wellX + wellW - 12 - popW);
-        popY = gridBottom + 8;
-        float avail = (wellY + wellH - 8) - popY;             // room from below the cards to the well bottom
-        popH = Math.max(1f, Math.min(popContentH + 2 * POP_PAD, avail));
-        popScroll.layout(popX + POP_PAD, popY + POP_PAD, popW - 2 * POP_PAD, popH - 2 * POP_PAD);
+        popScroll.layout(popX + POP_PAD, popY + POP_PAD,
+                Math.max(1f, popW - 2 * POP_PAD), Math.max(1f, popH - 2 * POP_PAD));
+    }
+
+    /** Harness seam: the open popover's geometry — {contentH, height, y, room below the grid}. All
+     *  zeroes when no popover is open. The only way to assert the "fits below the cards / scrolls when
+     *  it can't" contract from inside a running game. */
+    public float[] popoverGeometry() {
+        if (popModule == null) return new float[] {0, 0, 0, 0};
+        return new float[] {popContentH, popH, popY, (wellY + wellH - 8) - popY};
     }
 
     /** Deferred close: begins the shrink-out; render() calls {@link #reallyClosePopover} once it has fully collapsed. */
@@ -464,7 +499,7 @@ public final class ClubMenuScreen extends Screen {
     private void reallyClosePopover() {
         popModule = null; popCol = null; popScroll = null; openDrop = null;
         popReveal = null; popClosing = false; resetArmed = false; popResetBtn = null;
-        bindListening = false; bindModule = null; popBindBtn = null;
+        bindListening = false; bindModule = null; bindReserved = false; popBindBtn = null;
         focus.clear();
         if (search != null) focus.register(search);
         if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // hand the zone back (Space → Esc round-trip)
@@ -477,6 +512,23 @@ public final class ClubMenuScreen extends Screen {
         // that room without scrolling — xs keeps the rows neat but compact; only tall ones (Hands) scroll.
         Column col = new Column().gap(Tokens.spacing().xs()).crossAlign(CrossAlign.STRETCH);
         int accent = catAccent(catIndex);   // 11.9: the popover speaks its category's colour
+
+        List<Setting> settings0;
+        if (m.hasTabs()) {
+            List<Tab> tbs = m.tabs();
+            settings0 = tbs.get(Math.min(tabIndex, tbs.size() - 1)).settings();
+        } else settings0 = m.settings();
+        // A SLIDER is the one control wide enough to fight its own label for the row: at its natural
+        // width it left the label a 40px slot on a squeezed window and the text ran straight over the
+        // track (Stage 58 review, GUI scale 4). So slider rows get a FIXED label column — the widest
+        // label in this popover, capped — and the slider FILLS what's left: labels never collide, and
+        // every track in the sheet starts on the same line. Narrow controls (toggles, buttons) keep the
+        // old label-fills-the-row layout: they can't crowd anything.
+        float lw = 0f;
+        var lblRole = Tokens.type().label();
+        for (Setting s : settings0)
+            if (s instanceof SliderSetting) lw = Math.max(lw, Ui.text().width(s.label(), lblRole.weight(), lblRole.size()));
+        final float labelW = Math.min(Math.max(lw + 8f, 40f), Math.max(48f, popInnerW * 0.42f));
 
         List<Setting> settings;
         if (m.hasTabs()) {
@@ -509,6 +561,12 @@ public final class ClubMenuScreen extends Screen {
             } else if (s instanceof ActionSetting) {
                 Component ctrl = buildControl(s, accent);
                 Row rr = new Row().crossAlign(CrossAlign.CENTER); rr.add(ctrl); col.add(rr); focus.register(ctrl);
+            } else if (s instanceof SliderSetting) {
+                Component ctrl = buildControl(s, accent);
+                Row rr = new Row().crossAlign(CrossAlign.CENTER);
+                rr.add(new FixedW(new Label(s.label(), lblRole).color(Tokens.palette().textMuted()), labelW));
+                rr.add(ctrl, Sizing.fill());
+                col.add(new LaneRow(rr)); focus.register(ctrl);
             } else {
                 Component ctrl = buildControl(s, accent);
                 Row rr = new Row().crossAlign(CrossAlign.CENTER);
@@ -519,28 +577,42 @@ public final class ClubMenuScreen extends Screen {
         }
 
         if (m.hasToggle() && openDrop == null) {
-            // Stage 43: per-module toggle hotkey. The value field shows the assigned key ("Not set"
-            // when unbound; English key names via ModuleBinds); click → listening ("Press any key…").
-            // Width pinned to the widest state.
-            String cur = com.club.modules.binds.ModuleBinds.label(m.name());
+            // The module's key row. TWO kinds, and saying which is which is the whole point (Stage 58):
+            //   • HOLD modules (Zoom, Freelook) → "Hold key": rebinds the REAL vanilla binding you hold.
+            //     They must not also have a toggle bind — binding Zoom to its own hold key made one
+            //     press both zoom and switch the module off ("работает через раз", owner).
+            //   • everything else → "Toggle key": a tap flips the module (ModuleBinds).
+            // The field shows the assigned key ("Not set" when unbound, English names); click → listening.
+            // Width pinned to the widest state so arming can't resize the popover.
+            boolean hold = com.club.modules.binds.HoldKeys.isHold(m.name());
+            String cur = hold ? com.club.modules.binds.HoldKeys.label(m.name())
+                              : com.club.modules.binds.ModuleBinds.label(m.name());
             boolean listening = bindListening && bindModule == m;
             Button bind = new Button(listening ? "Press any key…" : (cur != null ? cur : "Not set"))
                     .variant(Button.Variant.GHOST).armed(listening).accent(accent).compact();
-            bind.minWidth(new Button("Press any key…").compact().measure(10_000f, 22f).w());
+            // Pinned to the widest state so arming can't resize the sheet — but never so wide that it
+            // squeezes its own label off the row on a narrow popover (Stage 58 review, GUI scale 4).
+            bind.minWidth(Math.min(new Button("Press any key…").compact().measure(10_000f, 22f).w(),
+                                   popInnerW * 0.55f));
             bind.onClick(() -> {
                 boolean was = bindListening && bindModule == m;
-                bindListening = !was; bindModule = bindListening ? m : null;
+                bindListening = !was; bindModule = bindListening ? m : null; bindReserved = false;
                 rebuildPopover();
             });
             popBindBtn = bind;
             Row rr = new Row().crossAlign(CrossAlign.CENTER);
-            rr.add(new Label("Hotkey", Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
+            rr.add(new Label(hold ? "Hold key" : "Toggle key", Tokens.type().label())
+                    .color(Tokens.palette().textMuted()), Sizing.fill());
             rr.add(bind);
             col.add(new LaneRow(rr)); focus.register(bind);
-            // Discoverable clear (Stage 46/51): a plain-English hint appears only while listening.
+            // Discoverable clear (Stage 46/51): a plain-English hint appears only while listening — and
+            // says so when the key you just tried is the one that opens this menu (Stage 58).
+            // Both strings are kept SHORT on purpose: the popover is a fixed 236px sheet and a caption
+            // that outgrows it just gets clipped mid-word (Stage 58 — caught in the harness shot).
             if (listening)
-                col.add(new Label("Esc to cancel · Delete to remove", Tokens.type().caption())
-                        .color(Tokens.palette().textFaint()));
+                col.add(new Label(bindReserved ? "That key opens the menu"
+                                               : "Esc to cancel · Delete to remove", Tokens.type().caption())
+                        .color(bindReserved ? Tokens.palette().stateWarn() : Tokens.palette().textFaint()));
         } else popBindBtn = null;
 
         if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
@@ -560,7 +632,12 @@ public final class ClubMenuScreen extends Screen {
                     boolean kb = popResetBtn != null && popResetBtn.isFocusVisible();
                     resetArmed = false;
                     m.reset().run();
-                    com.club.modules.binds.ModuleBinds.set(m.name(), null);   // Reset also clears the keybind (Stage 46)
+                    // Reset also restores the key (Stage 46/58): a hold module goes back to its FACTORY
+                    // key (Zoom → C) — clearing it would leave the module on but unusable; a toggle bind
+                    // is simply removed (it has no default).
+                    if (com.club.modules.binds.HoldKeys.isHold(m.name()))
+                        com.club.modules.binds.HoldKeys.reset(m.name());
+                    else com.club.modules.binds.ModuleBinds.set(m.name(), null);
                     openDrop = null;
                     rebuildPopover();
                     if (kb && popResetBtn != null) focus.focusKeyboard(popResetBtn);
@@ -888,7 +965,7 @@ public final class ClubMenuScreen extends Screen {
         gridFocused = false;        // any mouse interaction leaves the keyboard grid zone (ring hides)
         popFromGrid = false;        //   …and cancels the popover's pending zone hand-back
         if (bindListening) {        // a click cancels key capture (clicking the Bind button re-arms it)
-            bindListening = false; bindModule = null;
+            bindListening = false; bindModule = null; bindReserved = false;
             rebuildPopover();
         }
         focus.clickFocus(mx, my);
@@ -925,23 +1002,46 @@ public final class ClubMenuScreen extends Screen {
     }
     @Override public boolean keyPressed(int k, int scan, int mods) {
         boolean shift = (mods & GLFW_MOD_SHIFT) != 0, ctrl = (mods & GLFW_MOD_CONTROL) != 0;
+        // Minecraft dispatches keyPressed for GLFW_REPEAT too, and Screen never sees the action code —
+        // so a HELD key arrives as a stream of presses. Tracking the physical down-set (cleared in
+        // keyReleased) is the only way to tell a fresh press from a repeat, and both routes below need
+        // that: the Enter that CLICKED the Hotkey button would otherwise repeat straight into the
+        // capture and bind itself, then re-arm the button it's still focused on — an oscillation that
+        // rewrites options.txt at key-repeat rate (Stage 58 review).
+        boolean repeat = !keysDown.add(k);
 
         // Keybind capture wins over EVERYTHING (incl. the menu-close key): the next key assigns,
-        // Esc cancels, Backspace/Delete clears (Stage 43, hardened 45).
+        // Esc cancels, Backspace/Delete clears (Stage 43, hardened 45/58).
         if (bindListening && bindModule != null) {
-            if (k == GLFW_KEY_ESCAPE) { /* cancel — keep the current bind */ }
-            else if (k == GLFW_KEY_BACKSPACE || k == GLFW_KEY_DELETE)
-                com.club.modules.binds.ModuleBinds.set(bindModule.name(), null);
-            else if (k == GLFW_KEY_UNKNOWN)
+            if (repeat) return true;   // a key still held from before the prompt never binds itself
+            boolean hold = com.club.modules.binds.HoldKeys.isHold(bindModule.name());
+            if (k == GLFW_KEY_UNKNOWN)
                 return true;   // no GLFW keycode → would be a dead SCANCODE bind; ignore, keep listening
-            else if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)) { /* reserved — don't bind the menu key */ }
-            else com.club.modules.binds.ModuleBinds.set(bindModule.name(),
-                    InputUtil.fromKeyCode(k, scan).getTranslationKey());
-            bindListening = false; bindModule = null;
+            if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)) {
+                // RESERVED. Stay in capture and SAY so — cancelling here left the key's GLFW repeat to
+                // land on the close route below, which shut the menu mid-bind (owner, Stage 58).
+                if (!bindReserved) { bindReserved = true; rebuildPopover(); }
+                return true;
+            }
+            if (k == GLFW_KEY_ESCAPE) { /* cancel — keep the current bind */ }
+            else if (k == GLFW_KEY_BACKSPACE || k == GLFW_KEY_DELETE) {
+                if (hold) com.club.modules.binds.HoldKeys.set(bindModule.name(), null);
+                else com.club.modules.binds.ModuleBinds.set(bindModule.name(), null);
+            } else {
+                InputUtil.Key key = InputUtil.fromKeyCode(k, scan);
+                if (hold) com.club.modules.binds.HoldKeys.set(bindModule.name(), key);
+                else com.club.modules.binds.ModuleBinds.set(bindModule.name(), key.getTranslationKey());
+            }
+            bindListening = false; bindModule = null; bindReserved = false;
             rebuildPopover();
             if (popBindBtn != null) focus.focusKeyboard(popBindBtn);   // keyboard flow continues on the Bind row
             return true;
         }
+
+        // An ACTIVATION key that is merely repeating must not fire again: holding Enter on a card would
+        // toggle its module ~15×/s, and on a button it would re-run its action (Stage 58 review). Text
+        // editing still gets its repeats — those keys (Backspace, arrows, …) fall through untouched.
+        if (repeat && (k == GLFW_KEY_SPACE || k == GLFW_KEY_ENTER || k == GLFW_KEY_KP_ENTER)) return true;
 
         // The menu closes on the SAME key that opens it (owner decision 2026-07-02) — with the
         // reverse-of-open animation, but NOT while typing in the search (the bound letter must
@@ -983,6 +1083,10 @@ public final class ClubMenuScreen extends Screen {
         if (gridFocused && gridNav(k)) return true;
 
         return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
+    }
+    @Override public boolean keyReleased(int k, int scan, int mods) {
+        keysDown.remove(k);               // the key is up: a fresh press of it is a real press again
+        return super.keyReleased(k, scan, mods);
     }
     @Override public boolean charTyped(char c, int mods) {
         if (bindListening) return true;   // capturing a key — its char must not type/route anywhere
@@ -1053,6 +1157,8 @@ public final class ClubMenuScreen extends Screen {
     private static final float NAME_MIN = 6f;   // hard sanity floor ONLY — the fit math guarantees no
                                                 // overflow (11.8 fix: a 9px floor let long names spill)
     private static final int POP_PAD = 8;   // tighter popover gutter — the scrollbar fills the right, so a wide left pad read as empty
+    private static final float POP_W = 236f, POP_W_MIN = 140f;   // sheet width, and the floor on a squeezed window
+    private static final float POP_H_MIN = 88f;                  // below this a settings sheet is not worth showing under the cards
 
     /** Module card: icon chip + centered state stripe + name + ghost underlay.
      *  LMB = enable/disable (or run the action); RMB = settings popover. */
@@ -1381,6 +1487,18 @@ public final class ClubMenuScreen extends Screen {
         @Override public void layout(float x, float y, float w, float h) {
             super.layout(x, y, w, h);
             row.layout(x, y, w, h);   // CrossAlign.CENTER inside the row centres shorter controls in the lane
+        }
+    }
+
+    /** Pins a child to an exact width inside a Row (the label column of a slider row). */
+    private static final class FixedW extends Container {
+        private final Component c;
+        private final float fw;
+        FixedW(Component c, float fw) { this.c = c; this.fw = fw; addChild(c); }
+        @Override public Size measure(float aw, float ah) { return new Size(fw, c.measure(fw, ah).h()); }
+        @Override public void layout(float x, float y, float w, float h) {
+            super.layout(x, y, fw, h);
+            c.layout(x, y, fw, h);
         }
     }
 

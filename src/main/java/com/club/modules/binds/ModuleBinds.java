@@ -32,13 +32,24 @@ public final class ModuleBinds {
     private static final Set<String> BAD = new HashSet<>();       // strings that failed to parse (don't retry)
     private static final Set<String> down = new HashSet<>();      // bound keys currently held (edge detect)
 
-    /** Build the module registry once — record closures point at the live ClubConfig. */
+    /** Build the module registry once — record closures point at the live ClubConfig. HOLD modules
+     *  (Zoom, Freelook — see {@link HoldKeys}) are excluded: their key is the hold key, and a toggle
+     *  bind on the SAME key flipped the module off on the very press that was meant to act (Stage 58).
+     *  Excluding them here also makes any stale config entry inert, not just unreachable. */
     public static void init() {
         java.util.ArrayList<MenuContent.Module> flat = new java.util.ArrayList<>();
         for (MenuContent.Category cat : MenuContent.build(() -> {}))
             for (MenuContent.Module m : cat.modules())
-                if (m.hasToggle()) flat.add(m);
+                if (m.hasToggle() && !HoldKeys.isHold(m.name())) flat.add(m);
         modules = flat;
+        // Reconcile the two namespaces once the hold keys exist (the config migration can't: it runs
+        // before the bindings are registered). An OLD file can hold e.g. {"Fullbright":"key.keyboard.c"}
+        // while Zoom is held with C — one press would zoom AND toggle Fullbright, the very bug Stage 58
+        // closes. The hold key wins (it has a factory default to fall back on); the toggle bind is dropped.
+        for (String hold : HoldKeys.NAMES) {
+            var kb = HoldKeys.of(hold);
+            if (kb != null && !kb.isUnbound()) releaseKey(kb.getBoundKeyTranslationKey());
+        }
     }
 
     /** Parse a translation key, cached; a malformed value is remembered as BAD and treated as unbound
@@ -68,6 +79,9 @@ public final class ModuleBinds {
             InputUtil.Key key = key(t);
             if (key == null) { binds.remove(m.name()); healed = true; down.remove(m.name()); continue; }  // drop junk
             if (key.getCategory() != InputUtil.Type.KEYSYM) { down.remove(m.name()); continue; }
+            // A key a HOLD module is using never toggles as well: vanilla's Controls screen can rebind
+            // zoom/freelook onto a key a toggle bind owns, behind the popover's back (Stage 58).
+            if (HoldKeys.usesKey(t)) { down.remove(m.name()); continue; }
             boolean isDown = InputUtil.isKeyPressed(handle, key.getCode());
             boolean was = down.contains(m.name());
             if (isDown && !was && !screen) m.setEnabled(!m.enabled());   // module setters save + sync mirrors
@@ -77,40 +91,42 @@ public final class ModuleBinds {
     }
 
     /** Human label for a bound key ("K", "Left Shift", "Space"), or null when unbound / unparseable.
-     *  Derived from the translation key so it's consistent ENGLISH in the mod's all-English UI —
-     *  not the game-localized name (which is Cyrillic in a Russian client and read as "random"). */
+     *  ENGLISH, derived from the translation key (see {@link com.club.util.KeyNames}). */
     public static String label(String moduleName) {
         String t = ClubConfig.get().moduleBinds.get(moduleName);
         if (t == null || key(t) == null) return null;   // key() also validates (unparseable → unbound)
-        return englishKeyName(t);
-    }
-
-    /** "key.keyboard.left.shift" → "Left Shift"; "key.keyboard.k" → "K"; "key.keyboard.space" → "Space". */
-    private static String englishKeyName(String t) {
-        String s = t;
-        if (s.startsWith("key.keyboard.")) s = s.substring("key.keyboard.".length());
-        else if (s.startsWith("key.mouse.")) s = "mouse." + s.substring("key.mouse.".length());
-        else if (s.startsWith("key.")) s = s.substring("key.".length());
-        StringBuilder sb = new StringBuilder();
-        for (String p : s.split("[._]")) {
-            if (p.isEmpty()) continue;
-            if (sb.length() > 0) sb.append(' ');
-            sb.append(Character.toUpperCase(p.charAt(0))).append(p.substring(1));
-        }
-        return sb.length() == 0 ? t : sb.toString();
+        return com.club.util.KeyNames.english(t);
     }
 
     /** Assign (translation key) or clear (null) a module's bind; persists immediately. Assigning a
-     *  key already held by ANOTHER module steals it (Stage 46) — one press must not toggle two
-     *  modules (the tick loop would fire both). */
+     *  key already held by ANOTHER Club action steals it (Stage 46, widened to hold keys in 58) —
+     *  one press must never drive two things (the tick loop would fire both). */
     public static void set(String moduleName, String translationKey) {
         Map<String, String> binds = ClubConfig.get().moduleBinds;
         if (translationKey == null) binds.remove(moduleName);
         else {
             binds.entrySet().removeIf(e -> !e.getKey().equals(moduleName) && translationKey.equals(e.getValue()));
+            HoldKeys.releaseKey(translationKey);   // …and from Zoom/Freelook's hold key, if it was theirs
             binds.put(moduleName, translationKey);
         }
         down.remove(moduleName);   // a fresh bind must not inherit a stale held-edge
         ClubConfig.save();
+    }
+
+    /** True if this module can carry a toggle bind at all (hold modules can't — see {@link HoldKeys}). */
+    public static boolean tracks(String moduleName) {
+        if (modules == null) return false;
+        for (MenuContent.Module m : modules) if (m.name().equals(moduleName)) return true;
+        return false;
+    }
+
+    /** Drop every toggle bind on {@code translationKey} — called when a HOLD key claims it. */
+    public static void releaseKey(String translationKey) {
+        if (translationKey == null) return;
+        Map<String, String> binds = ClubConfig.get().moduleBinds;
+        if (binds.values().removeIf(translationKey::equals)) {
+            down.clear();
+            ClubConfig.save();
+        }
     }
 }

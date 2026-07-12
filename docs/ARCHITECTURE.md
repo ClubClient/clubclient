@@ -41,18 +41,24 @@ com.club
 │   ├── animations/                 — AnimationType / Pose / AnimationModule  → ANIMATIONS.md
 │   ├── hands/HandsModule           — масштаб/смещение рук
 │   ├── screenstretch/              — ScreenStretchModule / StretchPreset
-│   ├── zoom/ZoomModule             — hold-зум (eased FOV-делитель, колесо, персист на отпускание)
+│   ├── zoom/ZoomModule             — hold-зум (eased FOV-делитель, колесо, персист на отпускание,
+│   │                                 sensitivityScale: обзор замедляется по tan-отношению полу-FOV)
 │   ├── fullbright/FullbrightModule — статик-зеркало гамма-оверрайда (READ-side, 15.0)
 │   ├── togglesprint/               — авто-спринт (vanilla-toggle-safe) + HUD-чип SprintElement
 │   ├── freelook/FreelookModule     — hold-обзор камеры (перспектива+yaw/pitch, игрок не крутится)
-│   └── binds/ModuleBinds           — пер-модульные кейбинды (name→translationKey, фронты в тике)
+│   └── binds/                      — ДВА пространства клавиш, воруют ключ друг у друга (одна физ.
+│       ├── ModuleBinds             клавиша = одно действие): toggle-бинды модулей (name→translationKey,
+│       │                           фронты в тике) …
+│       └── HoldKeys                … и hold-клавиши (Zoom/Freelook) — это НАСТОЯЩИЕ ванильные
+│                                   KeyBinding'и; поповер правит их, toggle-бинда у них нет
 └── mixin/
     ├── MixinHeldItemRenderer       — руки + кастомная анимация удара
     ├── MixinLivingEntity           — масштаб длительности свинга (speed)
     ├── MixinGameRenderer           — NoHurtCam / NoBobbing / screen-stretch проекция / zoom getFov
     ├── MixinInGameHud              — скрыть ванильный оверлей эффектов
     ├── MixinInGameOverlayRenderer  — NoFireOverlay
-    ├── MixinMouse                  — колесо→зум-фактор; freelook-перехват changeLookDirection
+    ├── MixinMouse                  — колесо→зум-фактор; демпфирование обзора при зуме;
+    │                                 freelook-перехват changeLookDirection
     ├── MixinCamera                 — freelook: свободные yaw/pitch в Camera.update
     ├── MixinSimpleOption           — fullbright: гамма отвечает 15.0 (read-side)
     └── MouseAccessor               — cursorLocked для закрытия меню (ловушка Mouse.lockCursor)

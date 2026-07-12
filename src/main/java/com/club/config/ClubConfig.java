@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 6; // bumped when new fields are added, for migration
+    public int version = 7; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -285,6 +285,16 @@ public class ClubConfig {
             fullbright = false;
             hud.sprint = true; hud.sprintX = -1; hud.sprintY = -1; hud.sprintScale = 1.0f;
             version = 6;
+            changed = true;
+        }
+        if (version < 7) {
+            // Stage 58: Zoom/Freelook are HOLD modules — their key is the hold key (a real vanilla
+            // binding), never a toggle bind. A v6 file could carry a toggle bind on the SAME key the
+            // module is held with (the default C for Zoom), so one press both zoomed and flipped the
+            // module off — the "works every other press" bug. Drop those entries for good.
+            moduleBinds.remove("Zoom");
+            moduleBinds.remove("Freelook");
+            version = 7;
             changed = true;
         }
         if (changed) save();

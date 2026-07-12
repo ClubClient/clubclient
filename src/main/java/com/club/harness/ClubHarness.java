@@ -2,6 +2,7 @@ package com.club.harness;
 
 import com.club.ClubClient;
 import com.club.config.ClubConfig;
+import com.club.modules.binds.HoldKeys;
 import com.club.modules.binds.ModuleBinds;
 import com.club.modules.freelook.FreelookModule;
 import com.club.modules.fullbright.FullbrightModule;
@@ -13,6 +14,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.option.Perspective;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.client.util.ScreenshotRecorder;
 
 import java.io.IOException;
@@ -57,6 +59,7 @@ public final class ClubHarness {
         private int cursor = -1;    // -1 = not started (waiting for world)
         private int wait;
         private int shotNo, passed, failed;
+        private int prevGuiScale = 2;   // restored after the squeezed-window scene
         private boolean built, finished;
 
         void tick(MinecraftClient client) {
@@ -88,7 +91,20 @@ public final class ClubHarness {
             report.add("SHOT  " + file);
         }
         private void key(int k) { key(k, 0); }
-        private void key(int k, int mods) { Screen s = mc.currentScreen; if (s != null) s.keyPressed(k, 0, mods); }
+        /** A real tap: press AND release. The release matters — ClubMenuScreen tracks held keys to tell a
+         *  GLFW auto-repeat from a fresh press, so a press-only harness would leave keys "stuck down". */
+        private void key(int k, int mods) {
+            Screen s = mc.currentScreen;
+            if (s == null) return;
+            s.keyPressed(k, 0, mods);
+            s.keyReleased(k, 0, mods);
+        }
+        /** The key that actually opens the Club menu — read from the binding, NOT assumed to be the
+         *  default: a dev run (or a player) may have rebound it, and then the test would press a key
+         *  that isn't reserved at all and quietly prove nothing. */
+        private int menuKey() {
+            return InputUtil.fromTranslationKey(ClubClient.openMenuKey.getBoundKeyTranslationKey()).getCode();
+        }
         private void type(char c) { Screen s = mc.currentScreen; if (s != null) s.charTyped(c, 0); }
 
         // ---- the script --------------------------------------------------------
@@ -124,6 +140,16 @@ public final class ClubHarness {
                 check("zoom: not active while its key isn't held", !ZoomModule.active());
             });
 
+            // Look damping while zoomed (Stage 58): the view must turn slower the deeper you zoom, so
+            // the world moves at a constant speed across the SCREEN (what every mainstream zoom does).
+            step(2, () -> {
+                check("zoom: no zoom → sensitivity untouched", ZoomModule.scaleFor(1f, 70f) == 1f);
+                float s4 = ZoomModule.scaleFor(4f, 70f);
+                check("zoom: 4x damps the look to ~1/4.5 (" + String.format("%.3f", s4) + ")",
+                        s4 > 0.15f && s4 < 0.30f);
+                check("zoom: deeper zoom damps more", ZoomModule.scaleFor(8f, 70f) < s4);
+            });
+
             // Toggle Sprint force + clean release.
             step(2, () -> {
                 boolean prevEnabled = cfg.toggleSprint.enabled;
@@ -155,23 +181,41 @@ public final class ClubHarness {
                         && mc.options.getPerspective() == prevP);
             });
 
-            // Module keybinds: assign/label, conflict-steal, clear, malformed self-heal (no crash).
+            // Module TOGGLE keybinds: assign/label, conflict-steal, clear, malformed self-heal (no crash).
             step(2, () -> {
-                ModuleBinds.set("Zoom", "key.keyboard.k");
-                String lbl = ModuleBinds.label("Zoom");
-                check("binds: assign records a displayable bind", lbl != null && !lbl.trim().isEmpty());
+                ModuleBinds.set("No Bobbing", "key.keyboard.k");
+                check("binds: assign records a displayable bind", "K".equals(ModuleBinds.label("No Bobbing")));
                 ModuleBinds.set("Fullbright", "key.keyboard.k");
-                check("binds: conflict steals the key from the other module", ModuleBinds.label("Zoom") == null);
+                check("binds: conflict steals the key from the other module", ModuleBinds.label("No Bobbing") == null);
                 check("binds: new holder keeps it", ModuleBinds.label("Fullbright") != null);
-                ModuleBinds.set("Zoom", null); ModuleBinds.set("Fullbright", null);
+                ModuleBinds.set("Fullbright", null);
                 check("binds: cleared", ModuleBinds.label("Fullbright") == null);
                 boolean crashed = false;
                 try {
-                    ClubConfig.get().moduleBinds.put("Zoom", "key.keyboard.THIS_IS_JUNK");
+                    ClubConfig.get().moduleBinds.put("Fullbright", "key.keyboard.THIS_IS_JUNK");
                     ModuleBinds.tick(mc);
                 } catch (Throwable t) { crashed = true; }
                 check("binds: malformed config value self-heals (no crash)",
-                        !crashed && ClubConfig.get().moduleBinds.get("Zoom") == null);
+                        !crashed && ClubConfig.get().moduleBinds.get("Fullbright") == null);
+                // Stage 58: a HOLD module has no toggle bind at all — one press must not both zoom AND
+                // switch Zoom off (the "works every other press" bug).
+                check("binds: hold modules carry no toggle bind (Zoom)", !ModuleBinds.tracks("Zoom"));
+                check("binds: hold modules carry no toggle bind (Freelook)", !ModuleBinds.tracks("Freelook"));
+            });
+
+            // HOLD keys (Stage 58): the Zoom/Freelook row rebinds the REAL vanilla binding, and one
+            // physical key can never drive two Club actions (the namespaces steal from each other).
+            step(2, () -> {
+                HoldKeys.set("Zoom", InputUtil.fromKeyCode(GLFW_KEY_C, 0));
+                check("holdkeys: Zoom's hold key binds to C", "C".equals(HoldKeys.label("Zoom")));
+                check("holdkeys: the vanilla binding really moved",
+                        "key.keyboard.c".equals(ClubClient.zoomKey.getBoundKeyTranslationKey()));
+                ModuleBinds.set("Fullbright", "key.keyboard.c");   // a toggle bind claims the same key
+                check("holdkeys: a toggle bind on that key steals it (no double-fire)", HoldKeys.label("Zoom") == null);
+                HoldKeys.reset("Zoom");
+                check("holdkeys: Reset restores the factory key (C)", "C".equals(HoldKeys.label("Zoom")));
+                check("holdkeys: …and takes it back from the toggle bind", ModuleBinds.label("Fullbright") == null);
+                ModuleBinds.set("Fullbright", null);
             });
 
             // ===== VISUAL SCENES =====
@@ -203,7 +247,9 @@ public final class ClubHarness {
             step(5, () -> {});
             step(2, () -> shot("menu-category"));
 
-            // fresh menu, then open the FIRST card's popover (Animations — known control order) via keyboard
+            // fresh menu, then open the FIRST card's popover via keyboard. The rail sits on Visuals after
+            // the switch above, so this is ZOOM — the Stage-58 "Hold key" row (Strength / Smoothness /
+            // Hold key / Reset), and the shot proves nothing hides under the scrollbar.
             step(6, () -> mc.setScreen(new ClubMenuScreen()));
             step(2, () -> key(GLFW_KEY_TAB));                 // search
             step(2, () -> key(GLFW_KEY_TAB));                 // grid, first card
@@ -235,6 +281,74 @@ public final class ClubHarness {
             step(5, () -> shot("reset-armed"));
             step(2, () -> ModuleBinds.set("Fullbright", null));   // clean up
 
+            // Stage 58 (owner bug): the menu key is RESERVED while capturing — it must say so and it
+            // must NOT close the menu. Before, the first press silently cancelled capture and the key's
+            // GLFW REPEAT then hit the close route, so the menu shut itself mid-bind. Two presses here
+            // is exactly that sequence.
+            step(6, () -> mc.setScreen(new ClubMenuScreen()));
+            step(2, () -> key(GLFW_KEY_TAB));               // search focus
+            step(1, () -> type('f'));
+            step(1, () -> type('u'));
+            step(1, () -> type('l'));
+            step(1, () -> type('l'));
+            step(6, () -> {});
+            step(2, () -> key(GLFW_KEY_TAB));               // into grid → Fullbright
+            step(2, () -> key(GLFW_KEY_SPACE));            // open its popover
+            step(4, () -> {});
+            step(2, () -> key(GLFW_KEY_TAB));               // → search
+            step(2, () -> key(GLFW_KEY_TAB));               // → Bind
+            step(2, () -> key(GLFW_KEY_ENTER));            // arm listening
+            step(2, () -> key(menuKey()));                  // the menu key — reserved, keeps listening
+            step(6, () -> shot("bind-reserved"));           // "That key opens the menu — pick another"
+            step(2, () -> key(menuKey()));                  // its repeat: THIS is what closed the menu
+            step(20, () -> {});                             // …a close animation would have finished by now
+            step(2, () -> {
+                check("menu: the menu key cannot close the menu while capturing a bind",
+                        mc.currentScreen instanceof ClubMenuScreen);
+                check("menu: the menu key is never assigned to a module",
+                        ModuleBinds.label("Fullbright") == null);
+            });
+            step(2, () -> key(GLFW_KEY_ESCAPE));            // cancel capture
+            step(2, () -> ModuleBinds.set("Fullbright", null));
+
+            // Stage 58 review: the Enter that CLICKS the hotkey button is still HELD when its GLFW
+            // auto-repeat arrives — that repeat must not bind Enter to the module and re-arm the button
+            // it's focused on (an oscillation that also rewrote options.txt at repeat rate).
+            step(2, () -> key(GLFW_KEY_TAB));               // → search
+            step(2, () -> key(GLFW_KEY_TAB));               // → Bind
+            step(2, () -> {
+                Screen s = mc.currentScreen;
+                if (s == null) { check("bind: menu open for the auto-repeat check", false); return; }
+                s.keyPressed(GLFW_KEY_ENTER, 0, 0);         // press — arms listening
+                s.keyPressed(GLFW_KEY_ENTER, 0, 0);         // auto-repeat of the SAME held key
+                s.keyPressed(GLFW_KEY_ENTER, 0, 0);         // …and again
+                s.keyReleased(GLFW_KEY_ENTER, 0, 0);
+                check("bind: a held Enter's auto-repeat never binds itself", ModuleBinds.label("Fullbright") == null);
+                check("bind: …and the menu survives it", mc.currentScreen instanceof ClubMenuScreen);
+            });
+            step(2, () -> key(GLFW_KEY_ESCAPE));            // cancel capture
+
+            // Stage 58 review: GUI scale 4 is the STOCK auto scale on 1080p — the window shrinks to
+            // 432×222 and two card rows leave NO room underneath. The popover must still be a usable
+            // sheet (it takes the well and overlaps the cards) instead of collapsing to a 1px sliver.
+            step(2, () -> { prevGuiScale = mc.options.getGuiScale().getValue(); mc.options.getGuiScale().setValue(4); mc.onResolutionChanged(); });
+            step(6, () -> mc.setScreen(new ClubMenuScreen()));
+            step(2, () -> key(GLFW_KEY_TAB));               // search
+            step(2, () -> key(GLFW_KEY_TAB));               // grid → first card
+            step(2, () -> key(GLFW_KEY_SPACE));            // its popover
+            step(10, () -> {});
+            step(2, () -> shot("popover-scale4"));
+            step(2, () -> {
+                if (mc.currentScreen instanceof ClubMenuScreen cs) {
+                    float[] g = cs.popoverGeometry();
+                    report.add(String.format("INFO  scale-4 popover: contentH=%.0f h=%.0f y=%.0f room=%.0f",
+                            g[0], g[1], g[2], g[3]));
+                    check("popover: stays a usable sheet on a squeezed window (GUI scale 4)",
+                            g[1] >= Math.min(g[0] + 16f, 88f) - 1f);
+                } else check("popover: menu open at GUI scale 4", false);
+            });
+            step(4, () -> { mc.options.getGuiScale().setValue(prevGuiScale); mc.onResolutionChanged(); });
+
             // Hands popover — TALL (tabs + 4 sliders + hotkey + reset): checks the body-clamp + card dim
             step(6, () -> mc.setScreen(new ClubMenuScreen()));
             step(2, () -> key(GLFW_KEY_TAB, GLFW_MOD_CONTROL));   // Visuals → Player
@@ -248,7 +362,19 @@ public final class ClubHarness {
             step(6, () -> {});
             step(2, () -> key(GLFW_KEY_TAB));                     // into grid → Hands
             step(2, () -> key(GLFW_KEY_SPACE));                  // open Hands popover
-            step(10, () -> shot("hands-popover"));               // settle the grow-in before capture
+            step(10, () -> {});                                  // a step's settle is the delay AFTER it —
+            step(2, () -> shot("hands-popover"));                //   so the grow-in needs its own wait step
+            // The tallest popover in the mod: it must use every pixel of room under the cards before it
+            // starts scrolling (owner: "размер аккуратный … если там много всего пусть будет скролл").
+            step(2, () -> {
+                if (mc.currentScreen instanceof ClubMenuScreen cs) {
+                    float[] g = cs.popoverGeometry();
+                    report.add(String.format("INFO  hands popover: contentH=%.0f h=%.0f y=%.0f room=%.0f",
+                            g[0], g[1], g[2], g[3]));
+                    check("popover: fills the room under the cards when the content overflows",
+                            g[0] + 16 <= g[3] + 1 || Math.abs(g[1] - g[3]) < 1.5f);
+                } else check("popover: menu still open for the geometry check", false);
+            });
 
             // search filter
             step(4, () -> mc.setScreen(new ClubMenuScreen()));
