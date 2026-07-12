@@ -11,6 +11,11 @@ base {
 }
 
 repositories {
+	// Compat testing only (see the clubCompat deps below) — nothing here ships in the jar.
+	exclusiveContent {
+		forRepository { maven { name = "Modrinth"; url = "https://api.modrinth.com/maven" } }
+		filter { includeGroup "maven.modrinth" }
+	}
 }
 
 dependencies {
@@ -20,6 +25,24 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	testImplementation "org.junit.jupiter:junit-jupiter:5.10.2"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.10.2"
+
+	// ---- MOD-COMPAT TESTING (runtime only, -PclubCompat) --------------------------------------
+	// Club is a client mod: the way it breaks for real people is a mixin conflict with the mods they
+	// already run. These are the ones that touch the SAME seams we do — Sodium/Iris rewrite the world
+	// render and the lightmap; Freecam and Shoulder Surfing hook Mouse/Camera, i.e. the exact call our
+	// look hook wraps. Loom remaps them for the dev runtime (dropping the production jars into
+	// run/mods does NOT work — they carry intermediary refmaps and blow up in a named-mappings dev run).
+	//   ./gradlew runClient -PclubCompat        → launch with the lot
+	//   ./gradlew runClient -PclubCompat -PclubIris  → …and the shader pipeline on top
+	// (Iris/Sodium ship for PRODUCTION mappings; the 1.8.14 BETA fails to even parse its own mixins in a
+	//  dev runtime, so the compat set pins the last release. Shoulder Surfing is left out: its config
+	//  library is jar-in-jar'd and doesn't resolve here — that's its packaging, not our compatibility.)
+	if (project.hasProperty("clubCompat")) {
+		modRuntimeOnly "maven.modrinth:sodium:mc1.21.1-0.6.13-fabric"
+		modRuntimeOnly "maven.modrinth:freecam:1.3.0+mc1.21.1"
+		modRuntimeOnly "maven.modrinth:cloth-config:15.0.140+fabric"   // freecam's config lib
+		if (project.hasProperty("clubIris")) modRuntimeOnly "maven.modrinth:iris:1.8.8+1.21.1-fabric"
+	}
 }
 
 processResources {
