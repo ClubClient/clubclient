@@ -38,6 +38,10 @@ public final class TargetHud {
     public static void frame(MinecraftClient mc, float tickDelta) {
         // a target from another world is never valid (dimension change / respawn) — drop it immediately
         if (current != null && (mc.world == null || current.getWorld() != mc.world)) current = null;
+        // Nobody is watching: don't ray the world. This ran every frame regardless of whether the Target
+        // chip was even switched on — a world raycast + entity-box sweep that no one was going to read
+        // (Stage 59). A player who turns the chip off now pays nothing for it.
+        if (!ClubConfig.get().hud.target) { current = null; return; }
         LivingEntity hit = raycastTarget(mc, tickDelta);
         long now = System.currentTimeMillis();
         if (hit != null) { current = hit; lastSeenAt = now; return; }

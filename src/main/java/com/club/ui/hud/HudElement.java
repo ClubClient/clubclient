@@ -96,13 +96,24 @@ public abstract class HudElement extends Component {
             int sw = mc.getWindow().getScaledWidth(), sh = mc.getWindow().getScaledHeight();
             int cx = HudSnap.clampAxis(b[0], b[2], sw);
             int cy = HudSnap.clampAxis(b[1], b[3], sh);
-            // Only rewrite an EXPLICIT position (>= 0). A -1 is "auto" — resolveX/Y already places it.
-            if (cx != b[0] && cfgX() >= 0) { cfgX(cx); ClubConfig.save(); }
-            if (cy != b[1] && cfgY() >= 0) { cfgY(cy); ClubConfig.save(); }
+            // The CLAMPED box is what we lay out — that alone fixes the editor (the element is on screen,
+            // so it can be seen, hovered and dragged again).
+            //
+            // The stored value is only rewritten when the coordinate itself has left the screen, and never
+            // for an auto position (-1). This runs EVERY FRAME, so it must not write on every frame: the
+            // clamp shifts with the element's live content width (an expiring effect, a changing FPS
+            // string), and persisting on any difference would serialise the whole config from the render
+            // thread over and over. Once the stored coordinate is back on screen the condition stops
+            // matching, so a bad config self-heals exactly once.
+            if (cfgX() >= 0 && cfgX() > sw - MIN_ON_SCREEN) { cfgX(cx); ClubConfig.save(); }
+            if (cfgY() >= 0 && cfgY() > sh - MIN_ON_SCREEN) { cfgY(cy); ClubConfig.save(); }
             b[0] = cx; b[1] = cy;
         }
         super.layout(b[0], b[1], b[2], b[3]);
     }
+
+    /** A stored coordinate closer than this to the far edge has effectively left the screen. */
+    private static final int MIN_ON_SCREEN = 8;
 
     /** Live data is used when a player exists AND we're not forcing sample (editor); otherwise sample data. */
     protected boolean live(MinecraftClient mc) { return !forceSample && mc != null && mc.player != null; }

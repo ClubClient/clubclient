@@ -60,7 +60,21 @@ public final class ClubHarness {
         private int wait;
         private int shotNo, passed, failed;
         private int prevGuiScale = 2;   // restored after the squeezed-window scene
+        private int fpsOff, fpsOn, offN, onN;
         private boolean built, finished;
+
+        /** Silence every Club HUD element (the mod's entire in-world draw) for the A/B measurement. */
+        private void hudOff(boolean off) {
+            ClubConfig.Hud h = ClubConfig.get().hud;
+            if (off) {
+                hudWas = new boolean[] {h.armor, h.potions, h.target, h.info, h.sprint};
+                h.armor = h.potions = h.target = h.info = h.sprint = false;
+            } else if (hudWas != null) {
+                h.armor = hudWas[0]; h.potions = hudWas[1]; h.target = hudWas[2];
+                h.info = hudWas[3]; h.sprint = hudWas[4];
+            }
+        }
+        private boolean[] hudWas;
 
         void tick(MinecraftClient client) {
             if (finished) return;
@@ -238,6 +252,33 @@ public final class ClubHarness {
                 check("holdkeys: Reset restores the factory key (C)", "C".equals(HoldKeys.label("Zoom")));
                 check("holdkeys: …and takes it back from the toggle bind", ModuleBinds.label("Fullbright") == null);
                 ModuleBinds.set("Fullbright", null);
+            });
+
+            // ===== COST OF THE MOD, MEASURED (Stage 59) =====
+            // The owner asked whether it holds up under load. Everything the mod draws in-world goes
+            // through the HUD callback, so measure frames with it ON vs fully OFF, in the same world, in
+            // the same session. Noisy by nature (it's a real client), so this REPORTS rather than asserts
+            // — it fails only on a cost big enough that no noise could explain it.
+            // Two ALTERNATING off/on blocks, sampled once a second (the vanilla fps counter only updates
+            // that often), after a long warm-up: a single off-then-on pair measured the world still
+            // loading chunks, not the mod, and "reported" the HUD making the game FASTER.
+            step(2, () -> { mc.setScreen(null); fpsOff = fpsOn = offN = onN = 0; });
+            step(120, () -> {});                                   // warm up: chunks built, fps settled
+            for (int b = 0; b < 2; b++) {
+                step(2, () -> hudOff(true));
+                step(25, () -> {});                                // let the counter forget the other state
+                for (int i = 0; i < 5; i++) step(20, () -> { fpsOff += mc.getCurrentFps(); offN++; });
+                step(2, () -> hudOff(false));
+                step(25, () -> {});
+                for (int i = 0; i < 5; i++) step(20, () -> { fpsOn += mc.getCurrentFps(); onN++; });
+            }
+            step(2, () -> {
+                float off = offN > 0 ? (float) fpsOff / offN : 0f;
+                float on  = onN  > 0 ? (float) fpsOn  / onN  : 0f;
+                float costMs = (off > 0 && on > 0) ? (1000f / on - 1000f / off) : 0f;
+                report.add(String.format("INFO  frame cost: HUD off %.0f fps (n=%d), HUD on %.0f fps (n=%d) → %+.3f ms/frame",
+                        off, offN, on, onN, costMs));
+                check("perf: the mod's whole in-world draw costs under a millisecond per frame", costMs < 1.0f);
             });
 
             // ===== VISUAL SCENES =====
