@@ -173,6 +173,38 @@ public final class ClubMenuScreen extends Screen {
     // sits dead centre. Compact 660 width kept (owner): 4 columns fit via SMALLER cards, not a
     // wider window — hence the vertical card composition (chip on top, name under).
     private static final float WIN_W = 660f, WIN_H = 380f;
+
+    // ---- the Club canvas (Stage 60) ---------------------------------------------------------------
+    // The menu USED to live in Minecraft's GUI units, where 1 unit = the player's GUI Scale in pixels.
+    // So the same 660x380 window was 1320px wide at scale 2 and 2640px at scale 4 — on a 1920px screen
+    // the latter doesn't fit, and the menu clamped, dropped columns and squeezed its rail. In other
+    // words a Minecraft VIDEO setting silently redesigned our UI (owner: "он всегда должен быть как
+    // делался изначально, независимо от масштаба интерфейса").
+    //
+    // So the menu now owns its own canvas: a FIXED 540 units tall, always — which is exactly the space
+    // it was designed in (gui scale 2 at 1080p). Everything is drawn in those units through one matrix
+    // scale, so the window is always the full 660x380 with 4 columns and the full rail, and it keeps the
+    // same PROPORTION of the screen on 720p, 1080p, 1440p or 4K. The player's GUI Scale no longer
+    // reaches it at all.
+    private static final float CANVAS_H = 540f;
+    private float canvasW = 960f, canvasH = CANVAS_H;
+    private float canvasK = 1f;   // Minecraft GUI units per Club unit (the matrix scale)
+
+    /** Resolve the Club canvas for the current window. */
+    private void updateCanvas() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        var win = mc.getWindow();
+        double mcScale = Math.max(0.0001, win.getScaleFactor());
+        float clubScale = Math.max(0.1f, win.getFramebufferHeight() / CANVAS_H);   // physical px per Club unit
+        canvasK = (float) (clubScale / mcScale);
+        canvasH = CANVAS_H;
+        canvasW = Math.max(1f, width / canvasK);   // MC units → Club units
+    }
+
+    /** MC-unit mouse position → Club-canvas units. */
+    private double cx(double mx) { return mx / canvasK; }
+    private double cy(double my) { return my / canvasK; }
+
     private static final int GRID_COLS = 4;               // the IDEAL column count; layoutAll may drop to 3 or 2
     private static final float CARD_CHROME = 42f;         // TILE_PAD + CHIP + NAME_GAP + TILE_PAD (fixed per card)
     private static final float NAME_SLOT_MIN = 44f;       // a name slot narrower than this isn't worth a column
@@ -489,6 +521,21 @@ public final class ClubMenuScreen extends Screen {
                 Math.max(1f, popW - 2 * POP_PAD), Math.max(1f, popH - 2 * POP_PAD));
     }
 
+    /** Harness seam: the first card's box in MINECRAFT gui units — i.e. where a real mouse would have to
+     *  click it. Exercises the canvas conversion end to end: if cx()/cy() were wrong, clicking here would
+     *  miss (Stage 60). Returns {centreX, centreY} or null when the grid is empty. */
+    public double[] firstCardCentreMc() {
+        if (grid.children().isEmpty()) return null;
+        var t = (ModuleTile) grid.children().get(0);
+        return new double[] { (t.xLeft() + t.width() / 2f) * canvasK, (t.yTop() + t.height() / 2f) * canvasK };
+    }
+
+    /** Harness seam: is the first card's module enabled? */
+    public boolean firstCardEnabled() {
+        if (grid.children().isEmpty()) return false;
+        return ((ModuleTile) grid.children().get(0)).m.enabled();
+    }
+
     /** Harness seam: the open popover's geometry — {contentH, height, y, room below the grid}. All
      *  zeroes when no popover is open. The only way to assert the "fits below the cards / scrolls when
      *  it can't" contract from inside a running game. */
@@ -677,14 +724,15 @@ public final class ClubMenuScreen extends Screen {
     // ---- layout --------------------------------------------------------------
 
     private void layoutAll() {
+        updateCanvas();
         float m = 24;
-        winW = Math.min(WIN_W, width - 2 * m);
-        winH = Math.min(WIN_H, height - 2 * m);
-        winX = (width - winW) / 2f;                     // always dead centre (no drag, no saved position)
-        winY = (height - winH) / 2f + entranceYOff;
+        winW = Math.min(WIN_W, canvasW - 2 * m);
+        winH = Math.min(WIN_H, canvasH - 2 * m);
+        winX = (canvasW - winW) / 2f;                   // always dead centre (no drag, no saved position)
+        winY = (canvasH - winH) / 2f + entranceYOff;
         bodyY = winY + headH; bodyH = winH - headH - footH;
 
-        root.layout(0, 0, width, height);
+        root.layout(0, 0, canvasW, canvasH);
 
         // Stage-22 wells: the shallow tray hugs the category list; the deep well owns the rest.
         // 16px of breathing between them (owner: two figures, not one), 12px to the frame edges.
@@ -747,7 +795,22 @@ public final class ClubMenuScreen extends Screen {
     // ---- render --------------------------------------------------------------
 
     @Override public void render(DrawContext dc, int mouseX, int mouseY, float delta) {
-        Ui.beginFrame(dc);
+        updateCanvas();
+        // Everything below is in CLUB units: one matrix scale maps them to the screen, so the menu is
+        // always the size it was designed at, whatever the player's GUI Scale is (Stage 60). Mouse
+        // coordinates arrive in MC units and are converted at each input entry point (cx/cy).
+        dc.getMatrices().push();
+        dc.getMatrices().scale(canvasK, canvasK, 1f);
+        Ui.beginFrame(dc, canvasK);
+        try {
+            renderCanvas(dc, (float) cx(mouseX), (float) cy(mouseY));
+        } finally {
+            dc.getMatrices().pop();
+            Ui.beginFrame(dc, 1f);   // hand the units back — the HUD and every other screen draw in MC units
+        }
+    }
+
+    private void renderCanvas(DrawContext dc, float mouseX, float mouseY) {
         UiRenderer r = Ui.renderer();
         if (!stylesInit) initStyles();
         uiCtx.setTime(CLOCK_BASE + (System.nanoTime() - startNanos) / 1_000_000_000f);
@@ -770,7 +833,7 @@ public final class ClubMenuScreen extends Screen {
         // is a no-op. During a calm post-editor re-entry the veil HOLDS full (Stage 38): the editor
         // was already dark — fading in from 0 flashed the bright world between two dark states.
         float scrimA = (entranceRise == 0f && !closing) ? 1f : ep;
-        r.rect(0, 0, width, height, Color.scaleAlpha(SCRIM, scrimA));
+        r.rect(0, 0, canvasW, canvasH, Color.scaleAlpha(SCRIM, scrimA));
 
         r.pushOpacity(ep);   // whole-window fade: shapes here; text/glyphs multiply screenAlpha
         float lg = Tokens.radius().lg();
@@ -936,7 +999,7 @@ public final class ClubMenuScreen extends Screen {
             }
         }
         r.popOpacity();
-        com.club.ui.LegacyNotice.draw(uiCtx, width);   // loud fallback plaque (draws nothing on MODERN)
+        com.club.ui.LegacyNotice.draw(uiCtx, canvasW);   // loud fallback plaque (draws nothing on MODERN)
     }
 
     private void initStyles() {
@@ -988,7 +1051,10 @@ public final class ClubMenuScreen extends Screen {
         KeyBinding.updatePressedStates();   // vanilla lockCursor does this too — keys stay coherent
     }
 
-    @Override public boolean mouseClicked(double mx, double my, int b) {
+    // Every mouse entry point converts MC GUI units → Club canvas units first (Stage 60): the widgets
+    // below live entirely in canvas space, so a click must be measured in the same ruler it was drawn to.
+    @Override public boolean mouseClicked(double mx0, double my0, int b) {
+        double mx = cx(mx0), my = cy(my0);
         if (closing) return true;   // window is fading out — swallow clicks
         gridFocused = false;        // any mouse interaction leaves the keyboard grid zone (ring hides)
         popFromGrid = false;        //   …and cancels the popover's pending zone hand-back
@@ -1007,26 +1073,30 @@ public final class ClubMenuScreen extends Screen {
         if (root.mouseClicked(mx, my, b)) { pressOwner = 2; return true; }
         closePopover();                                        // click on empty space (any button) → close
         pressOwner = 0;
-        return super.mouseClicked(mx, my, b);
+        return super.mouseClicked(mx0, my0, b);
     }
-    @Override public boolean mouseReleased(double mx, double my, int b) {
+    @Override public boolean mouseReleased(double mx0, double my0, int b) {
+        double mx = cx(mx0), my = cy(my0);
         // inside the popover the gesture is routed as left-button (RMB acts as LMB there)
         boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseReleased(mx, my, 0)) : root.mouseReleased(mx, my, b);
         pressOwner = 0;
-        return h || super.mouseReleased(mx, my, b);
+        return h || super.mouseReleased(mx0, my0, b);
     }
-    @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) {
+    @Override public boolean mouseDragged(double mx0, double my0, int b, double dx0, double dy0) {
+        double mx = cx(mx0), my = cy(my0), dx = dx0 / canvasK, dy = dy0 / canvasK;   // deltas scale too
         boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseDragged(mx, my, 0, dx, dy))
                                       : root.mouseDragged(mx, my, b, dx, dy);
-        return h || super.mouseDragged(mx, my, b, dx, dy);
+        return h || super.mouseDragged(mx0, my0, b, dx0, dy0);
     }
-    @Override public void mouseMoved(double mx, double my) {
+    @Override public void mouseMoved(double mx0, double my0) {
+        double mx = cx(mx0), my = cy(my0);
         root.mouseMoved(mx, my);
         if (popScroll != null) popScroll.mouseMoved(mx, my);
     }
-    @Override public boolean mouseScrolled(double mx, double my, double hx, double v) {
+    @Override public boolean mouseScrolled(double mx0, double my0, double hx, double v) {
+        double mx = cx(mx0), my = cy(my0);
         if (insidePop(mx, my) && popScroll != null && popScroll.mouseScrolled(mx, my, v)) return true;
-        return root.mouseScrolled(mx, my, v) || super.mouseScrolled(mx, my, hx, v);
+        return root.mouseScrolled(mx, my, v) || super.mouseScrolled(mx0, my0, hx, v);
     }
     @Override public boolean keyPressed(int k, int scan, int mods) {
         boolean shift = (mods & GLFW_MOD_SHIFT) != 0, ctrl = (mods & GLFW_MOD_CONTROL) != 0;

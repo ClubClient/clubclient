@@ -37,6 +37,7 @@ public final class HudManager {
             MinecraftClient mc = MinecraftClient.getInstance();
             if (mc.player == null || mc.options.hudHidden) return;
             if (mc.currentScreen != null && mc.currentScreen.shouldPause()) return;
+            long t0 = profiling ? System.nanoTime() : 0L;
 
             drawBlackBars(ctx, mc);
 
@@ -49,8 +50,27 @@ public final class HudManager {
             CANVAS.layoutFromConfig(mc);
             CANVAS.render(UI);
             com.club.ui.LegacyNotice.draw(UI, mc.getWindow().getScaledWidth());   // loud fallback plaque
+
+            if (profiling) { accNanos += System.nanoTime() - t0; accFrames++; accDraws += com.club.ui.backend.ModernBackend.DRAWS; }
+            com.club.ui.backend.ModernBackend.DRAWS = 0;
         });
     }
+
+    // ---- draw-cost profiler (harness) ------------------------------------------------------------
+    // Timing the mod by watching the FPS counter turned out to measure the WORLD (chunk loads, mobs, the
+    // time of day) more than the mod: the same build "cost" 0.3 ms on one run and 1.1 ms on the next.
+    // This times the draw itself, so the number is about us and nothing else. Two nanoTime calls per
+    // frame, and only while armed — off, the flag makes it free.
+    private static volatile boolean profiling;
+    private static long accNanos;
+    private static int accFrames, accDraws;
+
+    public static void profile(boolean on) { accNanos = 0; accFrames = accDraws = 0; profiling = on; }
+    /** Mean milliseconds the Club HUD spent drawing, per frame, since {@link #profile}(true). */
+    public static double avgDrawMs() { return accFrames == 0 ? 0 : accNanos / 1_000_000.0 / accFrames; }
+    /** Mean GL draw calls the Club HUD submitted per frame. */
+    public static double avgDraws() { return accFrames == 0 ? 0 : (double) accDraws / accFrames; }
+    public static int profiledFrames() { return accFrames; }
 
     // Letterbox bars for Screen Stretch. Trade-off (Stage 29): these opaque fills cover the screen-edge
     // strips wholesale — including the vanilla chat (bottom-left) and hotbar/bar ends under horizontal

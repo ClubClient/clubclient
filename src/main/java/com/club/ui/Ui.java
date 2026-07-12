@@ -12,8 +12,22 @@ public final class Ui {
     /** Call once at client init (registers shaders). */
     public static void init() { UiShaders.register(); }
 
-    /** Call at the start of every screen/HUD render pass. */
-    public static void beginFrame(DrawContext ctx) { Backends.begin(ctx); }
+    /** Call at the start of every screen/HUD render pass (drawing in Minecraft's GUI units). */
+    public static void beginFrame(DrawContext ctx) { beginFrame(ctx, 1f); }
+
+    /**
+     * Same, but for a caller drawing in its OWN unit space: {@code k} is how many Minecraft GUI units
+     * one caller unit is worth, and the caller has already pushed the matching {@code scale(k)} onto the
+     * matrix stack. Shapes and text ride that matrix for free — but the GL SCISSOR does not (it is set in
+     * framebuffer pixels, outside the matrix), so the backends need to know the factor to convert clip
+     * rects with. The Club menu uses this to keep a FIXED design canvas whatever the player's GUI scale
+     * is (Stage 60).
+     */
+    public static void beginFrame(DrawContext ctx, float k) {
+        Backends.begin(ctx);
+        Backends.MODERN_R.unitScale(k);
+        Backends.LEGACY_R.unitScale(k);
+    }
 
     public static boolean modernAvailable() { return UiShaders.ready() && Backends.MODERN_T.healthy() && Backends.MODERN_R.healthy(); }
     public static Backend backend() {

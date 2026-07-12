@@ -288,6 +288,7 @@ public final class ModernText implements UiText {
                 bb.vertex(mat, x1, y0, 0f).texture(u1, v0).color(r, g, b, al);
             }
             BufferRenderer.drawWithGlobalProgram(bb.end());
+            ModernBackend.DRAWS++;   // profiler: text IS batched — one draw per atlas run, not per glyph
             start = groupEnd;
         }
         RenderSystem.enableCull();

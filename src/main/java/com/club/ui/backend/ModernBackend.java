@@ -54,8 +54,14 @@ public final class ModernBackend implements UiRenderer {
     // Per-frame state
     // -------------------------------------------------------------------------
     private DrawContext ctx;
+    /** Profiler: shape draw calls submitted since the last reset (see HudManager.profile). */
+    public static int DRAWS;
+
     private double frameScale = 1.0;
     private int frameFbHeight = 0;
+    /** Minecraft GUI units per CALLER unit (1 = the caller draws in MC units). See Ui.beginFrame(ctx, k). */
+    private float unitK = 1f;
+    public void unitScale(float k) { this.unitK = (k > 0f) ? k : 1f; }
 
     // -------------------------------------------------------------------------
     // Opacity stack — primitive flat array, no boxing/allocation per push.
@@ -367,6 +373,7 @@ public final class ModernBackend implements UiRenderer {
             bb.vertex(mat, qx1, qy1, 0f).texture(qx1 - cx, qy1 - cy).color(r, g, b, a);
             bb.vertex(mat, qx1, qy0, 0f).texture(qx1 - cx, qy0 - cy).color(r, g, b, a);
             BufferRenderer.drawWithGlobalProgram(bb.end());
+            DRAWS++;   // profiler: one draw call per shape — see HudManager.profile
 
             RenderSystem.enableCull();
         } catch (Exception e) {
@@ -433,11 +440,14 @@ public final class ModernBackend implements UiRenderer {
         float h = clipStack[base + 3];
         // radius stored at [base+4] — used by future rounded-clip shader mask; ignored here.
 
-        // GUI → framebuffer pixel conversion; GL scissor origin is bottom-left.
-        int sx = (int) Math.round(x * frameScale);
-        int sw = (int) Math.round(w * frameScale);
-        int sh = (int) Math.round(h * frameScale);
-        int sy = frameFbHeight - (int) Math.round((y + h) * frameScale);   // flip Y
+        // Caller-unit → framebuffer pixel conversion; GL scissor origin is bottom-left. unitK folds in a
+        // caller that draws in its own scaled space (the Club menu's fixed canvas): the shapes ride the
+        // matrix, but the scissor is set in raw framebuffer pixels and would otherwise ignore it.
+        double s = frameScale * unitK;
+        int sx = (int) Math.round(x * s);
+        int sw = (int) Math.round(w * s);
+        int sh = (int) Math.round(h * s);
+        int sy = frameFbHeight - (int) Math.round((y + h) * s);   // flip Y
 
         RenderSystem.enableScissor(sx, sy, sw, sh);
     }

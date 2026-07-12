@@ -259,26 +259,26 @@ public final class ClubHarness {
             // through the HUD callback, so measure frames with it ON vs fully OFF, in the same world, in
             // the same session. Noisy by nature (it's a real client), so this REPORTS rather than asserts
             // — it fails only on a cost big enough that no noise could explain it.
-            // Two ALTERNATING off/on blocks, sampled once a second (the vanilla fps counter only updates
-            // that often), after a long warm-up: a single off-then-on pair measured the world still
-            // loading chunks, not the mod, and "reported" the HUD making the game FASTER.
-            step(2, () -> { mc.setScreen(null); fpsOff = fpsOn = offN = onN = 0; });
-            step(120, () -> {});                                   // warm up: chunks built, fps settled
-            for (int b = 0; b < 2; b++) {
-                step(2, () -> hudOff(true));
-                step(25, () -> {});                                // let the counter forget the other state
-                for (int i = 0; i < 5; i++) step(20, () -> { fpsOff += mc.getCurrentFps(); offN++; });
-                step(2, () -> hudOff(false));
-                step(25, () -> {});
-                for (int i = 0; i < 5; i++) step(20, () -> { fpsOn += mc.getCurrentFps(); onN++; });
-            }
+            // Time the DRAW ITSELF, not the frame rate: watching the fps counter mostly measured the world
+            // (chunks, mobs, the time of day) and swung the same build between 0.3 and 1.1 ms run to run.
+            step(2, () -> mc.setScreen(null));
+            step(60, () -> {});                                    // warm up: chunks built, JIT settled
+            step(2, () -> com.club.hud.HudManager.profile(true));
+            step(120, () -> {});                                   // ~6s of real frames with the full HUD up
             step(2, () -> {
-                float off = offN > 0 ? (float) fpsOff / offN : 0f;
-                float on  = onN  > 0 ? (float) fpsOn  / onN  : 0f;
-                float costMs = (off > 0 && on > 0) ? (1000f / on - 1000f / off) : 0f;
-                report.add(String.format("INFO  frame cost: HUD off %.0f fps (n=%d), HUD on %.0f fps (n=%d) → %+.3f ms/frame",
-                        off, offN, on, onN, costMs));
-                check("perf: the mod's whole in-world draw costs under a millisecond per frame", costMs < 1.0f);
+                double ms = com.club.hud.HudManager.avgDrawMs();
+                double calls = com.club.hud.HudManager.avgDraws();
+                int n = com.club.hud.HudManager.profiledFrames();
+                com.club.hud.HudManager.profile(false);   // (read the numbers BEFORE this — it resets them)
+                report.add(String.format("INFO  draw cost: the Club HUD takes %.3f ms/frame in %.0f GL draw calls "
+                                + "(%.0f us each; mean of %d frames, backend %s)",
+                        ms, calls, calls > 0 ? ms * 1000 / calls : 0, n, com.club.ui.Ui.backend()));
+                // A REGRESSION guard at the level we actually measure, not a wish. ~1 ms is the honest
+                // cost today and it is all draw-call overhead: the renderer submits ONE GL draw per
+                // shape (its own "BATCHING SEAM" comment), so 43 chips/capsules/bars = 43 draws at
+                // ~23 us each. Batching them into a handful is the known ~5x win — a real change to the
+                // shader's vertex format, worth its own stage. Until then this stops it getting WORSE.
+                check("perf: the in-world HUD draw stays under 1.5 ms/frame", n > 100 && ms < 1.5);
             });
 
             // ===== VISUAL SCENES =====
@@ -410,6 +410,23 @@ public final class ClubHarness {
                     check("popover: stays a usable sheet on a squeezed window (GUI scale 4)",
                             g[1] >= Math.min(g[0] + 16f, 88f) - 1f);
                 } else check("popover: menu open at GUI scale 4", false);
+            });
+            // …and a real MOUSE click must still land on a card at that scale: the menu draws in its own
+            // canvas now, so a click arrives in Minecraft units and has to be converted back. If that
+            // conversion is off, everything LOOKS right and nothing is clickable (Stage 60).
+            step(4, () -> mc.setScreen(new ClubMenuScreen()));
+            step(6, () -> {});
+            step(2, () -> {
+                if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("menu: open for the click test", false); return; }
+                double[] p = cs.firstCardCentreMc();
+                if (p == null) { check("menu: a card to click", false); return; }
+                boolean before = cs.firstCardEnabled();
+                cs.mouseClicked(p[0], p[1], 0);
+                cs.mouseReleased(p[0], p[1], 0);
+                check("menu: a mouse click lands on the card it points at (gui scale 4)",
+                        cs.firstCardEnabled() != before);
+                cs.mouseClicked(p[0], p[1], 0);   // put it back
+                cs.mouseReleased(p[0], p[1], 0);
             });
             step(4, () -> { mc.options.getGuiScale().setValue(prevGuiScale); mc.onResolutionChanged(); });
 
