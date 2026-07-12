@@ -236,19 +236,14 @@ public final class ModernText implements UiText {
 
         if (batch.count == 0) return x + advance;
 
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableCull();
-        RenderSystem.setShader(textSupplier);               // cached supplier — no lambda alloc
-
         Matrix4f mat = ctx.getMatrices().peek().getPositionMatrix();
         int r = batch.r, g = batch.g, b = batch.b, al = batch.al;
         float[] d = batch.data;
 
-        // Draw CONTIGUOUS SAME-ATLAS groups. A normal run resolves entirely to one weight atlas
-        // (one group = one draw, as before); the Stage-11 icon seam can interleave the icon atlas
-        // into a text run (e.g. a server entity name carrying PUA glyphs reaches the Target HUD),
-        // and each glyph must sample ITS atlas with ITS PxRange — last-wins binding renders garbage.
+        // QUEUE contiguous same-atlas groups instead of drawing them. A normal run resolves entirely to
+        // one weight atlas; the Stage-11 icon seam can interleave the icon atlas into a text run (a PUA
+        // glyph in an entity name reaching the Target HUD), and each glyph must sample ITS atlas with ITS
+        // PxRange — last-wins binding renders garbage, so the atlas is part of the queue key.
         int start = 0;
         while (start < batch.count) {
             int aid = batch.atlas[start];
@@ -266,35 +261,109 @@ public final class ModernText implements UiText {
                 }
                 throw e;                            // font atlas failure → existing broken/LEGACY path
             }
-            RenderSystem.setShaderTexture(0, a.textureId);
-            setUniform1f("PxRange",      a.pxRange);
-            setUniform1f("OutlineWidth", outlineW);
-            setUniformColor("OutlineColor", outlineC);
-            setUniform1f("GlowRange",    glowR);
-            setUniformColor("GlowColor", glowC);
-            setUniform1f("WeightBias",   weightBias);
-
-            BufferBuilder bb = Tessellator.getInstance().begin(
-                    VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
-            for (int i = start * 8, end = groupEnd * 8; i < end; i += 8) {
-                float x0 = d[i],     y0 = d[i + 1];
-                float x1 = d[i + 2], y1 = d[i + 3];
-                float u0 = d[i + 4], v0 = d[i + 5];
-                float u1 = d[i + 6], v1 = d[i + 7];
-                // Quad: top-left, bottom-left, bottom-right, top-right (QUADS winding).
-                bb.vertex(mat, x0, y0, 0f).texture(u0, v0).color(r, g, b, al);
-                bb.vertex(mat, x0, y1, 0f).texture(u0, v1).color(r, g, b, al);
-                bb.vertex(mat, x1, y1, 0f).texture(u1, v1).color(r, g, b, al);
-                bb.vertex(mat, x1, y0, 0f).texture(u1, v0).color(r, g, b, al);
-            }
-            BufferRenderer.drawWithGlobalProgram(bb.end());
-            ModernBackend.DRAWS++;   // profiler: text IS batched — one draw per atlas run, not per glyph
+            queue(a, outlineW, outlineC, glowR, glowC, weightBias, mat, d, start, groupEnd, r, g, b, al);
             start = groupEnd;
         }
-        RenderSystem.enableCull();
 
         batch.reset();
         return x + advance;
+    }
+
+    // -------------------------------------------------------------------------
+    // Text batching (Stage 61)
+    // -------------------------------------------------------------------------
+    // The HUD renders TABULAR numbers — every digit placed at its own x, i.e. its own draw call. That
+    // was 33 of the HUD's 37 GL draws a frame, and draw calls, not pixels, were the whole cost. Runs
+    // that share an atlas AND the same shader uniforms (they are per-STYLE, not per-glyph) now queue up
+    // and go out together.
+    //
+    // Strict painter's order is kept by an invariant: at most ONE of the two batches (shapes, text) is
+    // ever pending. Submitting text flushes the pending shapes; submitting a shape flushes the pending
+    // text (ModernBackend does that). So a chip's capsule can never land on top of its own label.
+    //
+    // Positions are pre-transformed by the pose matrix as they are queued, so a matrix change (the
+    // menu's canvas scale) can't retroactively move already-queued glyphs.
+
+    private float[] tq = new float[8 * 256];   // queued quads: x0,y0,x1,y1,u0,v0,u1,v1 (pose space)
+    private int[]   tc = new int[256];         // one packed ARGB per quad
+    private int     tn;                        // queued quad count
+    private MsdfAtlas tAtlas;
+    private float tOutlineW, tGlowR, tWeightBias;
+    private int   tOutlineC, tGlowC;
+
+    private boolean sameKey(MsdfAtlas a, float ow, int oc, float gr, int gc, float wb) {
+        return tAtlas == a && tOutlineW == ow && tOutlineC == oc && tGlowR == gr && tGlowC == gc && tWeightBias == wb;
+    }
+
+    private void queue(MsdfAtlas a, float ow, int oc, float gr, int gc, float wb,
+                       Matrix4f mat, float[] d, int from, int to, int r, int g, int b, int al) {
+        if (tn > 0 && !sameKey(a, ow, oc, gr, gc, wb)) flush();   // different uniforms → its own draw
+        if (tn == 0) {
+            Backends.MODERN_R.flush();   // shapes queued so far belong UNDER this text
+            tAtlas = a; tOutlineW = ow; tOutlineC = oc; tGlowR = gr; tGlowC = gc; tWeightBias = wb;
+        }
+        int need = tn + (to - from);
+        if (need > tc.length) {
+            int cap = Math.max(need, tc.length * 2);
+            tq = java.util.Arrays.copyOf(tq, cap * 8);
+            tc = java.util.Arrays.copyOf(tc, cap);
+        }
+        int argb = (al << 24) | (r << 16) | (g << 8) | b;
+        float m00 = mat.m00(), m10 = mat.m10(), m30 = mat.m30();
+        float m01 = mat.m01(), m11 = mat.m11(), m31 = mat.m31();
+        for (int i = from * 8, end = to * 8; i < end; i += 8) {
+            float x0 = d[i], y0 = d[i + 1], x1 = d[i + 2], y1 = d[i + 3];
+            int o = tn * 8;
+            tq[o]     = m00 * x0 + m10 * y0 + m30;   // pre-transform: pose space, so a later matrix
+            tq[o + 1] = m01 * x0 + m11 * y0 + m31;   // change can't move these glyphs
+            tq[o + 2] = m00 * x1 + m10 * y1 + m30;
+            tq[o + 3] = m01 * x1 + m11 * y1 + m31;
+            tq[o + 4] = d[i + 4]; tq[o + 5] = d[i + 5];
+            tq[o + 6] = d[i + 6]; tq[o + 7] = d[i + 7];
+            tc[tn] = argb;
+            tn++;
+        }
+    }
+
+    /** Submit every queued glyph. Safe any time; a no-op when nothing is queued. */
+    public void flush() {
+        if (tn == 0 || broken) { tn = 0; return; }
+        int n = tn;
+        tn = 0;
+        try {
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.disableCull();
+            RenderSystem.setShader(textSupplier);
+            RenderSystem.setShaderTexture(0, tAtlas.textureId);
+            setUniform1f("PxRange",      tAtlas.pxRange);
+            setUniform1f("OutlineWidth", tOutlineW);
+            setUniformColor("OutlineColor", tOutlineC);
+            setUniform1f("GlowRange",    tGlowR);
+            setUniformColor("GlowColor", tGlowC);
+            setUniform1f("WeightBias",   tWeightBias);
+
+            BufferBuilder bb = Tessellator.getInstance().begin(
+                    VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+            for (int q = 0; q < n; q++) {
+                int o = q * 8;
+                float x0 = tq[o], y0 = tq[o + 1], x1 = tq[o + 2], y1 = tq[o + 3];
+                float u0 = tq[o + 4], v0 = tq[o + 5], u1 = tq[o + 6], v1 = tq[o + 7];
+                int c = tc[q];
+                int r = (c >>> 16) & 0xFF, g = (c >>> 8) & 0xFF, b = c & 0xFF, al = (c >>> 24) & 0xFF;
+                // Quad: top-left, bottom-left, bottom-right, top-right (QUADS winding).
+                bb.vertex(x0, y0, 0f).texture(u0, v0).color(r, g, b, al);
+                bb.vertex(x0, y1, 0f).texture(u0, v1).color(r, g, b, al);
+                bb.vertex(x1, y1, 0f).texture(u1, v1).color(r, g, b, al);
+                bb.vertex(x1, y0, 0f).texture(u1, v0).color(r, g, b, al);
+            }
+            BufferRenderer.drawWithGlobalProgram(bb.end());
+            RenderSystem.enableCull();
+            ModernBackend.DRAWS++; ModernBackend.TEXT_DRAWS++;
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+        }
     }
 
     // -------------------------------------------------------------------------

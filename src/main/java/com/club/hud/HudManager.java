@@ -50,9 +50,17 @@ public final class HudManager {
             CANVAS.layoutFromConfig(mc);
             CANVAS.render(UI);
             com.club.ui.LegacyNotice.draw(UI, mc.getWindow().getScaledWidth());   // loud fallback plaque
+            Ui.endFrame();   // submit the batched shapes — nothing else will (Stage 61)
 
-            if (profiling) { accNanos += System.nanoTime() - t0; accFrames++; accDraws += com.club.ui.backend.ModernBackend.DRAWS; }
+            if (profiling) {
+                accNanos += System.nanoTime() - t0; accFrames++;
+                accDraws += com.club.ui.backend.ModernBackend.DRAWS;
+                accShape += com.club.ui.backend.ModernBackend.SHAPE_DRAWS;
+                accText  += com.club.ui.backend.ModernBackend.TEXT_DRAWS;
+            }
             com.club.ui.backend.ModernBackend.DRAWS = 0;
+            com.club.ui.backend.ModernBackend.SHAPE_DRAWS = 0;
+            com.club.ui.backend.ModernBackend.TEXT_DRAWS = 0;
         });
     }
 
@@ -65,11 +73,14 @@ public final class HudManager {
     private static long accNanos;
     private static int accFrames, accDraws;
 
-    public static void profile(boolean on) { accNanos = 0; accFrames = accDraws = 0; profiling = on; }
+    private static int accShape, accText;
+    public static void profile(boolean on) { accNanos = 0; accFrames = accDraws = accShape = accText = 0; profiling = on; }
     /** Mean milliseconds the Club HUD spent drawing, per frame, since {@link #profile}(true). */
     public static double avgDrawMs() { return accFrames == 0 ? 0 : accNanos / 1_000_000.0 / accFrames; }
     /** Mean GL draw calls the Club HUD submitted per frame. */
     public static double avgDraws() { return accFrames == 0 ? 0 : (double) accDraws / accFrames; }
+    public static double avgShapeDraws() { return accFrames == 0 ? 0 : (double) accShape / accFrames; }
+    public static double avgTextDraws()  { return accFrames == 0 ? 0 : (double) accText  / accFrames; }
     public static int profiledFrames() { return accFrames; }
 
     // Letterbox bars for Screen Stretch. Trade-off (Stage 29): these opaque fills cover the screen-edge

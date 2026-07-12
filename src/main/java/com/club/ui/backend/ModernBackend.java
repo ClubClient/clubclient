@@ -56,6 +56,8 @@ public final class ModernBackend implements UiRenderer {
     private DrawContext ctx;
     /** Profiler: shape draw calls submitted since the last reset (see HudManager.profile). */
     public static int DRAWS;
+    /** Profiler split: how many of DRAWS were shape batches vs text runs. */
+    public static int SHAPE_DRAWS, TEXT_DRAWS;
 
     private double frameScale = 1.0;
     private int frameFbHeight = 0;
@@ -89,6 +91,7 @@ public final class ModernBackend implements UiRenderer {
      * Resets opacity to 1.0 and discards any leftover clip entries.
      */
     public void begin(DrawContext drawContext) {
+        flush(); Backends.MODERN_T.flush();   // a pass that forgot to end itself must not bleed into the next
         this.ctx = drawContext;
         // Only clear a scissor that we actually left open from a prior frame; do NOT clobber
         // an external (HUD / other-mod) scissor when modern shapes are idle.
@@ -222,6 +225,7 @@ public final class ModernBackend implements UiRenderer {
     @Override
     public void popClip() {
         if (clipTop == 0) return;
+        flush(); Backends.MODERN_T.flush();   // queued draws belong to the clip about to be popped
         --clipTop;
         if (clipTop == 0) {
             RenderSystem.disableScissor();
@@ -332,6 +336,104 @@ public final class ModernBackend implements UiRenderer {
      * own immediate-mode API and cannot be avoided without a custom BufferBuilder
      * pre-allocated outside Minecraft's Tessellator. Deferred to Stage 2.</p>
      */
+    // =========================================================================
+    // BATCHING (Stage 61)
+    // =========================================================================
+    // The seam above was real: one GL draw per shape cost ~23 us EACH in submission overhead — 42
+    // shapes of HUD = ~1.1 ms a frame, all of it Minecraft's immediate-mode buffer + uniform upload
+    // path, none of it pixels. A plain rounded rect (fill or border, one radius) now carries its own
+    // half-size / radius / thickness on its VERTICES (see ui_sdf_batch), so the whole frame's shapes
+    // ride ONE buffer and ONE draw. Everything the batch shader can't express — gradients, glow and
+    // shadow, per-corner radii — still takes the old one-draw path, unchanged and pixel-identical.
+    //
+    // ORDER IS THE WHOLE GAME HERE. Accumulated quads are pending GL work, so the batch MUST be
+    // flushed before anything that would otherwise be drawn underneath it or clipped differently:
+    //   • before any text/icon draw  (ModernText.draw calls flush)
+    //   • before the scissor changes (push/popClip)
+    //   • before a slow-path shape   (it draws immediately)
+    //   • at the end of the pass     (Ui.endFrame — a missed one means shapes never appear)
+
+    // Fixed point of the per-vertex params — SHORT carriers (max 32767), so the scale sets both the
+    // precision and the ceiling. Half-size needs the range (a full-screen rect on a big display), radius
+    // and thickness need the precision (they set where the SDF edge lands).
+    private static final float SIZE_SCALE = 32f;    // 1/32 px, up to ~1023 px half-size
+    private static final float EDGE_SCALE = 64f;    // 1/64 px, up to ~511 px radius
+    private static final int BATCH_BYTES = 1 << 20;
+
+    private final java.util.function.Supplier<ShaderProgram> batchSupplier = () -> UiShaders.SDF_BATCH;
+    private net.minecraft.client.util.BufferAllocator batchAlloc;
+    private BufferBuilder batch;
+    private int batchQuads;
+
+    /** True when the shape can ride the batch shader (fill/border, single radius, no glow/gradient). */
+    private static boolean batchable(int mode, float rtl, float rtr, float rbr, float rbl) {
+        return (mode == MODE_FILL || mode == MODE_BORDER) && rtl == rtr && rtr == rbr && rbr == rbl;
+    }
+
+    /** Submits everything accumulated so far. Safe to call at any time; a no-op when empty. */
+    public void flush() {
+        if (batch == null) return;
+        BufferBuilder bb = batch;
+        batch = null;
+        int quads = batchQuads;
+        batchQuads = 0;
+        if (quads == 0) { bb.endNullable(); return; }
+        try {
+            net.minecraft.client.render.BuiltBuffer built = bb.endNullable();
+            if (built == null) return;
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.disableCull();
+            RenderSystem.setShader(batchSupplier);
+            BufferRenderer.drawWithGlobalProgram(built);
+            RenderSystem.enableCull();
+            DRAWS++; SHAPE_DRAWS++;
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] batched shapes unavailable -> LEGACY: " + e);
+        }
+    }
+
+    private void batchQuad(float qx0, float qy0, float qx1, float qy1,
+                           float cx, float cy, float halfW, float halfH,
+                           float radius, float thickness, int colorA) {
+        if (batchAlloc == null) batchAlloc = new net.minecraft.client.util.BufferAllocator(BATCH_BYTES);
+        if (batch == null) {
+            Backends.MODERN_T.flush();   // queued glyphs belong UNDER this shape — keep painter's order
+            batch = new BufferBuilder(batchAlloc, VertexFormat.DrawMode.QUADS, UiShaders.SHAPE_FORMAT);
+            batchQuads = 0;
+        }
+        int r = (colorA >>> 16) & 0xFF, g = (colorA >>> 8) & 0xFF, b = colorA & 0xFF, a = (colorA >>> 24) & 0xFF;
+        int hw = Math.round(halfW * SIZE_SCALE), hh = Math.round(halfH * SIZE_SCALE);
+        int rr = Math.round(radius * EDGE_SCALE);
+        // thickness > 0 is what tells the shader "this is a BORDER". A hairline (the 1e-4 floor the API
+        // applies) would round to 0 and silently become a FILLED shape — so a border always keeps at
+        // least one unit of thickness.
+        int th = thickness > 0f ? Math.max(1, Math.round(thickness * EDGE_SCALE)) : 0;
+        // SHORT carriers: a shape too big to encode falls back to the one-draw path (correct, just slower).
+        if (hw > Short.MAX_VALUE || hh > Short.MAX_VALUE || rr > Short.MAX_VALUE || th > Short.MAX_VALUE) {
+            flush();
+            drawShapeQuadDirect(qx0, qy0, qx1, qy1, cx, cy, halfW, halfH, radius, radius, radius, radius,
+                    thickness > 0f ? MODE_BORDER : MODE_FILL, 0, 1e-4f, Math.max(thickness, 1e-4f), colorA, colorA);
+            return;
+        }
+        Matrix4f mat = ctx.getMatrices().peek().getPositionMatrix();
+        batchVertex(mat, qx0, qy0, cx, cy, r, g, b, a, hw, hh, rr, th);
+        batchVertex(mat, qx0, qy1, cx, cy, r, g, b, a, hw, hh, rr, th);
+        batchVertex(mat, qx1, qy1, cx, cy, r, g, b, a, hw, hh, rr, th);
+        batchVertex(mat, qx1, qy0, cx, cy, r, g, b, a, hw, hh, rr, th);
+        batchQuads++;
+    }
+
+    private void batchVertex(Matrix4f mat, float x, float y, float cx, float cy,
+                             int r, int g, int b, int a, int hw, int hh, int rr, int th) {
+        batch.vertex(mat, x, y, 0f)
+             .color(r, g, b, a)
+             .texture(x - cx, y - cy)
+             .overlay(hw, hh)
+             .light(rr, th);
+    }
+
     private void drawShapeQuad(float qx0, float qy0, float qx1, float qy1,
                                float cx, float cy,
                                float halfW, float halfH,
@@ -339,6 +441,24 @@ public final class ModernBackend implements UiRenderer {
                                int mode, int gradAxis,
                                float feather, float thickness,
                                int colorA, int colorB) {
+        if (batchable(mode, rtl, rtr, rbr, rbl)) {
+            batchQuad(qx0, qy0, qx1, qy1, cx, cy, halfW, halfH, rtl,
+                      mode == MODE_BORDER ? thickness : 0f, colorA);
+            return;
+        }
+        flush();   // the slow path draws NOW — anything queued must land underneath it first
+        drawShapeQuadDirect(qx0, qy0, qx1, qy1, cx, cy, halfW, halfH, rtl, rtr, rbr, rbl,
+                mode, gradAxis, feather, thickness, colorA, colorB);
+    }
+
+    private void drawShapeQuadDirect(float qx0, float qy0, float qx1, float qy1,
+                                     float cx, float cy,
+                                     float halfW, float halfH,
+                                     float rtl, float rtr, float rbr, float rbl,
+                                     int mode, int gradAxis,
+                                     float feather, float thickness,
+                                     int colorA, int colorB) {
+        Backends.MODERN_T.flush();   // queued glyphs belong UNDER this shape — keep painter's order
         try {
             ShaderProgram shader = UiShaders.SDF;
 
@@ -373,7 +493,7 @@ public final class ModernBackend implements UiRenderer {
             bb.vertex(mat, qx1, qy1, 0f).texture(qx1 - cx, qy1 - cy).color(r, g, b, a);
             bb.vertex(mat, qx1, qy0, 0f).texture(qx1 - cx, qy0 - cy).color(r, g, b, a);
             BufferRenderer.drawWithGlobalProgram(bb.end());
-            DRAWS++;   // profiler: one draw call per shape — see HudManager.profile
+            DRAWS++; SHAPE_DRAWS++;   // profiler: one draw call per shape — see HudManager.profile
 
             RenderSystem.enableCull();
         } catch (Exception e) {
@@ -401,6 +521,7 @@ public final class ModernBackend implements UiRenderer {
             }
             return;
         }
+        flush(); Backends.MODERN_T.flush();   // queued draws belong to the OUTER clip — out before we narrow the scissor
 
         float nx, ny, nw, nh;
         if (clipTop > 0) {

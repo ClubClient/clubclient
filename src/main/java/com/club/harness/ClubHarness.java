@@ -268,17 +268,18 @@ public final class ClubHarness {
             step(2, () -> {
                 double ms = com.club.hud.HudManager.avgDrawMs();
                 double calls = com.club.hud.HudManager.avgDraws();
+                double shapes = com.club.hud.HudManager.avgShapeDraws();
+                double texts = com.club.hud.HudManager.avgTextDraws();
                 int n = com.club.hud.HudManager.profiledFrames();
-                com.club.hud.HudManager.profile(false);   // (read the numbers BEFORE this — it resets them)
+                com.club.hud.HudManager.profile(false);   // (read EVERY number BEFORE this — it resets them)
                 report.add(String.format("INFO  draw cost: the Club HUD takes %.3f ms/frame in %.0f GL draw calls "
-                                + "(%.0f us each; mean of %d frames, backend %s)",
-                        ms, calls, calls > 0 ? ms * 1000 / calls : 0, n, com.club.ui.Ui.backend()));
-                // A REGRESSION guard at the level we actually measure, not a wish. ~1 ms is the honest
-                // cost today and it is all draw-call overhead: the renderer submits ONE GL draw per
-                // shape (its own "BATCHING SEAM" comment), so 43 chips/capsules/bars = 43 draws at
-                // ~23 us each. Batching them into a handful is the known ~5x win — a real change to the
-                // shader's vertex format, worth its own stage. Until then this stops it getting WORSE.
-                check("perf: the in-world HUD draw stays under 1.5 ms/frame", n > 100 && ms < 1.5);
+                                + "(%.0f shape + %.0f text; %.0f us each; mean of %d frames, backend %s)",
+                        ms, calls, shapes, texts, calls > 0 ? ms * 1000 / calls : 0, n, com.club.ui.Ui.backend()));
+                // Was 43 draws / ~1.25 ms — one GL call per shape, and 33 of them just TABULAR DIGITS.
+                // Batching both (Stage 61) took it to ~11 calls / ~0.45 ms. These guard that: a draw-call
+                // count creeping back up is the regression that matters, and it shows up here first.
+                check("perf: the in-world HUD draw stays under 0.8 ms/frame", n > 100 && ms < 0.8);
+                check("perf: …in a handful of GL draw calls, not one per shape", calls <= 16);
             });
 
             // ===== VISUAL SCENES =====

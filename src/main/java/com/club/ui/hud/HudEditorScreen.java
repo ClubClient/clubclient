@@ -273,6 +273,7 @@ public final class HudEditorScreen extends Screen {
                 r.popClip();
             }
         }
+        Ui.endFrame();   // submit the batched shapes — nothing else will (Stage 61)
     }
 
     private String titleOf(HudElement e) { return e.displayName() + " HUD"; }

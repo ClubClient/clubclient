@@ -29,6 +29,13 @@ public final class Ui {
         Backends.LEGACY_R.unitScale(k);
     }
 
+    /**
+     * Call at the END of every render pass that called {@link #beginFrame}. Shapes are BATCHED (Stage
+     * 61): they sit in a buffer until something forces them out, and the end of the pass is the last
+     * such point — miss it and the frame's final shapes are simply never drawn. Cheap and idempotent.
+     */
+    public static void endFrame() { Backends.MODERN_R.flush(); Backends.MODERN_T.flush(); }
+
     public static boolean modernAvailable() { return UiShaders.ready() && Backends.MODERN_T.healthy() && Backends.MODERN_R.healthy(); }
     public static Backend backend() {
         if (forced != null) return forced;

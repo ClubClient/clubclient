@@ -805,6 +805,7 @@ public final class ClubMenuScreen extends Screen {
         try {
             renderCanvas(dc, (float) cx(mouseX), (float) cy(mouseY));
         } finally {
+            Ui.endFrame();           // submit the batched shapes while the canvas matrix is still up
             dc.getMatrices().pop();
             Ui.beginFrame(dc, 1f);   // hand the units back — the HUD and every other screen draw in MC units
         }
