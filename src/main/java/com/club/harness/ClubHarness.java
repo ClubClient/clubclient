@@ -150,6 +150,28 @@ public final class ClubHarness {
                 check("zoom: deeper zoom damps more", ZoomModule.scaleFor(8f, 70f) < s4);
             });
 
+            // Screen Stretch must be a NO-OP out of the box (Stage 59 audit): it shipped ON with a
+            // hard-coded 16:9 target, which is invisible on a 16:9 dev monitor and WARPS the world of
+            // everyone on 16:10 / ultrawide / 5:4 the moment they install the mod.
+            step(2, () -> {
+                // A FRESH install must not touch the projection. (This dev config has 4:3 picked by hand,
+                // and the migration deliberately leaves a DELIBERATE choice alone — so assert the default
+                // and the fallback, not the live value.)
+                check("stretch: a fresh install is AUTO (no warp on a non-16:9 monitor)",
+                        "AUTO".equals(new ClubConfig.ScreenStretch().preset));
+                check("stretch: an unknown preset falls back to AUTO, not to a ratio",
+                        com.club.modules.screenstretch.StretchPreset.fromName("junk")
+                                == com.club.modules.screenstretch.StretchPreset.AUTO);
+                String was = cfg.screenStretch.preset;
+                cfg.screenStretch.preset = "AUTO";
+                boolean[] vertical = new boolean[1];
+                check("stretch: AUTO → the world projection is untouched and no bars are painted",
+                        !com.club.modules.screenstretch.ScreenStretchModule.isActive()
+                        && Math.abs(com.club.modules.screenstretch.ScreenStretchModule.projectionScaleX() - 1f) < 0.001f
+                        && com.club.modules.screenstretch.ScreenStretchModule.barThickness(1080, 1920, vertical) == 0);
+                cfg.screenStretch.preset = was;
+            });
+
             // Toggle Sprint force + clean release.
             step(2, () -> {
                 boolean prevEnabled = cfg.toggleSprint.enabled;
@@ -333,6 +355,7 @@ public final class ClubHarness {
             // sheet (it takes the well and overlaps the cards) instead of collapsing to a 1px sliver.
             step(2, () -> { prevGuiScale = mc.options.getGuiScale().getValue(); mc.options.getGuiScale().setValue(4); mc.onResolutionChanged(); });
             step(6, () -> mc.setScreen(new ClubMenuScreen()));
+            step(4, () -> shot("menu-scale4"));             // rail inside the window, names not smeared (Stage 59)
             step(2, () -> key(GLFW_KEY_TAB));               // search
             step(2, () -> key(GLFW_KEY_TAB));               // grid → first card
             step(2, () -> key(GLFW_KEY_SPACE));            // its popover

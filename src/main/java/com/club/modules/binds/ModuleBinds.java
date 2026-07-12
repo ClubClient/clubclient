@@ -42,10 +42,21 @@ public final class ModuleBinds {
             for (MenuContent.Module m : cat.modules())
                 if (m.hasToggle() && !HoldKeys.isHold(m.name())) flat.add(m);
         modules = flat;
-        // Reconcile the two namespaces once the hold keys exist (the config migration can't: it runs
-        // before the bindings are registered). An OLD file can hold e.g. {"Fullbright":"key.keyboard.c"}
-        // while Zoom is held with C — one press would zoom AND toggle Fullbright, the very bug Stage 58
-        // closes. The hold key wins (it has a factory default to fall back on); the toggle bind is dropped.
+    }
+
+    private static boolean reconciled;
+
+    /** Reconcile the two namespaces ONCE, on the first tick. An old file can hold e.g.
+     *  {"Fullbright":"key.keyboard.c"} while Zoom is held with C — one press would zoom AND toggle
+     *  Fullbright, the very bug Stage 58 closes. The hold key wins (it has a factory default to fall
+     *  back on); the toggle bind is dropped.
+     *
+     *  <p>Deliberately NOT in init() (Stage 59 audit): a client entrypoint runs while the game is still
+     *  starting, and the KeyBinding may still carry its FACTORY key rather than the one from options.txt
+     *  — we'd reconcile against C / Left Alt and delete a bind the player legitimately owns. By the
+     *  first client tick the options are applied and the bound keys are the real ones. */
+    private static void reconcileOnce() {
+        reconciled = true;
         for (String hold : HoldKeys.NAMES) {
             var kb = HoldKeys.of(hold);
             if (kb != null && !kb.isUnbound()) releaseKey(kb.getBoundKeyTranslationKey());
@@ -68,6 +79,7 @@ public final class ModuleBinds {
      *  set is tracked always, so a screen close with a key still held is not a fresh press. */
     public static void tick(MinecraftClient mc) {
         if (modules == null) return;
+        if (!reconciled) reconcileOnce();   // first tick: the bound keys are the real (options.txt) ones now
         Map<String, String> binds = ClubConfig.get().moduleBinds;
         if (binds.isEmpty()) { down.clear(); return; }
         boolean screen = mc.currentScreen != null;

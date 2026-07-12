@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 7; // bumped when new fields are added, for migration
+    public int version = 8; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -81,8 +81,11 @@ public class ClubConfig {
     }
 
     public static class ScreenStretch {
-        public boolean enabled = true; // master toggle; when false no stretch is applied
-        public String preset = "R16_9"; // StretchPreset name
+        public boolean enabled = true;  // master toggle; AUTO makes it a no-op until a ratio is picked
+        // AUTO = follow the real window aspect, i.e. DON'T touch the projection. The old default of
+        // "R16_9" warped the world and painted black bars for everyone whose monitor isn't 16:9 —
+        // 16:10 laptops, ultrawides, 5:4 — the moment they installed the mod (Stage 59 audit).
+        public String preset = "AUTO"; // StretchPreset name
         public boolean blackBars = true;
     }
 
@@ -144,17 +147,38 @@ public class ClubConfig {
         } catch (Exception e) {
             // Stage 30: NEVER silently discard the user's settings. Preserve the unreadable file as
             // *.corrupt (HUD layout, hand offsets etc. stay recoverable by hand) and start clean.
-            ClubMod.LOGGER.warn("[Club] Failed to load config — preserving it as club_settings.json.corrupt "
-                    + "and starting with defaults", e);
-            try {
-                Files.move(path, path.resolveSibling(path.getFileName() + ".corrupt"),
-                        StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException m) {
-                ClubMod.LOGGER.warn("[Club] Could not preserve the broken config file", m);
+            //
+            // Stage 59 audit, two hardenings:
+            //  • An IOException is NOT corruption — a file locked by a sync client (OneDrive/Dropbox), a
+            //    cloud placeholder that hasn't hydrated, or a transient read error would have renamed a
+            //    perfectly good config away and handed the user factory defaults. Only a PARSE failure
+            //    means the content is actually broken; anything else keeps the file and runs on defaults
+            //    for this session, with saving DISABLED so we can't overwrite what we failed to read.
+            //  • The .corrupt backup no longer overwrites an older one: a second bad launch used to
+            //    replace the only surviving copy of the real settings.
+            boolean parseFailure = !(e instanceof IOException);
+            if (parseFailure) {
+                ClubMod.LOGGER.warn("[Club] Config file is not valid JSON — preserving it and starting with defaults", e);
+                try {
+                    Path bak = path.resolveSibling(path.getFileName() + ".corrupt");
+                    for (int i = 2; Files.exists(bak) && i < 100; i++)
+                        bak = path.resolveSibling(path.getFileName() + ".corrupt" + i);
+                    Files.move(path, bak);
+                } catch (IOException m) {
+                    ClubMod.LOGGER.warn("[Club] Could not preserve the broken config file", m);
+                }
+            } else {
+                ClubMod.LOGGER.warn("[Club] Could not READ the config (file locked / not synced?) — running on "
+                        + "defaults for this session and NOT saving, so the real settings stay intact", e);
+                readOnly = true;
             }
             INSTANCE = new ClubConfig();
         }
     }
+
+    /** Set when load() failed for a reason that is NOT corruption: refuse to write over settings we
+     *  could not read, or we would turn a temporary glitch into permanent data loss. */
+    private static volatile boolean readOnly;
 
     // Stage 30: config writes are ASYNC + ATOMIC. save() serializes on the caller thread (the render
     // thread mutates INSTANCE, so the snapshot must be taken there — serializing on the writer thread
@@ -169,7 +193,7 @@ public class ClubConfig {
             });
 
     public static void save() {
-        if (INSTANCE == null || path == null) return;
+        if (INSTANCE == null || path == null || readOnly) return;
         String json = GSON.toJson(INSTANCE);
         try {
             IO.execute(() -> write(json));
@@ -192,7 +216,10 @@ public class ClubConfig {
     private static void write(String json) {
         try {
             Files.createDirectories(path.getParent());
-            Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
+            // The staging file is per-PROCESS (Stage 59 audit): two clients sharing one .minecraft (a
+            // second instance, a dev launch) both staged into the SAME .tmp and then atomically published
+            // whatever mix of the two writes happened to be in it.
+            Path tmp = path.resolveSibling(path.getFileName() + "." + ProcessHandle.current().pid() + ".tmp");
             Files.writeString(tmp, json);
             try {
                 Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -295,6 +322,15 @@ public class ClubConfig {
             moduleBinds.remove("Zoom");
             moduleBinds.remove("Freelook");
             version = 7;
+            changed = true;
+        }
+        if (version < 8) {
+            // Screen Stretch shipped ON with a hard-coded 16:9 target, so a 16:10 / ultrawide / 5:4
+            // player got a distorted world and black bars over the hotbar without ever opening the menu
+            // (invisible on a 16:9 dev monitor, where the scale works out to exactly 1.0). Anyone still
+            // carrying that default is moved to AUTO — a no-op until a ratio is deliberately picked.
+            if ("R16_9".equals(screenStretch.preset)) screenStretch.preset = "AUTO";
+            version = 8;
             changed = true;
         }
         if (changed) save();

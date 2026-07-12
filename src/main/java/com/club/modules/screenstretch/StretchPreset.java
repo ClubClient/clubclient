@@ -24,7 +24,9 @@ public enum StretchPreset {
 
     public boolean isAuto() { return this == AUTO; }
 
+    /** Unknown/junk value → AUTO: the safe fallback is "don't touch the projection". Falling back to a
+     *  real ratio silently WARPED the world of anyone whose monitor isn't that ratio (Stage 59 audit). */
     public static StretchPreset fromName(String name) {
-        try { return valueOf(name); } catch (Exception e) { return R16_9; }
+        try { return valueOf(name); } catch (Exception e) { return AUTO; }
     }
 }

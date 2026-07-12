@@ -64,6 +64,10 @@ public final class ClubMenuScreen extends Screen {
 
     private static final float CLOCK_BASE = 1000f;   // keep past any transition so fresh widgets read settled
     private static final float RAIL_ROW = 36f;       // category row height (tighter than the old 40 — less dead air)
+    // Live layout metrics — the ideal above, shrunk to whatever the screen actually gives us (layoutAll).
+    private float railRow = RAIL_ROW;
+    private int gridCols = GRID_COLS;
+    private float cardNameSlot = 100f;               // width the card name may use (it is clipped to it)
 
     private final UiContextImpl uiCtx = new UiContextImpl();
     private final FocusManager focus = new FocusManager();
@@ -169,7 +173,9 @@ public final class ClubMenuScreen extends Screen {
     // sits dead centre. Compact 660 width kept (owner): 4 columns fit via SMALLER cards, not a
     // wider window — hence the vertical card composition (chip on top, name under).
     private static final float WIN_W = 660f, WIN_H = 380f;
-    private static final int GRID_COLS = 4;
+    private static final int GRID_COLS = 4;               // the IDEAL column count; layoutAll may drop to 3 or 2
+    private static final float CARD_CHROME = 42f;         // TILE_PAD + CHIP + NAME_GAP + TILE_PAD (fixed per card)
+    private static final float NAME_SLOT_MIN = 44f;       // a name slot narrower than this isn't worth a column
     private boolean closing;   // Right-Shift close: plays the entrance in reverse, then really closes
 
     // Keyboard grid navigation (Stage 27): the card cursor. Two keyboard "zones" — the search field
@@ -244,7 +250,7 @@ public final class ClubMenuScreen extends Screen {
 
     // Indicator tracks the row offset RELATIVE to bodyY, so it never lags behind the window when it's dragged /
     // rises on open (it only eases when the category actually changes).
-    private float railYRel(int i) { return 10 + i * RAIL_ROW; }   // tray top (+2) + tray padding (+8)
+    private float railYRel(int i) { return 10 + i * railRow; }   // tray top (+2) + tray padding (+8)
     private float railY(int i) { return bodyY + railYRel(i); }   // absolute row position (rows + hit-test)
 
     // ---- state ---------------------------------------------------------------
@@ -402,9 +408,9 @@ public final class ClubMenuScreen extends Screen {
             case GLFW_KEY_LEFT:  idx = Math.max(0, idx - 1); break;
             case GLFW_KEY_RIGHT: idx = Math.min(mods.size() - 1, idx + 1); break;
             case GLFW_KEY_UP:
-                if (idx < GRID_COLS) { enterSearchZone(); return true; }   // top row → hop up to search
-                idx -= GRID_COLS; break;
-            case GLFW_KEY_DOWN:  idx = Math.min(mods.size() - 1, idx + GRID_COLS); break;
+                if (idx < gridCols) { enterSearchZone(); return true; }   // top row → hop up to search
+                idx -= gridCols; break;
+            case GLFW_KEY_DOWN:  idx = Math.min(mods.size() - 1, idx + gridCols); break;
             case GLFW_KEY_ENTER, GLFW_KEY_KP_ENTER: activate(mods.get(idx)); gridFocus = mods.get(idx); return true;
             case GLFW_KEY_SPACE: openPopoverForFocused(mods.get(idx)); gridFocus = mods.get(idx); return true;
             default: return false;
@@ -466,7 +472,7 @@ public final class ClubMenuScreen extends Screen {
      *  being unusable is worse.</p> */
     private void positionPopover() {
         float gridTop = wellY + 12;
-        int rows = Math.max(1, (grid.children().size() + GRID_COLS - 1) / GRID_COLS);
+        int rows = Math.max(1, (grid.children().size() + gridCols - 1) / gridCols);
         float gridBottom = gridTop + rows * TILE_H + (rows - 1) * Tokens.spacing().sm();
         float wellBottom = wellY + wellH - 8;
         float want = popContentH + 2 * POP_PAD;
@@ -682,32 +688,54 @@ public final class ClubMenuScreen extends Screen {
 
         // Stage-22 wells: the shallow tray hugs the category list; the deep well owns the rest.
         // 16px of breathing between them (owner: two figures, not one), 12px to the frame edges.
-        railWX = winX + 12; railWY = bodyY + 2; railWW = 172;
-        railWH = 16 + cats.size() * RAIL_ROW;
+        //
+        // Everything here USED to be fixed at the 660×380 ideal — a 172px rail, a 160px tray, 4 columns.
+        // But the window is clamped to the screen, and Minecraft's stock AUTO gui scale is 4 on 1080p
+        // (scaled 480×270) and 3 on 720p: the window shrinks to ~432×222, while the rail, the tray and
+        // the cards did not. The tray then drew its last rows OUTSIDE the window, and 4 columns left the
+        // module names a 1px slot, so they collapsed to the 6px floor and smeared across each other
+        // (Stage 59 audit). The rail, its rows and the column count now all follow the space available.
+        railWX = winX + 12; railWY = bodyY + 2;
+        railWW = clamp(winW * 0.26f, 108f, 172f);
+        railRow = Math.min(RAIL_ROW, Math.max(20f, (bodyH - 20f) / cats.size()));   // rows compress before they spill
+        railWH = Math.min(16 + cats.size() * railRow, bodyH - 4);
         wellX = railWX + railWW + 16; wellY = bodyY + 2;
         wellW = winX + winW - 12 - wellX;
         wellH = bodyH - 2 - 6;
 
-        float searchW = 200, searchH = 32;
+        float searchH = 32;
+        float searchW = clamp(wellW * 0.9f, 120f, 200f);   // never wider than the well it sits over
         // the search's RIGHT edge lands exactly on the content well's right line (header on the grid)
         search.layout(winX + winW - 12 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);
 
-        // fixed 4-column grid (like the reference board) — sparse rows are fine for now
+        // Column count follows the width: 4 like the reference board when there's room, else 3 or 2. A
+        // card needs its fixed chrome (pad+chip+gap+pad) PLUS a readable name slot — below that the grid
+        // is just noise, so we drop a column instead of shrinking the type into illegibility.
         float gridW = wellW - 24;
-        grid.cols(GRID_COLS);
+        float sm = Tokens.spacing().sm();
+        gridCols = 2;
+        for (int c = GRID_COLS; c >= 2; c--) {
+            float cw = (gridW - (c - 1) * sm) / c;
+            if (cw - CARD_CHROME >= NAME_SLOT_MIN) { gridCols = c; break; }
+        }
+        grid.cols(gridCols);
 
         // One name size per category (11.7): the largest size <= NAME_BASE at which the LONGEST
         // module name of the category still fits the card's text slot. All visible names share it —
         // uniform look, nothing ever truncates OR overflows (the floor is sanity-only; with sane
         // names sizes stay >= ~9px). Computed over the whole category (not the search subset) so
         // the size doesn't jump while typing.
-        float cellW = (gridW - (GRID_COLS - 1) * Tokens.spacing().sm()) / GRID_COLS;
-        float slot = cellW - (TILE_PAD + CHIP + NAME_GAP + TILE_PAD);
+        float cellW = (gridW - (gridCols - 1) * sm) / gridCols;
+        float slot = Math.max(1f, cellW - CARD_CHROME);
+        cardNameSlot = slot;
+        // Fit against the slot MINUS a hair: the width∝size scaling is linear but glyph advances round,
+        // so an exact fit lands a pixel over and the clip shaves the last letter (Stage 59).
+        float fitSlot = Math.max(1f, slot - 3f);
         float fit = NAME_BASE;
         var nameWeight = Tokens.type().heading().weight();
         for (Module mod : cats.get(catIndex).modules()) {
             float atBase = Ui.text().width(mod.name(), nameWeight, NAME_BASE);
-            if (atBase > slot) fit = Math.min(fit, Math.max(NAME_MIN, slot * NAME_BASE / atBase));
+            if (atBase > fitSlot) fit = Math.min(fit, Math.max(NAME_MIN, fitSlot * NAME_BASE / atBase));
         }
         cardNameSize = fit;
 
@@ -807,21 +835,21 @@ public final class ClubMenuScreen extends Screen {
         // rail: the active-row highlight pill slides with the accent indicator (drawn once, under the text)
         if (indicator != null) indicator.target(railYRel(catIndex), now);
         float indY = bodyY + (indicator != null ? indicator.value(now) : railYRel(catIndex));
-        r.roundedRect(railWX + 8, indY + 3, railWW - 16, RAIL_ROW - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
+        r.roundedRect(railWX + 8, indY + 3, railWW - 16, railRow - 6, Tokens.radius().sm(), Tokens.surface().surfaceHi());
 
         // rail categories inside the tray — label colour eases on hover / active; icon rides the same ease
         for (int i = 0; i < cats.size(); i++) {
             float yy = railY(i);
             boolean active = i == catIndex;
-            boolean hov = mouseX >= railWX && mouseX <= railWX + railWW && mouseY >= yy && mouseY < yy + RAIL_ROW;
+            boolean hov = mouseX >= railWX && mouseX <= railWX + railWW && mouseY >= yy && mouseY < yy + railRow;
             railText[i].target((active || hov) ? 1f : 0f, now);
             int col = Color.scaleAlpha(
                     Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), railText[i].value(now)), ep);
             float isz = 15f, iconX = railWX + 20f;
-            cats.get(i).icon().draw(uiCtx, iconX, yy + (RAIL_ROW - isz) / 2f, isz, col);
+            cats.get(i).icon().draw(uiCtx, iconX, yy + (railRow - isz) / 2f, isz, col);
             float textX = iconX + isz + 8f, clipR = railWX + railWW - 10f;
-            r.pushClip(textX, yy, clipR - textX, RAIL_ROW);
-            uiCtx.text().draw(cats.get(i).name(), textX, yy + (RAIL_ROW - catLh) / 2f,
+            r.pushClip(textX, yy, clipR - textX, railRow);
+            uiCtx.text().draw(cats.get(i).name(), textX, yy + (railRow - catLh) / 2f,
                     TextStyle.of(ty.label().weight(), ty.label().size(), col));
             r.popClip();
         }
@@ -861,7 +889,7 @@ public final class ClubMenuScreen extends Screen {
         }
 
         if (indicator != null)   // active indicator bar: CATEGORY colour, hugging the tray's left edge
-            r.roundedRect(railWX, indY + 4, 4, RAIL_ROW - 8, 2f, railBarColor(now));
+            r.roundedRect(railWX, indY + 4, 4, railRow - 8, 2f, railBarColor(now));
 
         r.border(winX, winY, winW, winH, lg, Tokens.border().thickness(), Tokens.border().strong());
 
@@ -972,8 +1000,8 @@ public final class ClubMenuScreen extends Screen {
         if (insidePop(mx, my)) {
             popScroll.mouseClicked(mx, my, 0); pressOwner = 1; return true;   // RMB behaves as LMB inside; never closes
         }
-        if (b == 0 && mx >= railWX && mx <= railWX + railWW && my >= bodyY + 10 && my < bodyY + 10 + cats.size() * RAIL_ROW) {
-            int i = (int) ((my - (bodyY + 10)) / RAIL_ROW);
+        if (b == 0 && mx >= railWX && mx <= railWX + railWW && my >= bodyY + 10 && my < bodyY + 10 + cats.size() * railRow) {
+            int i = (int) ((my - (bodyY + 10)) / railRow);
             if (i >= 0 && i < cats.size()) { if (i != catIndex) setCategory(i); return true; }
         }
         if (root.mouseClicked(mx, my, b)) { pressOwner = 2; return true; }
@@ -1267,14 +1295,18 @@ public final class ClubMenuScreen extends Screen {
             r.roundedRect(chipX + (CHIP - STRIPE_W) / 2f, chipY + CHIP + STRIPE_GAP,
                     STRIPE_W, STRIPE_H, STRIPE_H / 2f, Color.scaleAlpha(stripeCol, ta));
 
-            // Name: uniform per-category size (cardNameSize, auto-fit in layoutAll) — never truncated.
-            // OFF drops to textDesc (not textMuted) so the on/off gap is obvious at a glance.
+            // Name: uniform per-category size (cardNameSize, auto-fit in layoutAll). The fit maths keeps
+            // it inside the slot at any sane width — the clip is the hard guarantee it can NEVER bleed
+            // onto the next card, which is exactly what happened once the window got squeezed and the
+            // size hit its floor (Stage 59 audit).
             int nameCol = Color.lerp(Tokens.palette().textDesc(), Tokens.palette().textHi(), onv);
             float ns = cardNameSize;
             float nameLh = ctx.text().lineHeight(Tokens.type().heading().weight(), ns);
             float nameX = chipX + CHIP + NAME_GAP;
+            r.pushClip(nameX, y, Math.max(1f, Math.min(cardNameSlot, x + w - TILE_PAD - nameX)), h);
             ctx.text().draw(m.name(), nameX, y + (h - nameLh) / 2f,
                     TextStyle.of(Tokens.type().heading().weight(), ns, Color.scaleAlpha(nameCol, screenAlpha * ta)));
+            r.popClip();
 
             // Keyboard focus ring (Stage 27) — only in the grid zone (always keyboard-driven, so
             // this is inherently focus-visible), hugging the card just outside its edge.

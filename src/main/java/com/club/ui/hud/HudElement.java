@@ -1,5 +1,6 @@
 package com.club.ui.hud;
 
+import com.club.config.ClubConfig;
 import com.club.ui.UiContext;
 import com.club.ui.component.Component;
 import com.club.ui.layout.Size;
@@ -78,9 +79,28 @@ public abstract class HudElement extends Component {
         return b;
     }
 
-    /** Assign Component bounds from the current config (called by the canvas each frame). */
+    /**
+     * Assign Component bounds from the current config (called by the canvas each frame), CLAMPED back
+     * onto the current screen — and the clamp is written back to config.
+     *
+     * <p>Why write back (Stage 59 audit): saved coords are absolute GUI pixels. Drop the resolution,
+     * dock/undock a laptop or raise the GUI scale and a saved x of 1800 is now off a 960-wide screen.
+     * In-world the canvas clamped the DRAW position, so the element still showed — but the editor laid
+     * it out at its raw coords, i.e. off-screen: invisible, un-hoverable, un-draggable, and the only way
+     * out was the Reset that wipes EVERY element's position. Self-healing the stored value the moment we
+     * see it doesn't fit means the element simply comes back on screen, where the player can move it.</p>
+     */
     public void layoutFromConfig(MinecraftClient mc) {
         int[] b = box(mc);
+        if (mc != null) {
+            int sw = mc.getWindow().getScaledWidth(), sh = mc.getWindow().getScaledHeight();
+            int cx = HudSnap.clampAxis(b[0], b[2], sw);
+            int cy = HudSnap.clampAxis(b[1], b[3], sh);
+            // Only rewrite an EXPLICIT position (>= 0). A -1 is "auto" — resolveX/Y already places it.
+            if (cx != b[0] && cfgX() >= 0) { cfgX(cx); ClubConfig.save(); }
+            if (cy != b[1] && cfgY() >= 0) { cfgY(cy); ClubConfig.save(); }
+            b[0] = cx; b[1] = cy;
+        }
         super.layout(b[0], b[1], b[2], b[3]);
     }
 

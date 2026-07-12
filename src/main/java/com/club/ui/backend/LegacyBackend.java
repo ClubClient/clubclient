@@ -11,8 +11,7 @@ public final class LegacyBackend implements UiRenderer {
     private DrawContext ctx;
 
     /** Clip stack stored as interleaved int quads: x0, y0, x1, y1 per entry. */
-    private final int[] clipStack = new int[64]; // supports up to 16 nested clips
-    private int clipDepth = 0;
+    private int clipDepth = 0;   // depth only — vanilla's ScissorStack owns the rects (see popClip)
 
     public void begin(DrawContext ctx) { this.ctx = ctx; clipDepth = 0; }
     @Override public boolean isResolutionIndependent() { return false; }
@@ -43,28 +42,24 @@ public final class LegacyBackend implements UiRenderer {
     }
     @Override public void circle(float cx, float cy, float r, int c) { rect(cx - r, cy - r, r * 2, r * 2, c); }
 
+    // DrawContext.enableScissor PUSHES onto vanilla's ScissorStack (intersecting with whatever is on
+    // top) and disableScissor POPS it — the stack already remembers and re-applies the parent rect. The
+    // old popClip re-called enableScissor for a nested clip, i.e. it pushed a THIRD entry instead of
+    // popping: the stack never unwound, every clip after the first intersected down to nothing, and the
+    // LEGACY menu drew one card and then blank — including the plaque meant to explain the fallback
+    // (Stage 59 audit). Push/pop is now 1:1, and the depth is bounded so a runaway can't walk the array.
+    private static final int MAX_CLIP = 16;
+
     @Override public void pushClip(float x, float y, float w, float h) {
-        if (ctx == null) return;
-        int x0 = (int) x, y0 = (int) y, x1 = (int) (x + w), y1 = (int) (y + h);
-        int base = clipDepth * 4;
-        clipStack[base]     = x0;
-        clipStack[base + 1] = y0;
-        clipStack[base + 2] = x1;
-        clipStack[base + 3] = y1;
+        if (ctx == null || clipDepth >= MAX_CLIP) return;
         clipDepth++;
-        ctx.enableScissor(x0, y0, x1, y1);
+        ctx.enableScissor((int) x, (int) y, (int) (x + w), (int) (y + h));
     }
     @Override public void pushRoundedClip(float x, float y, float w, float h, float r) { pushClip(x, y, w, h); }
     @Override public void popClip() {
         if (ctx == null || clipDepth == 0) return;
         clipDepth--;
-        if (clipDepth == 0) {
-            ctx.disableScissor();
-        } else {
-            // restore the parent clip rect
-            int base = (clipDepth - 1) * 4;
-            ctx.enableScissor(clipStack[base], clipStack[base + 1], clipStack[base + 2], clipStack[base + 3]);
-        }
+        ctx.disableScissor();
     }
     @Override public void pushOpacity(float m) {}
     @Override public void popOpacity() {}

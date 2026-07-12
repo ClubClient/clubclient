@@ -15,6 +15,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(GameRenderer.class)
 public class MixinGameRenderer {
 
+    /**
+     * Fullbright safety net (Stage 59 audit). The gamma override is scoped to the lightmap window by a
+     * flag set at LightmapTextureManager.update's HEAD and cleared at its RETURN — but a RETURN inject
+     * does NOT run if another mod (Iris and the shader packs replace the lightmap outright) cancels the
+     * method at HEAD. The flag would then latch true for the rest of the session, and the next
+     * {@code GameOptions.write()} would serialise gamma as 15.0 and destroy the player's Brightness
+     * setting for good. Clearing it once per frame, before anything can read it, makes the leak
+     * impossible no matter who cancels what.
+     */
+    @Inject(method = "render(Lnet/minecraft/client/render/RenderTickCounter;Z)V", at = @At("HEAD"))
+    private void club$clearLightmapScope(net.minecraft.client.render.RenderTickCounter counter,
+                                         boolean tick, CallbackInfo ci) {
+        com.club.modules.fullbright.FullbrightModule.exitLightmap();
+    }
+
     /** NoHurtCam: skip the damage view tilt entirely. */
     @Inject(method = "tiltViewWhenHurt", at = @At("HEAD"), cancellable = true)
     private void club$noHurtCam(CallbackInfo ci) {

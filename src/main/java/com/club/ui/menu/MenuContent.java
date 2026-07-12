@@ -141,7 +141,9 @@ public final class MenuContent {
         for (int i = 0; i < sp.length; i++) labels[i] = sp[i].label();
         return new Module("Screen Stretch", "Stretch the view to a target aspect ratio.", IconGlyph.SCREEN_STRETCH,
             () -> c.screenStretch.enabled, v -> { c.screenStretch.enabled = v; save(); },
-            () -> { c.screenStretch.preset = "R16_9"; c.screenStretch.blackBars = true; c.screenStretch.enabled = true; save(); },
+            // Reset goes back to AUTO (no stretch) — resetting must never hand a non-16:9 player a
+            // warped world, which "R16_9" did (Stage 59 audit).
+            () -> { c.screenStretch.preset = "AUTO"; c.screenStretch.blackBars = true; c.screenStretch.enabled = true; save(); },
             List.of(
                 new DropdownSetting("Preset", labels,
                         () -> StretchPreset.fromName(c.screenStretch.preset).ordinal(),
