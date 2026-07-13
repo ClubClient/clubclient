@@ -293,6 +293,19 @@ public final class ClubMenuScreen extends Screen {
 
     // ---- state ---------------------------------------------------------------
 
+    /** Harness/promo seam: land on a NAMED category, not on "two tabs from wherever we happened to be".
+     *  The menu deliberately reopens on the last category the player used (a static {@code lastCatIndex}),
+     *  which is right for a player and useless for a scripted shot — the promo run drove Ctrl+Tab twice and
+     *  landed on Player, because the previous scene had already moved it. Returns false if there is no such
+     *  category, so a typo fails loudly instead of quietly photographing the wrong screen. */
+    public boolean selectCategory(String name) {
+        List<Category> cats = MenuContent.build(this::openHudEditor);
+        for (int i = 0; i < cats.size(); i++) {
+            if (cats.get(i).name().equalsIgnoreCase(name)) { setCategory(i); return true; }
+        }
+        return false;
+    }
+
     private void setCategory(int i) {
         float now = uiCtx.time();
         railBarFrom = railBarColor(now);   // ease the bar from wherever its colour currently is

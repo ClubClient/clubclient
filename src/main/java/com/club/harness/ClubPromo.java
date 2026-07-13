@@ -2,6 +2,7 @@ package com.club.harness;
 
 import com.club.config.ClubConfig;
 import com.club.hud.HudManager;
+import com.club.ui.hud.HudEditorScreen;
 import com.club.ui.menu.ClubMenuScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_TAB;
 import static org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL;
 
@@ -209,6 +211,35 @@ public final class ClubPromo {
                 sp.addStatusEffect(new StatusEffectInstance(StatusEffects.STRENGTH, 6000, 0, false, false));
             }));
 
+            // ---- the language: the gallery is English, whatever this machine runs in ----
+            // The dev client is Russian, and it showed: the Zoom popover's new conflict line came out as
+            // "Also: Сохранить инструменты" in a frame meant for Modrinth. The name comes from VANILLA's own
+            // translation table (deliberately — the player will go to THEIR Controls screen to fix it), so the
+            // only fix is to shoot in English.
+            step(2, () -> {
+                if (!"en_us".equals(mc.getLanguageManager().getLanguage())) {
+                    mc.getLanguageManager().setLanguage("en_us");
+                    mc.options.language = "en_us";
+                    mc.reloadResources();
+                    log.add("LANG  forced en_us for the shoot");
+                }
+            });
+            step(120, () -> {});   // the resource reload is asynchronous — let it land before anything is shot
+
+            // Zoom ships on C, and so does vanilla's Save Toolbar Activator — so the popover, correctly, warns
+            // about it. That warning is a real thing the OWNER still has to rule on (keep C, or move it), and
+            // until he does, a gallery frame is not the place to hold the argument. The vanilla binding is
+            // moved out of the way for the shoot only: no options.write() is called, so nothing on disk
+            // changes and the next launch is exactly as it was.
+            step(2, () -> {
+                var toolbar = mc.options.saveToolbarActivatorKey;
+                if (toolbar != null && !toolbar.isUnbound()) {
+                    toolbar.setBoundKey(net.minecraft.client.util.InputUtil.UNKNOWN_KEY);
+                    net.minecraft.client.option.KeyBinding.updateKeysByCode();
+                    log.add("STAGE unbound vanilla Save Toolbar Activator (in memory only) — see the C-key question");
+                }
+            });
+
             // ---- the camera: everything the player's own settings would otherwise dictate ----
             step(10, () -> {
                 mc.options.getGraphicsMode().setValue(GraphicsMode.FANCY);
@@ -244,12 +275,9 @@ public final class ClubPromo {
             // (facing west, yaw ~90-120, so the low sun rakes across the frame instead of blinding it) and
             // ~800-1500 in the morning (facing east, yaw ~270-300).
             scene(new Scene("hero-peaks", peaks, 12250L, 112f, -8f, 18, () -> {
-                mc.setScreen(new ClubMenuScreen());
-                Screen s = mc.currentScreen;
-                if (s != null) {
-                    tap(s, GLFW_KEY_TAB, 0);                    // into the search zone
-                    tap(s, GLFW_KEY_TAB, GLFW_MOD_CONTROL);     // → next category: Visuals
-                }
+                ClubMenuScreen m = new ClubMenuScreen();
+                mc.setScreen(m);
+                m.selectCategory("Visuals");    // by NAME — the menu reopens wherever the player last was
             }));
             scene(new Scene("world-peaks", peaks, 12250L, 112f, -8f, 18,
                     () -> mc.setScreen(null)));                            // …and the same vantage, with the HUD
@@ -257,13 +285,30 @@ public final class ClubPromo {
             // and a HUD chip left in the plate would sit under the headline looking like a leftover.
             scene(new Scene("plate-peaks", peaks, 12250L, 112f, -8f, 18, () -> {
                 mc.setScreen(null);
-                ClubConfig.Hud h = ClubConfig.get().hud;
-                h.armor = h.potions = h.target = h.info = h.sprint = false;
+                hud(false);
             }));
-            scene(new Scene("hud-cherry", pretty, 1200L, 290f, -9f, 10,
+            // …and give it straight back. The first cut of this scene turned the HUD off and never turned it
+            // on again, so every frame AFTER the plate — the popover, the HUD shot, the editor — was silently
+            // shot with no HUD in it. A scene that changes global state owns putting it back.
+            step(2, () -> hud(true));
+            // Zoom's popover, open, over the ridge: Hold key / Strength / Smoothness — the rows the frame is
+            // about. Reached the way the harness reaches it (Tab into the grid, Space to open), because that
+            // path is already proven and a promo run must not invent its own way to drive the menu.
+            scene(new Scene("zoom-popover", peaks, 12250L, 112f, -8f, 18, () -> {
+                ClubMenuScreen m = new ClubMenuScreen();
+                mc.setScreen(m);
+                m.selectCategory("Visuals");                // Zoom is the first card there
+                tap(m, GLFW_KEY_TAB, 0);                    // → search
+                tap(m, GLFW_KEY_TAB, 0);                    // → grid, first card
+                tap(m, GLFW_KEY_SPACE, 0);                  // open its popover
+            }));
+
+            scene(new Scene("hud-cherry", pretty, 1400L, 250f, -14f, 6,
                     () -> mc.setScreen(null)));                            // the HUD, at first light, in pink
-            scene(new Scene("hud-taiga", deep, 12500L, 100f, -6f, 12,
+            scene(new Scene("hud-taiga", deep, 12500L, 100f, -16f, 5,
                     () -> mc.setScreen(null)));
+            scene(new Scene("editor-taiga", deep, 12500L, 100f, -16f, 5,
+                    () -> mc.setScreen(new HudEditorScreen())));           // drag it where you want it
         }
 
         /** One staged frame: find the biome, stand there, set the hour, wait for the world to actually be
@@ -294,9 +339,13 @@ public final class ClubPromo {
             // the first run produced. Wait for the SERVER to have done the teleport, then for the world to
             // actually be there under the camera, then a beat more for the light to settle (Iris compiles its
             // shaders on the first frames here too).
-            until(400, this::serverIdle);
+            // Generous, because the thing being waited on is honest work: a teleport a thousand blocks away
+            // makes the server generate terrain it has never seen, and that took longer than the first cut's
+            // 20-second gate — so three frames were shot at the PREVIOUS location and nobody noticed until the
+            // report was read line by line. A gate that gives up early is worse than no gate.
+            until(1200, this::serverIdle);
             step(40, () -> {});
-            until(1200, this::worldReady);
+            until(2400, this::worldReady);
             step(20, () -> {
                 if (mc.player == null) return;
                 mc.player.setYaw(s.yaw()); mc.player.setPitch(s.pitch());
@@ -329,6 +378,12 @@ public final class ClubPromo {
             int n = mc.world.getChunkManager().getLoadedChunkCount();
             if (n == lastChunks && n > 0) stableFor++; else { stableFor = 0; lastChunks = n; }
             return stableFor >= 30;
+        }
+
+        /** Every Club HUD element, on or off — the plate frame needs a world with nothing of ours in it. */
+        private static void hud(boolean on) {
+            ClubConfig.Hud h = ClubConfig.get().hud;
+            h.armor = h.potions = h.target = h.info = h.sprint = on;
         }
 
         /** Everything that isn't the player leaves the frame. Mobs are the fastest way to make a promo shot

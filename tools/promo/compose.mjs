@@ -40,6 +40,7 @@ const T = {
   textHi: '#F4F6FA',
   text: '#A6ADBB',      // the muted line of the pair — the menu's own hierarchy
   faint: '#8E97A8',
+  good: '#2ECC71',
   cat: { visuals: '#9E8BD9', player: '#7FBFA6', combat: '#C9808A', misc: '#8C9BB5' },
 }
 
@@ -56,8 +57,13 @@ const font = (f) => `url(data:font/ttf;base64,${b64(join(REPO, 'tools', 'fonts',
 // stood on the clean one, because the menu dims the world behind it in game (correct there, useless here).
 const MENU_PANEL = [300, 160, 1320, 760]
 
+// The Zoom popover and the editor's toolbar sit on the same fixed canvas, so their rectangles are constants
+// too — read off the frames, not guessed.
+const ZOOM_POPOVER = [714, 538, 496, 292]     // Strength · Smoothness · Hold key · Reset — the whole sheet
+const EDITOR_TOOLBAR = [600, 8, 762, 112]   // the floating toolbar itself: Grid snap · Reset · Done
+
 const SCENES = {
-  hero: {
+  '01-hero': {
     src: 'promo-02-plate-peaks.png',                 // the clean plate: the ridge, and nothing of ours in it
     // In the mod's voice: plain, concrete, understated. It does not sell, it states — the same register the
     // menu is written in ("Hold to magnify", "Reset to Default"), not a slogan with a pun in it.
@@ -67,6 +73,59 @@ const SCENES = {
     // The panel sits WHOLE in the frame, with air around it. Bleeding it off the right edge cropped the
     // search field and the version line mid-word — which reads as a mistake, not as a device (owner).
     inset: { from: 'promo-00-hero-peaks.png', crop: MENU_PANEL, zoom: 0.68, bleed: 104 },
+  },
+
+  '02-zoom': {
+    src: 'promo-02-plate-peaks.png',
+    eyebrow: 'VISUALS / ZOOM',
+    title: 'Hold to magnify.\nYour aim slows with it.',
+    cat: 'visuals',
+    inset: { from: 'promo-03-zoom-popover.png', crop: ZOOM_POPOVER, zoom: 1.6, bleed: 130 },
+  },
+
+  '03-hud': {
+    // The ridge again, but this time with the HUD in it — the chips ARE the subject, so the frame has to be
+    // one where they are actually alive: worn armour, running effect timers, the sprint chip.
+    src: 'promo-01-world-peaks.png',
+    eyebrow: 'HUD',
+    title: 'Armour, effects, target.\nWhere you put them.',
+    cat: 'player',
+    inset: { from: 'promo-01-world-peaks.png', crop: [0, 280, 260, 290], zoom: 2.3, bleed: 140 },
+  },
+
+  '04-editor': {
+    src: 'promo-05-hud-taiga.png',
+    eyebrow: 'HUD EDITOR',
+    title: 'Drag it. Snap it.\nNudge it a pixel.',
+    cat: 'player',
+    inset: { from: 'promo-06-editor-taiga.png', crop: EDITOR_TOOLBAR, zoom: 1.85, bleed: 110 },
+  },
+
+  // Two frames whose subject is a NUMBER, not a screenshot — drawn in the mod's own card language instead of
+  // photographed. A picture of a profiler is a picture of a profiler; it is not a picture of a fast mod.
+  '05-perf': {
+    src: 'promo-02-plate-peaks.png',
+    eyebrow: 'PERFORMANCE',
+    title: 'It costs you\nalmost nothing.',
+    cat: 'misc',
+    card: {
+      rows: [
+        { k: 'GL draw calls per frame', was: '43', now: '11' },
+        { k: 'HUD draw time', was: '1.25 ms', now: '0.45 ms' },
+      ],
+      foot: 'Measured in-game on every build — and asserted, so it fails its own test if it creeps back.',
+    },
+  },
+
+  '06-compat': {
+    src: 'promo-05-hud-taiga.png',
+    eyebrow: 'COMPATIBILITY',
+    title: 'Drops into\nyour modpack.',
+    cat: 'misc',
+    card: {
+      list: ['Sodium', 'Iris + shaders', 'Freecam'],
+      foot: 'These frames were shot with all three running. Client-side only — installs on no server.',
+    },
   },
 }
 
@@ -78,6 +137,30 @@ function page(scene) {
   const accent = T.cat[scene.cat] ?? T.accent
 
   let insetHtml = ''
+  if (scene.card) {
+    const c = scene.card
+    const rows = (c.rows ?? []).map(r => `
+      <div class="cRow">
+        <span class="cK">${r.k}</span>
+        <span class="cWas">${r.was}</span>
+        <span class="cArrow">→</span>
+        <span class="cNow">${r.now}</span>
+      </div>`).join('')
+    const list = (c.list ?? []).map(n => `
+      <div class="cRow">
+        <svg class="cTick" viewBox="0 0 16 16" fill="none" stroke="${T.good}" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 5"/></svg>
+        <span class="cName">${n}</span>
+      </div>`).join('')
+    insetHtml = `
+      <div class="inset card" style="right:${c.right ?? 120}px">
+        <div class="insetGlow" style="background:${accent}"></div>
+        <div class="cardBody">
+          ${rows}${list}
+          <div class="cFoot">${c.foot}</div>
+        </div>
+      </div>`
+  }
   if (scene.inset) {
     const from = join(RAW, scene.inset.from)
     const [cx, cy, cw, ch] = scene.inset.crop
@@ -166,6 +249,23 @@ function page(scene) {
                 box-shadow:0 48px 120px rgba(0,0,0,.72), 0 0 0 1px rgba(255,255,255,.04) inset; }
     /* the quadratic halo the mod itself uses under its panels — allowed here, at promo strength */
     .insetGlow { position:absolute; inset:-14%; border-radius:40px; filter:blur(90px); opacity:.24 }
+
+    /* ---- the drawn card (perf, compat): the menu's own surface, edge and radius ---- */
+    .card { width:660px }
+    .cardBody { position:relative; background:#0F1624; border:1px solid #2A3550; border-radius:16px;
+                padding:34px 38px; box-shadow:0 48px 120px rgba(0,0,0,.72); }
+    .cRow { display:flex; align-items:center; gap:16px; padding:16px 0; border-top:1px solid #1C2740 }
+    .cRow:first-child { border-top:0; padding-top:4px }
+    .cK { flex:1; font-size:20px; font-weight:400; color:#A6ADBB }
+    .cWas { font-size:22px; font-weight:500; color:#5A6273; text-decoration:line-through;
+            font-variant-numeric:tabular-nums }
+    .cArrow { font-size:19px; color:#5A6273 }
+    .cNow { font-size:34px; font-weight:600; color:${T.textHi}; font-variant-numeric:tabular-nums;
+            min-width:112px; text-align:right }
+    .cTick { width:20px; height:20px; flex:0 0 auto }
+    .cName { font-size:26px; font-weight:500; color:${T.textHi} }
+    .cFoot { margin-top:22px; padding-top:20px; border-top:1px solid #1C2740;
+             font-size:16px; line-height:1.5; color:#5A6273 }
   </style>
 
   <div class="frame">
