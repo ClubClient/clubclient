@@ -8,7 +8,14 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.option.GraphicsMode;
 import net.minecraft.client.util.ScreenshotRecorder;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.resource.DataConfiguration;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -19,10 +26,16 @@ import net.minecraft.world.GameRules;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
+import net.minecraft.world.gen.GeneratorOptions;
+import net.minecraft.world.gen.WorldPresets;
+import net.minecraft.world.level.LevelInfo;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
+
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_TAB;
+import static org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL;
 
 /**
  * The promo director (dev only — {@code CLUB_PROMO=1}, inert otherwise): drives the client to a scenic
@@ -56,8 +69,18 @@ public final class ClubPromo {
         ClientTickEvents.END_CLIENT_TICK.register(d::tick);
     }
 
-    /** A staged frame: where to stand, when, which way to look, and what Club is showing. */
-    private record Scene(String name, RegistryKey<Biome> biome, long time, float yaw, float pitch,
+    /**
+     * The world the gallery is shot in. NOT the owner's dev world — that one is SUPERFLAT, which is the real
+     * reason the first gallery was a green plain with mobs on it: there is nothing else in it to photograph.
+     * A promo world is generated from a fixed seed, so a re-shoot is a re-run and not a new set of pictures.
+     */
+    private static final String WORLD = "club-promo-world";
+    private static final long SEED = 4_073_942_105L;
+
+    /** A staged frame: where to stand, when, which way to look, and what Club is showing.
+     *  Biomes are a PREFERENCE LIST — terrain generation owes us nothing, so each scene names the vantage it
+     *  wants and the ones it will settle for. */
+    private record Scene(String name, List<RegistryKey<Biome>> biomes, long time, float yaw, float pitch,
                          int eyeUp, Runnable ui) {}
 
     private static final class Step {
@@ -73,10 +96,21 @@ public final class ClubPromo {
         private int cursor = -1, wait, waited, shotNo;
         private boolean built, finished;
 
+        private boolean creating;
+
         void tick(MinecraftClient client) {
             if (finished) return;
             if (cursor < 0) {
-                if (mc.player == null || mc.world == null || mc.getServer() == null) return;
+                // No world? Make one. The promo does not borrow the player's world — it generates its own,
+                // from a fixed seed, so what the gallery shows is reproducible and nobody's save is touched.
+                if (mc.world == null || mc.player == null) {
+                    if (!creating && mc.currentScreen != null && mc.getOverlay() == null) {
+                        creating = true;
+                        createWorld();
+                    }
+                    return;
+                }
+                if (mc.getServer() == null) return;
                 build(); cursor = 0; wait = 40;
                 return;
             }
@@ -97,6 +131,18 @@ public final class ClubPromo {
             wait = s.settle;
         }
 
+        /** Generate the promo world and drop into it — the vanilla "create world" path, without the screen. */
+        private void createWorld() {
+            log.add("CREATE " + WORLD + " (seed " + SEED + ")");
+            LevelInfo info = new LevelInfo(WORLD, GameMode.SPECTATOR, false, Difficulty.PEACEFUL,
+                    true, new GameRules(), DataConfiguration.SAFE_MODE);
+            GeneratorOptions gen = new GeneratorOptions(SEED, true, false);
+            mc.createIntegratedServerLoader().createAndStart(WORLD, info, gen,
+                    drm -> drm.get(RegistryKeys.WORLD_PRESET).getOrThrow(WorldPresets.DEFAULT)
+                              .createDimensionsRegistryHolder(),
+                    mc.currentScreen);   // where creation returns to if it fails
+        }
+
         private void step(int settle, Runnable r) { steps.add(new Step(r, settle)); }
         private void until(int timeout, BooleanSupplier g) { steps.add(new Step(g, timeout)); }
 
@@ -106,11 +152,23 @@ public final class ClubPromo {
             log.add("SHOT  " + file);
         }
 
-        /** Run on the server thread and block this tick's step until it has actually happened. */
+        /** Run a job on the SERVER thread. It does not happen now — it happens when that thread gets to it,
+         *  which is why every caller must then wait on {@link #serverIdle()}. The first cut of this director
+         *  didn't, and the screenshots came back before the teleport did: four photographs of empty sky. */
+        private volatile boolean serverDone = true;
+
         private void onServer(java.util.function.Consumer<MinecraftServer> job) {
             MinecraftServer server = mc.getServer();
-            if (server != null) server.execute(() -> job.accept(server));
+            if (server == null) { serverDone = true; return; }
+            serverDone = false;
+            server.execute(() -> {
+                try { job.accept(server); }
+                catch (Throwable t) { log.add("EXCEPTION on server: " + t); }
+                finally { serverDone = true; }
+            });
         }
+
+        private boolean serverIdle() { return serverDone; }
 
         private ServerPlayerEntity serverPlayer(MinecraftServer server) {
             return server.getPlayerManager().getPlayer(mc.player.getUuid());
@@ -133,13 +191,29 @@ public final class ClubPromo {
                 w.setWeather(6000, 0, false, false);                     // clear, and staying clear
                 purge(w);
                 ServerPlayerEntity sp = serverPlayer(server);
-                if (sp != null) sp.changeGameMode(GameMode.SPECTATOR);   // no hotbar, no hand, no gravity
+                if (sp == null) return;
+                sp.changeGameMode(GameMode.SPECTATOR);                   // no hotbar, no hand, no gravity
+                // A HUD with nothing in it sells nothing. The player is a spectator — invisible, weightless,
+                // and perfectly able to WEAR armour and carry effects, which is all our HUD reads. So the
+                // Armor and Effects chips have real, live, slightly-worn data in them, and nobody has to fake
+                // a screenshot.
+                sp.equipStack(EquipmentSlot.HEAD,  worn(Items.NETHERITE_HELMET, 0.18f));
+                sp.equipStack(EquipmentSlot.CHEST, worn(Items.NETHERITE_CHESTPLATE, 0.09f));
+                sp.equipStack(EquipmentSlot.LEGS,  worn(Items.DIAMOND_LEGGINGS, 0.34f));
+                sp.equipStack(EquipmentSlot.FEET,  worn(Items.DIAMOND_BOOTS, 0.51f));
+                // Long enough that the timers read like a session, not a test: the shoot itself takes minutes,
+                // and a chip counting down from 0:18 looks like something is about to break. No Night Vision —
+                // it fights the shaderpack's lighting, which is the one thing in frame we did not write.
+                sp.addStatusEffect(new StatusEffectInstance(StatusEffects.SPEED, 9600, 1, false, false));
+                sp.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 7200, 0, false, false));
+                sp.addStatusEffect(new StatusEffectInstance(StatusEffects.STRENGTH, 6000, 0, false, false));
             }));
 
             // ---- the camera: everything the player's own settings would otherwise dictate ----
             step(10, () -> {
                 mc.options.getGraphicsMode().setValue(GraphicsMode.FANCY);
-                mc.options.getViewDistance().setValue(20);        // a horizon, not a wall of fog
+                mc.options.getViewDistance().setValue(16);        // a horizon, not a wall of fog (and not a
+                                                                 // ten-minute wait for chunks that never show)
                 mc.options.getEntityShadows().setValue(true);
                 mc.options.getFov().setValue(70);
                 mc.options.getBobView().setValue(false);
@@ -150,14 +224,45 @@ public final class ClubPromo {
             step(20, () -> mc.setScreen(null));
 
             // ---- the frames ----
-            // Each is one scene: a place, an hour, a look — and one thing Club is doing there.
-            scene(new Scene("hero-peaks", BiomeKeys.JAGGED_PEAKS, 13200L, 140f, -4f, 2,
-                    () -> mc.setScreen(new ClubMenuScreen())));            // the menu, over a sunset ridge
-            scene(new Scene("world-peaks", BiomeKeys.JAGGED_PEAKS, 13200L, 140f, -4f, 2,
-                    () -> mc.setScreen(null)));                            // …and the same frame, clean
-            scene(new Scene("hud-cherry", BiomeKeys.CHERRY_GROVE, 23000L, 90f, 0f, 2,
-                    () -> mc.setScreen(null)));                            // the HUD, at dawn, in pink
-            scene(new Scene("hud-taiga", BiomeKeys.OLD_GROWTH_PINE_TAIGA, 12600L, 45f, -2f, 2,
+            // Each is one scene: a place, an hour, a look — and one thing Club is doing there. The camera
+            // stands a little above the surface and tips slightly down: a horizon at eye level is a postcard,
+            // a horizon a few degrees below you is a vantage.
+            List<RegistryKey<Biome>> peaks = List.of(
+                    BiomeKeys.JAGGED_PEAKS, BiomeKeys.SNOWY_SLOPES, BiomeKeys.MEADOW, BiomeKeys.WINDSWEPT_HILLS);
+            List<RegistryKey<Biome>> pretty = List.of(
+                    BiomeKeys.CHERRY_GROVE, BiomeKeys.MEADOW, BiomeKeys.FLOWER_FOREST, BiomeKeys.BIRCH_FOREST);
+            List<RegistryKey<Biome>> deep = List.of(
+                    BiomeKeys.OLD_GROWTH_PINE_TAIGA, BiomeKeys.OLD_GROWTH_SPRUCE_TAIGA, BiomeKeys.TAIGA, BiomeKeys.FOREST);
+
+            // The menu opens on Combat, which holds exactly one card — an empty grid is not the shot. Two taps
+            // put it on Visuals, the category that shows what the mod actually is. (The panel is opaque, so
+            // the scrim it draws over the world does not matter: the compositor cuts the panel out and stands
+            // it on the clean frame below.)
+            // The clock matters more than the place. Minecraft's day: 0 = dawn, 6000 = noon, 12000 = the sun
+            // touching the horizon, 13000+ = night. The first cut shot the cherry grove at 23200 — an hour
+            // before sunrise — and photographed a black field under a moon. Golden hour is ~12200-12600
+            // (facing west, yaw ~90-120, so the low sun rakes across the frame instead of blinding it) and
+            // ~800-1500 in the morning (facing east, yaw ~270-300).
+            scene(new Scene("hero-peaks", peaks, 12250L, 112f, -8f, 18, () -> {
+                mc.setScreen(new ClubMenuScreen());
+                Screen s = mc.currentScreen;
+                if (s != null) {
+                    tap(s, GLFW_KEY_TAB, 0);                    // into the search zone
+                    tap(s, GLFW_KEY_TAB, GLFW_MOD_CONTROL);     // → next category: Visuals
+                }
+            }));
+            scene(new Scene("world-peaks", peaks, 12250L, 112f, -8f, 18,
+                    () -> mc.setScreen(null)));                            // …and the same vantage, with the HUD
+            // The same vantage again with NOTHING of ours in it. The hero frame stands the menu on this one,
+            // and a HUD chip left in the plate would sit under the headline looking like a leftover.
+            scene(new Scene("plate-peaks", peaks, 12250L, 112f, -8f, 18, () -> {
+                mc.setScreen(null);
+                ClubConfig.Hud h = ClubConfig.get().hud;
+                h.armor = h.potions = h.target = h.info = h.sprint = false;
+            }));
+            scene(new Scene("hud-cherry", pretty, 1200L, 290f, -9f, 10,
+                    () -> mc.setScreen(null)));                            // the HUD, at first light, in pink
+            scene(new Scene("hud-taiga", deep, 12500L, 100f, -6f, 12,
                     () -> mc.setScreen(null)));
         }
 
@@ -170,18 +275,28 @@ public final class ClubPromo {
                 if (sp == null) return;
                 w.setTimeOfDay(s.time());
                 BlockPos from = w.getSpawnPos();
-                var found = w.locateBiome(e -> e.matchesKey(s.biome()), from, 6400, 32, 64);
-                BlockPos at = (found == null) ? from : found.getFirst();
+                BlockPos at = null;
+                for (RegistryKey<Biome> want : s.biomes()) {                  // first choice, then what we'll accept
+                    var found = w.locateBiome(e -> e.matchesKey(want), from, 3000, 32, 64);
+                    if (found != null) {
+                        at = found.getFirst();
+                        log.add("FOUND " + s.name() + " → " + want.getValue().getPath()
+                                + " @ " + at.getX() + "," + at.getZ());
+                        break;
+                    }
+                }
+                if (at == null) { at = from; log.add("MISS  " + s.name() + " — nothing within 3000 blocks, using spawn"); }
                 int y = w.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, at.getX(), at.getZ());
-                log.add((found == null ? "MISS  " : "FOUND ") + s.name() + " @ " + at.getX() + "," + y + "," + at.getZ());
                 sp.teleport(w, at.getX() + 0.5, y + s.eyeUp(), at.getZ() + 0.5, s.yaw(), s.pitch());
                 purge(w);   // the teleport loaded new chunks — and new chunks come with new mobs
             }));
-            // A screenshot taken before the terrain is built is a photograph of fog. Wait for the chunk
-            // count to STOP growing (Iris also compiles its shaders on the first frames here), then a beat
-            // more for the lighting to settle.
+            // A screenshot taken before the terrain is built is a photograph of fog — which is precisely what
+            // the first run produced. Wait for the SERVER to have done the teleport, then for the world to
+            // actually be there under the camera, then a beat more for the light to settle (Iris compiles its
+            // shaders on the first frames here too).
+            until(400, this::serverIdle);
             step(40, () -> {});
-            until(600, this::worldSettled);
+            until(1200, this::worldReady);
             step(20, () -> {
                 if (mc.player == null) return;
                 mc.player.setYaw(s.yaw()); mc.player.setPitch(s.pitch());
@@ -194,19 +309,43 @@ public final class ClubPromo {
 
         private int lastChunks, stableFor;
 
-        /** True once the client has stopped building chunks for a full second. */
-        private boolean worldSettled() {
-            if (mc.world == null) return false;
+        /**
+         * True once there is a WORLD in front of the camera — not merely a client that has finished loading
+         * whatever it happened to have.
+         *
+         * <p>Chunk-count alone is a liar: right after a teleport 1000 blocks away it sits perfectly stable at
+         * the number of chunks the client had BEFORE the teleport, so a "has it stopped changing?" gate passes
+         * instantly and the shutter fires on an empty sky. So this asks the question the photograph asks: is
+         * the chunk I am standing in real, is there ground under me, and has the client stopped streaming.</p>
+         */
+        private boolean worldReady() {
+            if (mc.world == null || mc.player == null) return false;
+            BlockPos p = mc.player.getBlockPos();
+            if (!mc.world.getChunkManager().isChunkLoaded(p.getX() >> 4, p.getZ() >> 4)) return false;
+            boolean ground = false;
+            for (int dy = 1; dy <= 48 && !ground; dy++)
+                if (!mc.world.getBlockState(p.down(dy)).isAir()) ground = true;
+            if (!ground) return false;
             int n = mc.world.getChunkManager().getLoadedChunkCount();
             if (n == lastChunks && n > 0) stableFor++; else { stableFor = 0; lastChunks = n; }
-            return stableFor >= 20;
+            return stableFor >= 30;
         }
 
         /** Everything that isn't the player leaves the frame. Mobs are the fastest way to make a promo shot
          *  look like a bug report. */
         private static void purge(ServerWorld w) {
+            // iterateEntities() walks live sections and can hand back a null — one NPE here aborted the sweep
+            // half-done, which is how a mob survives into a promo frame.
             for (var e : w.iterateEntities())
-                if (!(e instanceof ServerPlayerEntity)) e.discard();
+                if (e != null && !(e instanceof ServerPlayerEntity)) e.discard();
+        }
+
+        /** A used piece of armour. Full durability everywhere reads as a debug room; a worn set reads as a
+         *  session — and it gives the Armor chip's numbers something to actually say. */
+        private static ItemStack worn(net.minecraft.item.Item item, float used) {
+            ItemStack st = new ItemStack(item);
+            st.setDamage(Math.round(st.getMaxDamage() * used));
+            return st;
         }
 
         private void finish() {
@@ -221,7 +360,10 @@ public final class ClubPromo {
         }
     }
 
-    /** Unused hook kept for symmetry with the harness (screens are driven the same way there). */
-    @SuppressWarnings("unused")
-    private static void key(Screen s, int k) { if (s != null) { s.keyPressed(k, 0, 0); s.keyReleased(k, 0, 0); } }
+    /** A real tap: press AND release (the menu tracks held keys to tell a repeat from a fresh press). */
+    private static void tap(Screen s, int k, int mods) {
+        if (s == null) return;
+        s.keyPressed(k, 0, mods);
+        s.keyReleased(k, 0, mods);
+    }
 }

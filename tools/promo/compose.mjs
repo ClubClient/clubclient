@@ -50,27 +50,18 @@ const font = (f) => `url(data:font/ttf;base64,${b64(join(REPO, 'tools', 'fonts',
  * has to be READABLE in a Modrinth thumbnail, and at 1:1 in a 1920px frame it simply is not.
  *   crop: [x, y, w, h] in source pixels · at: where the inset sits · zoom: magnification
  */
+// The Club menu, as it sits in a 1920x1080 frame: the canvas is 960x540 Club units at 2 physical px each,
+// and the window is a fixed 660x380 dead centre — so the panel is exactly here. Cut from its own frame and
+// stood on the clean one, because the menu dims the world behind it in game (correct there, useless here).
+const MENU_PANEL = [300, 160, 1320, 760]
+
 const SCENES = {
   hero: {
-    src: 'promo-00-hero-peaks.png',
+    src: 'promo-02-plate-peaks.png',                 // the clean plate: the ridge, and nothing of ours in it
     eyebrow: 'FIRST-PERSON UTILITY CLIENT',
-    title: 'Everything you reach for.\nNone of the noise.',
+    title: 'Everything you reach for.\nNothing you didn\'t.',
     cat: 'visuals',
-    inset: null,
-  },
-  zoom: {
-    src: 'promo-01-world-peaks.png',
-    eyebrow: 'VISUALS / ZOOM',
-    title: 'Zoom that aims\nlike it should.',
-    cat: 'visuals',
-    inset: { from: 'promo-00-hero-peaks.png', crop: [700, 280, 520, 380], at: 'right', zoom: 1.6 },
-  },
-  hud: {
-    src: 'promo-02-hud-cherry.png',
-    eyebrow: 'HUD',
-    title: 'Your HUD.\nYour corners.',
-    cat: 'player',
-    inset: { from: 'promo-02-hud-cherry.png', crop: [0, 0, 460, 320], at: 'right', zoom: 1.8 },
+    inset: { from: 'promo-00-hero-peaks.png', crop: MENU_PANEL, zoom: 0.72, bleed: -24 },
   },
 }
 
@@ -87,8 +78,9 @@ function page(scene) {
     const [cx, cy, cw, ch] = scene.inset.crop
     const z = scene.inset.zoom
     const w = Math.round(cw * z), h = Math.round(ch * z)
+    const right = scene.inset.bleed ?? 96      // negative = the panel runs off the frame edge
     insetHtml = `
-      <div class="inset" style="width:${w}px;height:${h}px">
+      <div class="inset" style="width:${w}px;height:${h}px;right:${right}px">
         <div class="insetGlow" style="background:${accent}"></div>
         <div class="insetImg" style="
           background-image:url(data:image/png;base64,${b64(from)});
@@ -108,30 +100,31 @@ function page(scene) {
            font-family:'Onest',sans-serif; -webkit-font-smoothing:antialiased }
     .frame { position:absolute; inset:0 }
 
-    /* The world, graded. Filmic: lift the contrast, hold the saturation, drop the overall level so type and
-       interface have somewhere to live. The mod's UI is flat and calm — the photograph behind it must not
-       fight it. */
+    /* The world, graded. The shaderpack already did the hard part — this is a grade, not a rescue: hold the
+       contrast, deepen it slightly, and drop the level so the panel and the type have somewhere to live.
+       (First cut lifted brightness AND piled on bloom, and the mountain dissolved into milk. A promo grade
+       that erases the thing you photographed is just an expensive blur.) */
     .world { position:absolute; inset:0; background:url(${bg}) center/cover no-repeat;
-             filter:contrast(1.10) saturate(1.06) brightness(0.86); }
+             filter:contrast(1.14) saturate(1.04) brightness(0.74); }
 
-    /* Bloom: the highlights, blurred and screened back over themselves. This is the single effect that
-       reads as "cinematic" rather than "screenshot". */
+    /* Bloom, from the HIGHLIGHTS only: crush everything below the top of the range to black first, so the
+       glow comes off the sun and the fog and nothing else. Restraint is what separates it from a smear. */
     .bloom { position:absolute; inset:0; background:url(${bg}) center/cover no-repeat;
-             filter:brightness(1.9) contrast(1.5) saturate(1.1) blur(26px);
-             mix-blend-mode:screen; opacity:.34; }
+             filter:brightness(2.4) contrast(3.2) saturate(.9) blur(34px);
+             mix-blend-mode:screen; opacity:.15; }
 
     /* Warm the light, cool the shadows — the oldest trick in colour and still the most effective. */
-    .split { position:absolute; inset:0; mix-blend-mode:soft-light; opacity:.5;
-             background:linear-gradient(160deg, rgba(255,196,128,.55), rgba(0,0,0,0) 45%,
-                                                rgba(64,120,200,.5)); }
+    .split { position:absolute; inset:0; mix-blend-mode:soft-light; opacity:.32;
+             background:linear-gradient(160deg, rgba(255,190,120,.5), rgba(0,0,0,0) 50%,
+                                                rgba(60,110,190,.45)); }
 
     .vignette { position:absolute; inset:0;
-                background:radial-gradient(120% 90% at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.62) 100%); }
+                background:radial-gradient(125% 95% at 52% 42%, rgba(0,0,0,0) 40%, rgba(0,0,0,.72) 100%); }
 
     /* A scrim only where the type is. A full-frame darkening would kill the picture we just staged. */
     .scrim { position:absolute; inset:0;
-             background:linear-gradient(75deg, rgba(5,8,13,.88) 0%, rgba(5,8,13,.55) 30%,
-                                               rgba(5,8,13,0) 58%); }
+             background:linear-gradient(72deg, rgba(5,8,13,.92) 0%, rgba(5,8,13,.6) 26%,
+                                               rgba(5,8,13,0) 54%); }
 
     .grain { position:absolute; inset:0; opacity:.055; mix-blend-mode:overlay;
              background-image:url("data:image/svg+xml;utf8,\
@@ -140,7 +133,7 @@ function page(scene) {
 <rect width='220' height='220' filter='url(%23n)'/></svg>"); }
 
     /* ---- type ---- */
-    .type { position:absolute; left:104px; bottom:96px; width:760px; }
+    .type { position:absolute; left:104px; bottom:104px; width:880px; }
     .mark { display:flex; align-items:center; gap:10px; margin-bottom:26px; }
     .mark svg { width:22px; height:22px; }
     .mark span { font-weight:600; font-size:17px; letter-spacing:.34em; color:${T.textHi}; opacity:.9 }
@@ -152,7 +145,7 @@ function page(scene) {
     h1 .dim { color:${T.faint} }
 
     /* ---- inset ---- */
-    .inset { position:absolute; right:96px; top:50%; transform:translateY(-50%); }
+    .inset { position:absolute; top:50%; transform:translateY(-50%); }
     .insetImg { position:absolute; inset:0; border-radius:16px;
                 border:1px solid rgba(124,171,255,.22);
                 box-shadow:0 48px 120px rgba(0,0,0,.72), 0 0 0 1px rgba(255,255,255,.04) inset; }
