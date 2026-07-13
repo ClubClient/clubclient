@@ -49,7 +49,15 @@ public final class ClubHarness {
 
     private static final class Step {
         final Runnable action; final int settle;
-        Step(Runnable a, int s) { action = a; settle = s; }
+        /** A GATE step (Stage 64): it is evaluated every tick and the script does not advance until it
+         *  returns true — or until {@code timeout} ticks have passed, which is a REPORTABLE outcome, not a
+         *  silent one. Measuring after a fixed number of ticks is what let the profiler read a client that
+         *  was still building chunk meshes and JIT-compiling, and call that number the mod's cost. */
+        final java.util.function.BooleanSupplier until; final int timeout;
+        Step(Runnable a, int s) { this(a, s, null, 0); }
+        Step(Runnable a, int s, java.util.function.BooleanSupplier u, int t) {
+            action = a; settle = s; until = u; timeout = t;
+        }
     }
 
     private static final class Harness {
@@ -60,21 +68,67 @@ public final class ClubHarness {
         private int wait;
         private int shotNo, passed, failed;
         private int prevGuiScale = 2;   // restored after the squeezed-window scene
-        private int fpsOff, fpsOn, offN, onN;
         private boolean built, finished;
+        private int gateTicks;
+        private boolean gateTimedOut;
 
-        /** Silence every Club HUD element (the mod's entire in-world draw) for the A/B measurement. */
-        private void hudOff(boolean off) {
-            ClubConfig.Hud h = ClubConfig.get().hud;
-            if (off) {
-                hudWas = new boolean[] {h.armor, h.potions, h.target, h.info, h.sprint};
-                h.armor = h.potions = h.target = h.info = h.sprint = false;
-            } else if (hudWas != null) {
-                h.armor = hudWas[0]; h.potions = hudWas[1]; h.target = hudWas[2];
-                h.info = hudWas[3]; h.sprint = hudWas[4];
+        /** The two measurement windows of the profiler self-test (Stage 64). */
+        private com.club.modules.perf.HudProfiler.Snapshot statsA, statsB;
+        private final Settle settle = new Settle();
+
+        /** Relative disagreement between two readings of the same thing — the instrument's error bar. */
+        private static double spread(double x, double y) {
+            double lo = Math.min(x, y);
+            return lo <= 0 ? 1.0 : Math.abs(x - y) / lo;
+        }
+
+        /**
+         * WAIT UNTIL THE READING STOPS MOVING — the fix for the bug that produced 0.45 ms and 1.22 ms from
+         * the same build (Stage 64).
+         *
+         * <p>The old script warmed up for a fixed 60 ticks and then measured. That is not a warm-up, it is a
+         * guess. The first measured window ran at 85 fps and the second, in the same static scene seconds
+         * later, at 207 — the client was still JIT-compiling and building chunk meshes, and every phase was
+         * inflated by the same ~2.4x, INCLUDING the pure-CPU raycast and layout, which cannot possibly care
+         * about the GPU. We were timing a busy machine and printing it as the mod's cost.
+         *
+         * <p>So: probe in short windows, and open only once three consecutive windows agree within 12%. If
+         * they never do, the gate TIMES OUT — and the run then reports INVALID and asserts nothing, because
+         * a number from a machine that never settled is not evidence about the mod.
+         *
+         * <p>It converges on the SHARE OF THE FRAME, not on the millisecond, and that distinction is the
+         * whole finding of this stage. Measured across four windows in two sessions, one machine, one static
+         * scene: the HUD's median cost was 0.31, 0.60, 0.72, 0.83 ms — a 2.7x spread — because the client
+         * itself ran at 76, 96, 114 and 207 fps depending on what else the machine was doing. Its share of
+         * the frame over those same four windows: 6.4%, 5.7%, 6.1%, 6.3%. The millisecond was the machine.
+         * The share is the mod.
+         */
+        private final class Settle implements java.util.function.BooleanSupplier {
+            static final int PROBE = 60;              // ticks per probe window (~3 s)
+            private static final int NEEDED = 2;      // consecutive agreeing pairs => 3 agreeing windows
+            private static final double TOLERANCE = 0.12;
+
+            private int t;
+            private double prev = -1;
+            private int agreed;
+            int windows;                              // how long the machine took — worth printing
+            double lastShare, lastMs, lastFps;
+
+            @Override public boolean getAsBoolean() {
+                if (t == 0) com.club.hud.HudManager.profile(true);
+                if (++t < PROBE) return false;
+
+                var s = com.club.hud.HudManager.stats();
+                com.club.hud.HudManager.profile(false);
+                t = 0; windows++;
+                lastShare = s.share(); lastMs = s.medianMs(); lastFps = s.fps();
+                if (s.frames() < 30 || lastShare <= 0) { prev = -1; agreed = 0; return false; }
+
+                if (prev > 0 && spread(prev, lastShare) <= TOLERANCE) agreed++; else agreed = 0;
+                prev = lastShare;
+                return agreed >= NEEDED;
             }
         }
-        private boolean[] hudWas;
 
         void tick(MinecraftClient client) {
             if (finished) return;
@@ -87,7 +141,17 @@ public final class ClubHarness {
             }
             if (wait-- > 0) return;
             if (cursor >= steps.size()) { finish(); return; }
-            Step s = steps.get(cursor++);
+            Step s = steps.get(cursor);
+            if (s.until != null) {   // a gate: hold the script here until it opens (or gives up)
+                gateTicks++;
+                boolean open;
+                try { open = s.until.getAsBoolean(); }
+                catch (Throwable t) { report.add("EXCEPTION in gate " + cursor + ": " + t); open = true; }
+                if (!open && gateTicks < s.timeout) return;
+                gateTimedOut = !open;
+                gateTicks = 0;
+            }
+            cursor++;
             try { s.action.run(); } catch (Throwable t) { report.add("EXCEPTION in step " + (cursor - 1) + ": " + t); }
             wait = s.settle;
         }
@@ -95,6 +159,10 @@ public final class ClubHarness {
         // ---- helpers -----------------------------------------------------------
 
         private void step(int settle, Runnable r) { steps.add(new Step(r, settle)); }
+        /** Hold the script here until {@code cond} opens, at most {@code timeout} ticks, then run {@code then}. */
+        private void gate(java.util.function.BooleanSupplier cond, int timeout, Runnable then) {
+            steps.add(new Step(then, 2, cond, timeout));
+        }
         private void check(String name, boolean cond) {
             report.add((cond ? "PASS  " : "FAIL  ") + name);
             if (cond) passed++; else failed++;
@@ -430,32 +498,83 @@ public final class ClubHarness {
 
             // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
 
-            // ===== COST OF THE MOD, MEASURED (Stage 59) =====
-            // The owner asked whether it holds up under load. Everything the mod draws in-world goes
-            // through the HUD callback, so measure frames with it ON vs fully OFF, in the same world, in
-            // the same session. Noisy by nature (it's a real client), so this REPORTS rather than asserts
-            // — it fails only on a cost big enough that no noise could explain it.
-            // Time the DRAW ITSELF, not the frame rate: watching the fps counter mostly measured the world
-            // (chunks, mobs, the time of day) and swung the same build between 0.3 and 1.1 ms run to run.
+            // ===== THE INSTRUMENT MEASURES ITSELF FIRST (Stage 64) =====
+            // The old step here reported a MEAN of one accumulator and asserted "< 0.8 ms". It shipped a
+            // number (0.45 ms) that the same build could not reproduce — the repo's own last report says
+            // 1.22 ms at the identical 11 draws, and Stage 63 accepted a change on a 1.20 -> 1.06 "win"
+            // that was inside that spread. A mean over a window that contains one chunk-upload hitch is a
+            // measurement of the hitch. So: no millisecond is asserted here until the instrument can
+            // repeat itself, and THAT is what this step now checks — twice, back to back, same scene.
+            //
+            // Zero must be able to mean BROKEN, not only "nothing to measure": the draw counters are
+            // deterministic, so they must agree between the two windows EXACTLY, and the icon draws the
+            // old counter was blind to are now in the number.
             step(2, () -> mc.setScreen(null));
-            step(60, () -> {});                                    // warm up: chunks built, JIT settled
+            // The gate, not a fixed wait: probe until three consecutive windows agree (max ~40 s).
+            gate(settle, 800, () -> report.add(String.format(
+                    "INFO  settle: the reading stopped moving after %d probe windows "
+                    + "(%.0f fps, %.3f ms, share %.2f%%)%s",
+                    settle.windows, settle.lastFps, settle.lastMs, settle.lastShare * 100,
+                    gateTimedOut ? " — TIMED OUT, this run is INVALID" : "")));
             step(2, () -> com.club.hud.HudManager.profile(true));
-            step(120, () -> {});                                   // ~6s of real frames with the full HUD up
+            step(120, () -> {});                                   // window A — ~6 s of real frames
+            step(2, () -> { statsA = com.club.hud.HudManager.stats(); com.club.hud.HudManager.profile(false); });
+            step(10, () -> {});
+            step(2, () -> com.club.hud.HudManager.profile(true));
+            step(120, () -> {});                                   // window B — the same thing again
+            step(2, () -> { statsB = com.club.hud.HudManager.stats(); com.club.hud.HudManager.profile(false); });
             step(2, () -> {
-                double ms = com.club.hud.HudManager.avgDrawMs();
-                double calls = com.club.hud.HudManager.avgDraws();
-                double shapes = com.club.hud.HudManager.avgShapeDraws();
-                double texts = com.club.hud.HudManager.avgTextDraws();
-                int n = com.club.hud.HudManager.profiledFrames();
-                com.club.hud.HudManager.profile(false);   // (read EVERY number BEFORE this — it resets them)
-                report.add(String.format("INFO  draw cost: the Club HUD takes %.3f ms/frame in %.0f GL draw calls "
-                                + "(%.0f shape + %.0f text; %.0f us each; mean of %d frames, backend %s)",
-                        ms, calls, shapes, texts, calls > 0 ? ms * 1000 / calls : 0, n, com.club.ui.Ui.backend()));
-                // Was 43 draws / ~1.25 ms — one GL call per shape, and 33 of them just TABULAR DIGITS.
-                // Batching both (Stage 61) took it to ~11 calls / ~0.45 ms. These guard that: a draw-call
-                // count creeping back up is the regression that matters, and it shows up here first.
-                check("perf: the in-world HUD draw stays under 0.8 ms/frame", n > 100 && ms < 0.8);
-                check("perf: …in a handful of GL draw calls, not one per shape", calls <= 16);
+                var a = statsA; var b = statsB;
+                if (a == null || b == null || a.frames() < 100 || b.frames() < 100) {
+                    check("perf: the profiler saw two full windows", false);
+                    return;
+                }
+                // A benchmark that cannot fail honestly must refuse to pass: if the machine never settled,
+                // the numbers get PRINTED (they are diagnostic) but nothing is asserted from them.
+                if (gateTimedOut)
+                    report.add("INVALID  the machine never settled — the numbers below describe this run's "
+                            + "load, not the mod. No perf assert is made from them.");
+                for (var w : new Object[][] {{"A", a}, {"B", b}}) {
+                    var s = (com.club.modules.perf.HudProfiler.Snapshot) w[1];
+                    report.add(String.format(
+                            "INFO  hud cost, window %s: SHARE %.2f%% of a frame — %.3f ms of a %.2f ms frame "
+                            + "(%.0f fps) — raycast %.3f | layout %.3f | build %.3f | submit %.3f "
+                            + "(mean %.3f, p95 %.3f, max %.3f; %d frames)",
+                            w[0], s.share() * 100, s.medianMs(), s.frameMs(), s.fps(),
+                            s.raycastMs(), s.layoutMs(), s.buildMs(), s.submitMs(),
+                            s.meanMs(), s.p95Ms(), s.maxMs(), s.frames()));
+                }
+                report.add(String.format(
+                        "INFO  gl draws/frame: %.1f (%.1f shape + %.1f text + %.1f icons) — backend %s. "
+                        + "Icons go out through vanilla's immediate path; the old counter could not see them.",
+                        a.glDraws(), a.shapeDraws(), a.textDraws(), a.iconDraws(), com.club.ui.Ui.backend()));
+
+                // THE INSTRUMENT'S OWN TEST — and the whole point of this stage. A number that cannot be
+                // produced twice in one session, on one machine, in one static scene, is not a measurement
+                // of the mod, and every conclusion drawn from it (including the owner's Stage-63 "win") is
+                // a conclusion about the weather. The millisecond fails this test; the share passes it.
+                double msSpread = spread(a.medianMs(), b.medianMs());
+                double shareSpread = spread(a.share(), b.share());
+                report.add(String.format("INFO  instrument: the SHARE repeats to %.1f%%, the millisecond only "
+                        + "to %.1f%% (the two windows ran at %.0f and %.0f fps — that is the millisecond's "
+                        + "whole story). Tail skew %.2f / %.2f.",
+                        shareSpread * 100, msSpread * 100, a.fps(), b.fps(), a.tailSkew(), b.tailSkew()));
+                if (gateTimedOut)
+                    report.add("SKIP  perf: the instrument repeats itself (the run is INVALID — see above)");
+                else
+                    check(String.format("perf: the instrument repeats itself — two windows, one scene, the "
+                            + "HUD's share of the frame within 20%% (%.1f%%)", shareSpread * 100),
+                            shareSpread <= 0.20);
+
+                // Deterministic counters have no excuse at all: the same HUD in the same scene draws the
+                // same number of times. If these ever disagree, the counter is lying, not the machine.
+                check(String.format("perf: the GL draw count is deterministic (%.1f vs %.1f)",
+                                a.glDraws(), b.glDraws()),
+                        Math.abs(a.glDraws() - b.glDraws()) < 0.5);
+                // …and it must actually SEE the icons. Zero here would mean the counter is blind again —
+                // the armour chip is always drawn in this world (the probe element asserts it has a box).
+                check("perf: the icon draws are counted, not invisible (" + Math.round(a.iconDraws()) + "/frame)",
+                        a.iconDraws() > 0);
             });
 
             // ===== VISUAL SCENES =====

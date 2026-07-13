@@ -45,6 +45,12 @@ public final class PixelIcons {
     private static final Map<Identifier, Baked> baked = new HashMap<>();
     private static final Set<Identifier> failed = new HashSet<>();
 
+    /** Icons drawn since the last reset. Each one is a REAL GL draw the V2 backend never sees: it goes out
+     *  through vanilla's immediate path, and every icon carries its own texture, so every icon forces its
+     *  own RenderLayer and its own flush. The profiler counted only the backend's batches and therefore
+     *  under-reported the HUD's draw calls by exactly this many (Stage 64). Reset per frame by HudManager. */
+    public static int DRAWS;
+
     /** The current frame's DrawContext (HudManager / HudEditorScreen, right after Ui.beginFrame). */
     public static void set(DrawContext c) { dc = c; }
 
@@ -83,6 +89,7 @@ public final class PixelIcons {
         dc.drawTexture(bk.tex(), 0, 0, 0f, 0f, srcSize, srcSize, srcSize, srcSize);
         m.pop();
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        DRAWS++;
         return true;
     }
 

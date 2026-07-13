@@ -1,6 +1,7 @@
 package com.club.hud;
 
 import com.club.config.ClubConfig;
+import com.club.modules.perf.HudProfiler;
 import com.club.modules.screenstretch.ScreenStretchModule;
 import com.club.ui.Ui;
 import com.club.ui.component.UiContextImpl;
@@ -62,7 +63,8 @@ public final class HudManager {
 
             if (mc.options.hudHidden && !promo) return;
             if (mc.currentScreen != null && mc.currentScreen.shouldPause()) return;
-            long t0 = profiling ? System.nanoTime() : 0L;
+            boolean prof = HudProfiler.armed();
+            long t0 = prof ? System.nanoTime() : 0L;
 
             // V2 HUD (Effects / Target / Info / Armor); duotone icons draw through the PixelIcons DrawContext seam.
             //
@@ -78,45 +80,44 @@ public final class HudManager {
             Ui.beginFrame(ctx, k);
             PixelIcons.set(ctx);   // duotone icons draw through this DrawContext
             UI.setTime((System.nanoTime() - START) / 1_000_000_000f);
+
+            // The frame, cut into the four things it actually does — so the profiler can say WHERE the
+            // time goes instead of handing us one number to guess about (Stage 64). The stamps are taken
+            // only while a measurement window is open.
             TargetHud.frame(mc, tickCounter.getTickDelta(true));   // one crosshair raycast per frame, real partial tick
+            long t1 = prof ? System.nanoTime() : 0L;               // ── RAYCAST
             HudSpace.migrate(mc);   // once: saved positions were absolute GUI pixels of the old space
             CANVAS.setScreen(com.club.ui.ClubCanvas.widthI(mc), com.club.ui.ClubCanvas.heightI());
             CANVAS.layoutFromConfig(mc);
+            long t2 = prof ? System.nanoTime() : 0L;               // ── LAYOUT
             CANVAS.render(UI);
             com.club.ui.LegacyNotice.draw(UI, com.club.ui.ClubCanvas.width(mc));   // loud fallback plaque
+            long t3 = prof ? System.nanoTime() : 0L;               // ── BUILD (shaping + geometry)
             Ui.endFrame();   // submit the batched shapes — nothing else will (Stage 61)
+            long t4 = prof ? System.nanoTime() : 0L;               // ── SUBMIT (the driver's time, not ours)
             ctx.getMatrices().pop();
 
-            if (profiling) {
-                accNanos += System.nanoTime() - t0; accFrames++;
-                accDraws += com.club.ui.backend.ModernBackend.DRAWS;
-                accShape += com.club.ui.backend.ModernBackend.SHAPE_DRAWS;
-                accText  += com.club.ui.backend.ModernBackend.TEXT_DRAWS;
-            }
+            if (prof)
+                HudProfiler.frame(t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3,
+                        com.club.ui.backend.ModernBackend.SHAPE_DRAWS,
+                        com.club.ui.backend.ModernBackend.TEXT_DRAWS,
+                        PixelIcons.DRAWS);
             com.club.ui.backend.ModernBackend.DRAWS = 0;
             com.club.ui.backend.ModernBackend.SHAPE_DRAWS = 0;
             com.club.ui.backend.ModernBackend.TEXT_DRAWS = 0;
+            PixelIcons.DRAWS = 0;
         });
     }
 
     // ---- draw-cost profiler (harness) ------------------------------------------------------------
-    // Timing the mod by watching the FPS counter turned out to measure the WORLD (chunk loads, mobs, the
-    // time of day) more than the mod: the same build "cost" 0.3 ms on one run and 1.1 ms on the next.
-    // This times the draw itself, so the number is about us and nothing else. Two nanoTime calls per
-    // frame, and only while armed — off, the flag makes it free.
-    private static volatile boolean profiling;
-    private static long accNanos;
-    private static int accFrames, accDraws;
-
-    private static int accShape, accText;
-    public static void profile(boolean on) { accNanos = 0; accFrames = accDraws = accShape = accText = 0; profiling = on; }
-    /** Mean milliseconds the Club HUD spent drawing, per frame, since {@link #profile}(true). */
-    public static double avgDrawMs() { return accFrames == 0 ? 0 : accNanos / 1_000_000.0 / accFrames; }
-    /** Mean GL draw calls the Club HUD submitted per frame. */
-    public static double avgDraws() { return accFrames == 0 ? 0 : (double) accDraws / accFrames; }
-    public static double avgShapeDraws() { return accFrames == 0 ? 0 : (double) accShape / accFrames; }
-    public static double avgTextDraws()  { return accFrames == 0 ? 0 : (double) accText  / accFrames; }
-    public static int profiledFrames() { return accFrames; }
+    // Timing the mod by watching the FPS counter measured the WORLD, not the mod. Timing it with a running
+    // MEAN did the same thing more quietly: one hitch inside the window moved the number by more than the
+    // whole feature we were trying to weigh (0.45 ms and 1.22 ms, same code, same 11 draws). The window,
+    // the phases and the order statistics now live in HudProfiler; this class only takes the stamps.
+    /** Open/close a measurement window. See {@link HudProfiler}. */
+    public static void profile(boolean on) { HudProfiler.arm(on); }
+    /** The window's numbers: per-phase medians, the mean beside the median, and every GL draw — icons too. */
+    public static HudProfiler.Snapshot stats() { return HudProfiler.snapshot(); }
 
     // Letterbox bars for Screen Stretch. Trade-off (Stage 29): these opaque fills cover the screen-edge
     // strips wholesale — including the vanilla chat (bottom-left) and hotbar/bar ends under horizontal
