@@ -3,6 +3,7 @@ package com.club.modules.itemscroll;
 import com.club.config.ClubConfig;
 import com.club.ui.IconGlyph;
 import com.club.ui.menu.MenuContent;
+import net.minecraft.client.MinecraftClient;
 
 import java.util.List;
 
@@ -24,9 +25,16 @@ public final class ItemScrollMenu {
                         c.itemScroll.reverseScroll = false;
                         c.itemScroll.gestures.clear();      // back to the factory gesture map
                         ClubConfig.save(); },
-                List.of(new MenuContent.ToggleSetting("Reverse scroll",
-                        () -> c.itemScroll.reverseScroll,
-                        v -> { c.itemScroll.reverseScroll = v; ClubConfig.save(); })));
+                List.of(
+                    new MenuContent.ToggleSetting("Reverse scroll",
+                            () -> c.itemScroll.reverseScroll,
+                            v -> { c.itemScroll.reverseScroll = v; ClubConfig.save(); }),
+                    // The gesture matrix does not fit a 236px popover sheet, and a new row type would mean
+                    // editing the frozen menu package. It opens a screen instead — the HUD editor's road.
+                    new MenuContent.ActionSetting("Edit gestures…", () -> {
+                        MinecraftClient mc = MinecraftClient.getInstance();
+                        mc.setScreen(new GestureScreen(mc.currentScreen));   // …and back to the menu on close
+                    })));
     }
 
     /**

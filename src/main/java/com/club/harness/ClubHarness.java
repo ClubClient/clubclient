@@ -529,6 +529,51 @@ public final class ClubHarness {
             step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.restoreDefaultGestures());
             step(2, () -> mc.setScreen(null));
 
+            // ---- the gesture editor, photographed in the three states the owner has to judge ----
+            step(6, () -> mc.setScreen(new com.club.modules.itemscroll.GestureScreen(null)));
+            step(4, () -> shot("itemscroll-gestures"));            // the defaults, and Shift+LMB naming quick-move
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.armRow(mc, 0));   // "Press a gesture…"
+            step(4, () -> {
+                // The arming-click trap, refuted: the click that ARMS a row is itself a left click, and a
+                // capture that started on the press would have just bound Move one to "Left Click".
+                check("item scroll: arming a row does not bind it to the arming click",
+                        com.club.modules.itemscroll.Gesture.of(
+                                com.club.modules.itemscroll.GestureInput.SCROLL, 0).equals(
+                                com.club.modules.itemscroll.ItemScrollBinds.get(
+                                        com.club.modules.itemscroll.ScrollAction.MOVE_ONE)));
+                shot("itemscroll-gestures-armed");
+            });
+
+            // A bare left click into an armed row: refused, out loud. It is how a player picks items up,
+            // and a row that swallowed it would brick every inventory in the game.
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.captureBareLeftClick(mc));
+            step(4, () -> {
+                check("item scroll: a bare left click is REFUSED, and the row keeps its gesture",
+                        com.club.modules.itemscroll.Gesture.of(
+                                com.club.modules.itemscroll.GestureInput.SCROLL, 0).equals(
+                                com.club.modules.itemscroll.ItemScrollBinds.get(
+                                        com.club.modules.itemscroll.ScrollAction.MOVE_ONE)));
+                shot("itemscroll-gestures-refused");
+            });
+
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.stealGesture(mc));// the wheel: Move one's
+            step(4, () -> shot("itemscroll-gestures-stolen"));     // "Taken from Move stack" + that row goes to Not set
+            step(2, () -> {
+                // The editor captured a REAL scroll on a REAL armed row: the wheel was Move one's, and
+                // Move one must have LOST it. Two owners of one gesture is the bug this whole grammar exists
+                // to make impossible, and here it is refuted through the screen, not through the model.
+                check("item scroll: the editor's capture STEALS — Move one loses the wheel",
+                        com.club.modules.itemscroll.ItemScrollBinds.get(
+                                com.club.modules.itemscroll.ScrollAction.MOVE_ONE) == null);
+                check("item scroll: …and Move everything now holds it",
+                        com.club.modules.itemscroll.Gesture.of(
+                                com.club.modules.itemscroll.GestureInput.SCROLL, 0).equals(
+                                com.club.modules.itemscroll.ItemScrollBinds.get(
+                                        com.club.modules.itemscroll.ScrollAction.MOVE_EVERYTHING)));
+            });
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.restoreDefaultGestures());
+            step(2, () -> mc.setScreen(null));
+
             // The survival screen is the one place both regions are the player's own inventory, so it is
             // the one place a wrong region rule undresses you. Hotbar ↔ main, armour and offhand untouched.
             step(40, () -> report.add("INFO  item scroll: "

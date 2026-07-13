@@ -133,6 +133,35 @@ public final class ItemScrollHarness {
         com.club.config.ClubConfig.save();
     }
 
+    // ---- driving the gesture editor ---------------------------------------------------------------
+
+    /** Click a row's chip, press AND release — the release matters: the arming click is itself a left
+     *  click, and a capture that starts on the press binds every row to LMB the instant you touch it. */
+    public static void armRow(MinecraftClient mc, int row) {
+        if (!(mc.currentScreen instanceof GestureScreen screen)) return;
+        double[] p = screen.chipCentre(ScrollAction.values()[row]);
+        screen.mouseClicked(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        screen.mouseReleased(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+    }
+
+    /** Perform a bare left click into an armed row. It must be REFUSED — that click is how a player picks
+     *  items up, and a row that swallowed it would brick every inventory in the game. */
+    public static void captureBareLeftClick(MinecraftClient mc) {
+        if (!(mc.currentScreen instanceof GestureScreen screen)) return;
+        double[] p = screen.chipCentre(ScrollAction.MOVE_ONE);
+        screen.mouseClicked(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        screen.mouseReleased(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+    }
+
+    /** Arm "Move everything" and scroll — which is Move one's gesture. It must be TAKEN, not shared. */
+    public static void stealGesture(MinecraftClient mc) {
+        if (!(mc.currentScreen instanceof GestureScreen screen)) return;
+        double[] p = screen.chipCentre(ScrollAction.MOVE_EVERYTHING);
+        screen.mouseClicked(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        screen.mouseReleased(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        screen.mouseScrolled(p[0], p[1], 0, 1);
+    }
+
     /** Put the real mouse pointer over the centre of a slot. */
     public static void moveCursor(MinecraftClient mc, int slotId) {
         HandledScreen<?> screen = screen(mc);
