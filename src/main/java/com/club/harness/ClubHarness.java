@@ -428,6 +428,8 @@ public final class ClubHarness {
                 com.club.hud.HudSpace.resetForTest();
             });
 
+            // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
+
             // ===== COST OF THE MOD, MEASURED (Stage 59) =====
             // The owner asked whether it holds up under load. Everything the mod draws in-world goes
             // through the HUD callback, so measure frames with it ON vs fully OFF, in the same world, in

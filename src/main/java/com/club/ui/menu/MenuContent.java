@@ -119,6 +119,8 @@ public final class MenuContent {
                         () -> c.freelook.enabled, v -> { c.freelook.enabled = v; save(); }))),
             new Category("Misc", IconGlyph.MISC, List.of(
                 hudEditor(openHudEditor),
+                // [SEAM:cards] New module cards go here, one line each, calling a factory in the module's own
+                // package. This anchor must survive any refactor of this file (see docs/NEXT-PLAN.md).
                 flag("Hide Effects", "Hide the vanilla status-effect overlay.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
         );
     }

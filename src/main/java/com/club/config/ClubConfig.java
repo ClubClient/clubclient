@@ -36,6 +36,10 @@ public class ClubConfig {
     // Per-module toggle keybinds (Stage 43): module name → InputUtil translation key ("key.keyboard.r").
     // Bound from each module's popover; fired by ModuleBinds on key edges while no screen is open.
     public java.util.Map<String, String> moduleBinds = new java.util.HashMap<>();
+    // [SEAM:config] Module config sections. Each parallel workstream adds exactly ONE line here, under this
+    // anchor, and keeps its own fields in its own class — three branches editing three different lines of the
+    // same file is a clean merge; three branches reformatting the same block is not.
+
     public Hud hud = new Hud();
 
     // (menuX/menuY removed 2026-07-02: the menu is fixed centred — stale keys in old files are ignored by Gson)
