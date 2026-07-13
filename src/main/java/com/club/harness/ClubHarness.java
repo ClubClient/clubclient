@@ -575,12 +575,17 @@ public final class ClubHarness {
                     mc.options.getGuiScale().setValue(scale);
                     mc.onResolutionChanged();
                     com.club.modules.perf.DrawBoxes.recording = true;
+                    com.club.modules.perf.DrawBoxes.clearWorst();
                 });
-                step(6, () -> {});   // several real frames; the recorder keeps the last complete one
+                // 40 ticks, not one frame: the violation this caught was INTERMITTENT — three runs green,
+                // the fourth found a shape on an icon. Elements fade and slide, and the frame that breaks is
+                // the one you did not sample. Every frame in this stretch is judged; the worst one is the
+                // verdict.
+                step(40, () -> {});
                 step(2, () -> {
                     int icons = com.club.modules.perf.DrawBoxes.count(com.club.modules.perf.DrawBoxes.ICON);
-                    int covered = com.club.modules.perf.DrawBoxes.iconsCoveredLater();
-                    String who = com.club.modules.perf.DrawBoxes.firstOffender();
+                    int covered = com.club.modules.perf.DrawBoxes.worstCovered();
+                    String who = com.club.modules.perf.DrawBoxes.worstOffender();
                     com.club.modules.perf.DrawBoxes.recording = false;
                     report.add(String.format("INFO  order @ GUI scale %d: %d icons, %d text, %d shapes drawn%s",
                             scale, icons,
@@ -848,10 +853,11 @@ public final class ClubHarness {
                         batchOff.get(i).share() * 100, batchOff.get(i).fps(),
                         batchOn.get(i).share() * 100, batchOn.get(i).fps()));
             report.add("INFO  icon batch A/B, interleaved in one session:" + w);
-            report.add(String.format("INFO  glyph cache: median share %.2f%% off → %.2f%% on (%+.1f%%). "
-                    + "Text phase %.3f ms → %.3f ms.",
+            report.add(String.format("INFO  icon batch: median share %.2f%% off → %.2f%% on (%+.1f%%). "
+                    + "Icon phase %.3f ms → %.3f ms. GL draws %.0f → %.0f.",
                     off * 100, on * 100, -delta * 100,
-                    batchOff.get(2).textBuildMs(), batchOn.get(2).textBuildMs()));
+                    batchOff.get(2).iconBuildMs(), batchOn.get(2).iconBuildMs(),
+                    batchOff.get(2).glDraws(), batchOn.get(2).glDraws()));
 
             // THE INSTRUMENT'S OWN TEST: the three OFF windows are the same code in the same scene. If they
             // cannot agree with each other, nothing measured against them means anything — and that failure
