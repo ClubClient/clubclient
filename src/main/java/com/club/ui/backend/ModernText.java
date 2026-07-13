@@ -158,6 +158,18 @@ public final class ModernText implements UiText {
     @Override
     public float draw(String text, float x, float y, TextStyle style) {
         if (broken) return x;
+        // Profiler seam (Stage 65): shaping a string into glyph quads is the suspected bulk of BUILD.
+        // Measured here rather than argued about. Free when no measurement window is open.
+        boolean prof = com.club.modules.perf.HudProfiler.armed();
+        long t0 = prof ? System.nanoTime() : 0L;
+        try {
+            return draw0(text, x, y, style);
+        } finally {
+            if (prof) com.club.modules.perf.HudProfiler.addTextNs(System.nanoTime() - t0);
+        }
+    }
+
+    private float draw0(String text, float x, float y, TextStyle style) {
         try {
             float outlineW = 0f;
             int   outlineC = 0;

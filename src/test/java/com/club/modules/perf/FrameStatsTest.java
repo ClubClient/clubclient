@@ -59,8 +59,8 @@ class FrameStatsTest {
     @Test void tailSkewNamesTheDirtyWindow() {
         // A snapshot whose mean sits far above its median is a window that caught a hitch — the report has
         // to be able to SAY that, instead of quietly publishing the mean as the mod's cost.
-        var clean = new HudProfiler.Snapshot(400, 0.40, 0.41, 0.5, 0.6, 0, 0, 0, 0, 6.5, 4, 7, 5);
-        var dirty = new HudProfiler.Snapshot(400, 0.40, 1.22, 0.9, 100, 0, 0, 0, 0, 6.5, 4, 7, 5);
+        var clean = new HudProfiler.Snapshot(400, 0.40, 0.41, 0.5, 0.6, 0, 0, 0, 0, 0, 0, 0, 6.5, 4, 7, 5);
+        var dirty = new HudProfiler.Snapshot(400, 0.40, 1.22, 0.9, 100, 0, 0, 0, 0, 0, 0, 0, 6.5, 4, 7, 5);
         assertTrue(clean.tailSkew() < 0.1);
         assertTrue(dirty.tailSkew() > 1.0);
         assertEquals(16.0, clean.glDraws(), 1e-9, "icons are GL draws too — the old counter could not see them");
@@ -70,8 +70,8 @@ class FrameStatsTest {
         // The four windows actually measured on the owner's machine, one static scene, same build: the
         // client ran at 76-207 fps depending on what else it was doing, and the HUD's cost in MILLISECONDS
         // moved with it by 2.7x. Its share of the frame did not. This is why the harness asserts the share.
-        var slow = new HudProfiler.Snapshot(510, 0.720, 0.755, 1.14, 4.7, 0, 0, 0, 0, 11.76, 4, 7, 4);
-        var fast = new HudProfiler.Snapshot(1240, 0.307, 0.348, 0.58, 1.1, 0, 0, 0, 0, 4.84, 4, 7, 4);
+        var slow = new HudProfiler.Snapshot(510, 0.720, 0.755, 1.14, 4.7, 0, 0, 0, 0, 0, 0, 0, 11.76, 4, 7, 4);
+        var fast = new HudProfiler.Snapshot(1240, 0.307, 0.348, 0.58, 1.1, 0, 0, 0, 0, 0, 0, 0, 4.84, 4, 7, 4);
 
         assertTrue(spread(slow.medianMs(), fast.medianMs()) > 1.3, "the millisecond disagrees with itself by >130%");
         assertTrue(spread(slow.share(), fast.share()) < 0.10, "…while the share agrees to within 10%");
@@ -80,7 +80,7 @@ class FrameStatsTest {
     }
 
     @Test void aWindowWithNoFrameTimeReportsNoShareRatherThanDividingByZero() {
-        var s = new HudProfiler.Snapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        var s = new HudProfiler.Snapshot(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         assertEquals(0.0, s.share(), 1e-9);
         assertEquals(0.0, s.fps(), 1e-9);
     }

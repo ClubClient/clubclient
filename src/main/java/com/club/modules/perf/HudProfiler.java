@@ -54,14 +54,32 @@ public final class HudProfiler {
     private static long shapeSum, textSum, iconSum;
     private static int frames;
 
+    // BUILD, cut open. The stage's whole finding is that BUILD is 80% of what the HUD costs — but "build"
+    // is still a bag. These two say how much of it is TEXT (shaping a string into glyph quads) and how much
+    // is SHAPES (the SDF quad funnel); what is left over is the elements' own logic. Accumulated per frame
+    // by the backend itself, because that is the only place that knows which is which.
+    private static final FrameStats TEXT  = new FrameStats(WINDOW);
+    private static final FrameStats SHAPE = new FrameStats(WINDOW);
+    private static final FrameStats ICON  = new FrameStats(WINDOW);   // the duotone sprites, vanilla's path
+    private static long fTextNs, fShapeNs, fIconNs;
+
     /** True while a measurement window is open. Callers must gate their {@code nanoTime} calls on this. */
     public static boolean armed() { return armed; }
+
+    /** Backend seam: nanoseconds spent turning one string into glyph quads (and submitting the run). */
+    public static void addTextNs(long ns) { if (armed) fTextNs += ns; }
+    /** Backend seam: nanoseconds spent in the SDF shape funnel. */
+    public static void addShapeNs(long ns) { if (armed) fShapeNs += ns; }
+    /** HUD seam: nanoseconds spent drawing duotone icons through vanilla immediate mode. */
+    public static void addIconNs(long ns) { if (armed) fIconNs += ns; }
 
     /** Open a window (clears everything) or close it (keeps the samples for {@link #snapshot()}). */
     public static void arm(boolean on) {
         if (on) {
             TOTAL.reset(); RAYCAST.reset(); LAYOUT.reset(); BUILD.reset(); SUBMIT.reset(); FRAME.reset();
+            TEXT.reset(); SHAPE.reset(); ICON.reset();
             shapeSum = textSum = iconSum = 0;
+            fTextNs = fShapeNs = fIconNs = 0;
             frames = 0;
             lastFrameStart = 0;
         }
@@ -82,6 +100,8 @@ public final class HudProfiler {
         BUILD.add(buildNs);
         SUBMIT.add(submitNs);
         TOTAL.add(raycastNs + layoutNs + buildNs + submitNs);
+        TEXT.add(fTextNs); SHAPE.add(fShapeNs); ICON.add(fIconNs);
+        fTextNs = fShapeNs = fIconNs = 0;
         // The first frame of a window has no predecessor, and the gap across the arming boundary would be
         // however long the harness sat between steps — a garbage sample that would flatter the share.
         if (lastFrameStart != 0) FRAME.add(frameStartNs - lastFrameStart);
@@ -98,8 +118,11 @@ public final class HudProfiler {
     public record Snapshot(int frames,
                            double medianMs, double meanMs, double p95Ms, double maxMs,
                            double raycastMs, double layoutMs, double buildMs, double submitMs,
+                           double textBuildMs, double shapeBuildMs, double iconBuildMs,
                            double frameMs,
                            double shapeDraws, double textDraws, double iconDraws) {
+        /** What BUILD spends on neither text nor shapes: the elements' own per-frame logic. */
+        public double otherBuildMs() { return Math.max(0, buildMs - textBuildMs - shapeBuildMs - iconBuildMs); }
         /** Every GL draw the HUD issues in a frame — our batches AND the icons vanilla draws for us. */
         public double glDraws() { return shapeDraws + textDraws + iconDraws; }
         /** How far the mean is from the median, as a fraction of the median. > ~0.3 = the window is dirty. */
@@ -115,6 +138,7 @@ public final class HudProfiler {
         return new Snapshot(frames,
                 TOTAL.medianMs(), TOTAL.meanMs(), TOTAL.percentileMs(0.95), TOTAL.maxMs(),
                 RAYCAST.medianMs(), LAYOUT.medianMs(), BUILD.medianMs(), SUBMIT.medianMs(),
+                TEXT.medianMs(), SHAPE.medianMs(), ICON.medianMs(),
                 FRAME.medianMs(),
                 shapeSum * per, textSum * per, iconSum * per);
     }

@@ -293,6 +293,22 @@ public final class ModernBackend implements UiRenderer {
                                 float pad, int mode,
                                 int colorA, int colorB, int gradAxis,
                                 float feather, float thickness) {
+        // Profiler seam (Stage 65): every shape in the HUD passes here, so this is the one place that can
+        // say how much of BUILD is shapes. Free when no measurement window is open.
+        boolean prof = com.club.modules.perf.HudProfiler.armed();
+        long t0 = prof ? System.nanoTime() : 0L;
+        try {
+            shapeWithRadii0(x, y, w, h, rtl, rtr, rbr, rbl, pad, mode, colorA, colorB, gradAxis, feather, thickness);
+        } finally {
+            if (prof) com.club.modules.perf.HudProfiler.addShapeNs(System.nanoTime() - t0);
+        }
+    }
+
+    private void shapeWithRadii0(float x, float y, float w, float h,
+                                 float rtl, float rtr, float rbr, float rbl,
+                                 float pad, int mode,
+                                 int colorA, int colorB, int gradAxis,
+                                 float feather, float thickness) {
         if (broken || ctx == null || w <= 0 || h <= 0 || !UiShaders.ready()) return;
 
         // Apply current accumulated opacity to both colors — pure int arithmetic, no alloc.

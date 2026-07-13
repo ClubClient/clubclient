@@ -163,6 +163,32 @@ public final class ClubHarness {
         private void gate(java.util.function.BooleanSupplier cond, int timeout, Runnable then) {
             steps.add(new Step(then, 2, cond, timeout));
         }
+
+        // ---- the A/B (Stage 65) -------------------------------------------------
+
+        private final List<com.club.modules.perf.HudProfiler.Snapshot> cacheOff = new ArrayList<>();
+        private final List<com.club.modules.perf.HudProfiler.Snapshot> cacheOn  = new ArrayList<>();
+
+        /** One measured window with the glyph cache in a given state. Interleaved by the caller. */
+        private void abWindow(boolean on) {
+            step(2, () -> { com.club.ui.text.TextLayout.cacheEnabled = on; com.club.hud.HudManager.profile(true); });
+            step(90, () -> {});                                  // ~4.5 s of real frames
+            step(2, () -> {
+                var s = com.club.hud.HudManager.stats();
+                com.club.hud.HudManager.profile(false);
+                (on ? cacheOn : cacheOff).add(s);
+            });
+        }
+
+        private static double medianShare(List<com.club.modules.perf.HudProfiler.Snapshot> ws) {
+            double[] a = ws.stream().mapToDouble(com.club.modules.perf.HudProfiler.Snapshot::share).sorted().toArray();
+            return a.length == 0 ? 0 : a[a.length / 2];
+        }
+        private static double worstSpread(List<com.club.modules.perf.HudProfiler.Snapshot> ws) {
+            double lo = Double.MAX_VALUE, hi = 0;
+            for (var s : ws) { lo = Math.min(lo, s.share()); hi = Math.max(hi, s.share()); }
+            return lo <= 0 ? 1.0 : (hi - lo) / lo;
+        }
         private void check(String name, boolean cond) {
             report.add((cond ? "PASS  " : "FAIL  ") + name);
             if (cond) passed++; else failed++;
@@ -498,84 +524,29 @@ public final class ClubHarness {
 
             // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
 
-            // ===== THE INSTRUMENT MEASURES ITSELF FIRST (Stage 64) =====
-            // The old step here reported a MEAN of one accumulator and asserted "< 0.8 ms". It shipped a
-            // number (0.45 ms) that the same build could not reproduce — the repo's own last report says
-            // 1.22 ms at the identical 11 draws, and Stage 63 accepted a change on a 1.20 -> 1.06 "win"
-            // that was inside that spread. A mean over a window that contains one chunk-upload hitch is a
-            // measurement of the hitch. So: no millisecond is asserted here until the instrument can
-            // repeat itself, and THAT is what this step now checks — twice, back to back, same scene.
+            // ===== THE INSTRUMENT, AND WHAT IT MEASURES (Stage 64-65) =====
+            // The step this replaces reported a MEAN of one accumulator and asserted "< 0.8 ms". It shipped
+            // a number (0.45 ms) the same build could not reproduce — the repo's own last report said 1.22 ms
+            // at the identical draws — and Stage 63 accepted a change on a 1.20 -> 1.06 "win" that lived
+            // inside that spread. The instrument was the bug.
             //
-            // Zero must be able to mean BROKEN, not only "nothing to measure": the draw counters are
-            // deterministic, so they must agree between the two windows EXACTLY, and the icon draws the
-            // old counter was blind to are now in the number.
+            // Two rules come out of fixing it, and both are enforced here:
+            //   1. THE MILLISECOND IS THE MACHINE; THE SHARE OF THE FRAME IS THE MOD. Two windows seconds
+            //      apart in this static scene ran at 83 and 125 fps and every phase moved with them — the
+            //      raycast included, which cannot possibly care about the GPU. Shares are asserted; the
+            //      milliseconds are printed next to them, as context, never as evidence.
+            //   2. A/B IN ONE SESSION, INTERLEAVED. OFF, ON, OFF, ON, OFF, ON — never one long block of each,
+            //      which measures the machine warming up. Comparing two RUNS is the mistake this stage exists
+            //      to stop, so the glyph cache is toggled at runtime and both arms are measured here.
             step(2, () -> mc.setScreen(null));
-            // The gate, not a fixed wait: probe until three consecutive windows agree (max ~40 s).
+            // A gate, not a fixed warm-up: probe until three consecutive windows agree (max ~40 s).
             gate(settle, 800, () -> report.add(String.format(
                     "INFO  settle: the reading stopped moving after %d probe windows "
                     + "(%.0f fps, %.3f ms, share %.2f%%)%s",
                     settle.windows, settle.lastFps, settle.lastMs, settle.lastShare * 100,
                     gateTimedOut ? " — TIMED OUT, this run is INVALID" : "")));
-            step(2, () -> com.club.hud.HudManager.profile(true));
-            step(120, () -> {});                                   // window A — ~6 s of real frames
-            step(2, () -> { statsA = com.club.hud.HudManager.stats(); com.club.hud.HudManager.profile(false); });
-            step(10, () -> {});
-            step(2, () -> com.club.hud.HudManager.profile(true));
-            step(120, () -> {});                                   // window B — the same thing again
-            step(2, () -> { statsB = com.club.hud.HudManager.stats(); com.club.hud.HudManager.profile(false); });
-            step(2, () -> {
-                var a = statsA; var b = statsB;
-                if (a == null || b == null || a.frames() < 100 || b.frames() < 100) {
-                    check("perf: the profiler saw two full windows", false);
-                    return;
-                }
-                // A benchmark that cannot fail honestly must refuse to pass: if the machine never settled,
-                // the numbers get PRINTED (they are diagnostic) but nothing is asserted from them.
-                if (gateTimedOut)
-                    report.add("INVALID  the machine never settled — the numbers below describe this run's "
-                            + "load, not the mod. No perf assert is made from them.");
-                for (var w : new Object[][] {{"A", a}, {"B", b}}) {
-                    var s = (com.club.modules.perf.HudProfiler.Snapshot) w[1];
-                    report.add(String.format(
-                            "INFO  hud cost, window %s: SHARE %.2f%% of a frame — %.3f ms of a %.2f ms frame "
-                            + "(%.0f fps) — raycast %.3f | layout %.3f | build %.3f | submit %.3f "
-                            + "(mean %.3f, p95 %.3f, max %.3f; %d frames)",
-                            w[0], s.share() * 100, s.medianMs(), s.frameMs(), s.fps(),
-                            s.raycastMs(), s.layoutMs(), s.buildMs(), s.submitMs(),
-                            s.meanMs(), s.p95Ms(), s.maxMs(), s.frames()));
-                }
-                report.add(String.format(
-                        "INFO  gl draws/frame: %.1f (%.1f shape + %.1f text + %.1f icons) — backend %s. "
-                        + "Icons go out through vanilla's immediate path; the old counter could not see them.",
-                        a.glDraws(), a.shapeDraws(), a.textDraws(), a.iconDraws(), com.club.ui.Ui.backend()));
-
-                // THE INSTRUMENT'S OWN TEST — and the whole point of this stage. A number that cannot be
-                // produced twice in one session, on one machine, in one static scene, is not a measurement
-                // of the mod, and every conclusion drawn from it (including the owner's Stage-63 "win") is
-                // a conclusion about the weather. The millisecond fails this test; the share passes it.
-                double msSpread = spread(a.medianMs(), b.medianMs());
-                double shareSpread = spread(a.share(), b.share());
-                report.add(String.format("INFO  instrument: the SHARE repeats to %.1f%%, the millisecond only "
-                        + "to %.1f%% (the two windows ran at %.0f and %.0f fps — that is the millisecond's "
-                        + "whole story). Tail skew %.2f / %.2f.",
-                        shareSpread * 100, msSpread * 100, a.fps(), b.fps(), a.tailSkew(), b.tailSkew()));
-                if (gateTimedOut)
-                    report.add("SKIP  perf: the instrument repeats itself (the run is INVALID — see above)");
-                else
-                    check(String.format("perf: the instrument repeats itself — two windows, one scene, the "
-                            + "HUD's share of the frame within 20%% (%.1f%%)", shareSpread * 100),
-                            shareSpread <= 0.20);
-
-                // Deterministic counters have no excuse at all: the same HUD in the same scene draws the
-                // same number of times. If these ever disagree, the counter is lying, not the machine.
-                check(String.format("perf: the GL draw count is deterministic (%.1f vs %.1f)",
-                                a.glDraws(), b.glDraws()),
-                        Math.abs(a.glDraws() - b.glDraws()) < 0.5);
-                // …and it must actually SEE the icons. Zero here would mean the counter is blind again —
-                // the armour chip is always drawn in this world (the probe element asserts it has a box).
-                check("perf: the icon draws are counted, not invisible (" + Math.round(a.iconDraws()) + "/frame)",
-                        a.iconDraws() > 0);
-            });
+            for (int i = 0; i < 3; i++) { abWindow(false); abWindow(true); }
+            step(2, this::reportPerf);
 
             // ===== VISUAL SCENES =====
             step(2, () -> report.add("== visual scenes =="));
@@ -780,6 +751,76 @@ public final class ClubHarness {
             step(2, () -> shot("editor"));
 
             step(4, () -> mc.setScreen(null));
+        }
+
+        /** The perf verdict: what the HUD costs, whether the instrument can be believed, and what the glyph
+         *  cache actually bought — measured ON against OFF, interleaved, in this one session. */
+        private void reportPerf() {
+            com.club.ui.text.TextLayout.cacheEnabled = true;   // production state, whatever the last window was
+            if (cacheOff.size() < 3 || cacheOn.size() < 3) {
+                check("perf: the profiler saw all six windows", false);
+                return;
+            }
+            // A benchmark that cannot fail honestly must refuse to pass. If the machine never settled, the
+            // numbers are still PRINTED (they are diagnostic) but nothing is asserted from them.
+            if (gateTimedOut)
+                report.add("INVALID  the machine never settled — the numbers below describe this run's load, "
+                        + "not the mod. No perf assert is made from them.");
+
+            var s = cacheOn.get(cacheOn.size() - 1);
+            report.add(String.format(
+                    "INFO  hud cost: SHARE %.2f%% of a frame — %.3f ms of a %.2f ms frame (%.0f fps) — "
+                    + "raycast %.3f | layout %.3f | build %.3f | submit %.3f (mean %.3f, p95 %.3f; %d frames)",
+                    s.share() * 100, s.medianMs(), s.frameMs(), s.fps(),
+                    s.raycastMs(), s.layoutMs(), s.buildMs(), s.submitMs(),
+                    s.meanMs(), s.p95Ms(), s.frames()));
+            report.add(String.format(
+                    "INFO  …build, cut open: text %.3f | shapes %.3f | icons %.3f | element logic %.3f "
+                    + "(the recon's prime suspect, the raycast, is %.0f%% of the whole HUD)",
+                    s.textBuildMs(), s.shapeBuildMs(), s.iconBuildMs(), s.otherBuildMs(),
+                    s.medianMs() <= 0 ? 0 : s.raycastMs() / s.medianMs() * 100));
+            report.add(String.format(
+                    "INFO  gl draws/frame: %.1f (%.1f shape + %.1f text + %.1f icons) — backend %s. Icons go "
+                    + "out through vanilla's immediate path; the old counter could not see them at all.",
+                    s.glDraws(), s.shapeDraws(), s.textDraws(), s.iconDraws(), com.club.ui.Ui.backend()));
+
+            double off = medianShare(cacheOff), on = medianShare(cacheOn);
+            double delta = off <= 0 ? 0 : (off - on) / off;
+            StringBuilder w = new StringBuilder();
+            for (int i = 0; i < 3; i++)
+                w.append(String.format(" off %.2f%%/%.0ffps → on %.2f%%/%.0ffps |",
+                        cacheOff.get(i).share() * 100, cacheOff.get(i).fps(),
+                        cacheOn.get(i).share() * 100, cacheOn.get(i).fps()));
+            report.add("INFO  glyph cache A/B, interleaved in one session:" + w);
+            report.add(String.format("INFO  glyph cache: median share %.2f%% off → %.2f%% on (%+.1f%%). "
+                    + "Text phase %.3f ms → %.3f ms.",
+                    off * 100, on * 100, -delta * 100,
+                    cacheOff.get(2).textBuildMs(), cacheOn.get(2).textBuildMs()));
+
+            // THE INSTRUMENT'S OWN TEST: the three OFF windows are the same code in the same scene. If they
+            // cannot agree with each other, nothing measured against them means anything — and that failure
+            // must be visible, not averaged away.
+            double instr = worstSpread(cacheOff);
+            if (gateTimedOut)
+                report.add("SKIP  perf: the instrument repeats itself (the run is INVALID — see above)");
+            else
+                check(String.format("perf: the instrument repeats itself — three identical windows agree on "
+                        + "the HUD's share of the frame within 20%% (%.1f%%)", instr * 100), instr <= 0.20);
+
+            // Primum non nocere. A cache that makes the HUD cost MORE is a cache we delete, and this is the
+            // one perf claim that may never be allowed to fail.
+            if (!gateTimedOut)
+                check(String.format("perf: the glyph cache is not a regression (%.2f%% → %.2f%%)",
+                        off * 100, on * 100), on <= off * 1.02);
+
+            // The draw counters are deterministic per SCENE — but this is a live world (a mob can wander
+            // into the crosshair and add a text run), so the tolerance is one draw, not zero. A pinned scene
+            // belongs to ClubBench; here the point is only that the counter SEES everything it should.
+            check(String.format("perf: the GL draw count is stable across the A/B (%.1f vs %.1f)",
+                            cacheOff.get(2).glDraws(), cacheOn.get(2).glDraws()),
+                    Math.abs(cacheOff.get(2).glDraws() - cacheOn.get(2).glDraws()) < 1.0);
+            check("perf: the icon draws are counted, not invisible (" + Math.round(s.iconDraws()) + "/frame)",
+                    s.iconDraws() > 0);
         }
 
         private static double num(Object o) { return ((Number) o).doubleValue(); }

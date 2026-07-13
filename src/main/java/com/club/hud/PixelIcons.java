@@ -67,6 +67,16 @@ public final class PixelIcons {
      * or no DrawContext is set this frame — the caller should draw its SDF fallback instead.
      */
     public static boolean draw(Identifier src, float x, float y, float sizePx, int srcSize, int tint, float alpha) {
+        boolean prof = com.club.modules.perf.HudProfiler.armed();
+        long t0 = prof ? System.nanoTime() : 0L;
+        try {
+            return draw0(src, x, y, sizePx, srcSize, tint, alpha);
+        } finally {
+            if (prof) com.club.modules.perf.HudProfiler.addIconNs(System.nanoTime() - t0);
+        }
+    }
+
+    private static boolean draw0(Identifier src, float x, float y, float sizePx, int srcSize, int tint, float alpha) {
         if (dc == null || alpha <= 0f || failed.contains(src)) return false;
         Baked bk = baked.get(src);
         if (bk == null) {
