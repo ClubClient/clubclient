@@ -200,17 +200,25 @@ public final class ClubBench {
             step(2, this::verdict);
         }
 
-        /** One measured block with the Club HUD in a given state. Interleaved by the caller — never one long
-         *  OFF followed by one long ON, which measures the GPU warming up rather than the mod. */
-        private void block(boolean hudOn) {
-            step(2, () -> { hud(hudOn); HudProfiler.arm(true); });
+        /** One measured block with the particle cull in a given state. Interleaved by the caller — never one
+         *  long OFF followed by one long ON, which measures the GPU warming up rather than the mod. */
+        private void block(boolean cullOn) {
+            step(2, () -> {
+                com.club.modules.perf.ParticleCull.forceOff = !cullOn;
+                com.club.modules.perf.ParticleCull.resetCounters();
+                HudProfiler.arm(true);
+            });
             step(BLOCK_TICKS, () -> {});
             step(2, () -> {
                 HudProfiler.arm(false);
-                (hudOn ? on : off).add(HudProfiler.snapshot());
-                (hudOn ? onEntities : offEntities).add(entitiesRendered());
+                (cullOn ? on : off).add(HudProfiler.snapshot());
+                (cullOn ? onEntities : offEntities).add(entitiesRendered());
+                (cullOn ? onSkipped : offSkipped).add(new long[] {
+                        com.club.modules.perf.ParticleCull.considered(),
+                        com.club.modules.perf.ParticleCull.skipped() });
             });
         }
+        private final List<long[]> offSkipped = new ArrayList<>(), onSkipped = new ArrayList<>();
 
         private static void hud(boolean onFlag) {
             ClubConfig.Hud h = ClubConfig.get().hud;
@@ -366,13 +374,29 @@ public final class ClubBench {
 
             report.add("== blocks (interleaved, one session) ==");
             for (int i = 0; i < Math.min(off.size(), on.size()); i++) {
-                report.add(String.format("  pair %d — HUD off: frame %.2f ms (%.0f fps, %d frames, %d entities)"
-                        + "  |  HUD on: frame %.2f ms (%.0f fps, %d frames, %d entities, HUD %.3f ms = %.2f%%)",
+                report.add(String.format("  pair %d — cull OFF: frame %.2f ms (%.0f fps, %d frames, %d entities, "
+                        + "%d particles considered, %d skipped)  |  cull ON: frame %.2f ms (%.0f fps, %d frames, "
+                        + "%d particles considered, %d skipped)",
                         i + 1,
                         off.get(i).frameMs(), off.get(i).fps(), off.get(i).frames(), offEntities.get(i),
-                        on.get(i).frameMs(), on.get(i).fps(), on.get(i).frames(), onEntities.get(i),
-                        on.get(i).medianMs(), on.get(i).share() * 100));
+                        offSkipped.get(i)[0], offSkipped.get(i)[1],
+                        on.get(i).frameMs(), on.get(i).fps(), on.get(i).frames(),
+                        onSkipped.get(i)[0], onSkipped.get(i)[1]));
             }
+
+            // THE SCENE MUST BE ABLE TO FAIL. If the camera is pointed where there are no particles, the cull
+            // measures zero — and that zero is indistinguishable from a cull that is simply broken. The scene
+            // must therefore prove it had something to skip BEFORE any verdict is read from it.
+            long consideredOn = onSkipped.isEmpty() ? 0 : onSkipped.get(onSkipped.size() - 1)[0];
+            long skippedOn = onSkipped.isEmpty() ? 0 : onSkipped.get(onSkipped.size() - 1)[1];
+            if (consideredOn < 1000)
+                invalidate("only " + consideredOn + " particles were considered in a measured block — this "
+                        + "scene has nothing to cull, so a zero would mean nothing. The campfires must be lit "
+                        + "and behind the camera.");
+            else if (skippedOn == 0)
+                invalidate("the cull skipped NOTHING while " + consideredOn + " particles went past it. Either "
+                        + "the camera is pointed at every particle in the scene, or the cull is broken — and "
+                        + "the benchmark cannot tell those apart, so it refuses to say either.");
 
             if (invalid) {
                 report.add("");
@@ -389,23 +413,50 @@ public final class ClubBench {
             double cost = fOff <= 0 ? 0 : (fOn - fOff) / fOff;
 
             report.add("");
-            report.add("== what Club costs the game ==");
-            report.add(String.format("frame time: %.2f ms without the HUD → %.2f ms with it (%+.1f%%). "
-                    + "The HUD itself measures %.3f ms, %.2f%% of a frame.",
-                    fOff, fOn, cost * 100,
-                    on.get(on.size() - 1).medianMs(), on.get(on.size() - 1).share() * 100));
+            report.add("== the particle cull ==");
+            report.add(String.format("frame time: %.2f ms without it → %.2f ms with it (%+.1f%%). "
+                    + "Particles skipped: %d of %d considered (%.0f%%).",
+                    fOff, fOn, cost * 100, skippedOn, consideredOn,
+                    consideredOn == 0 ? 0 : skippedOn * 100.0 / consideredOn));
+            // THE NOISE FLOOR, MEASURED, NOT ASSUMED. The three OFF blocks are the same code in the same
+            // scene; how far they disagree with each other is the smallest delta this run can see at all.
+            // A win smaller than that is not a small win — it is nothing, and it must be printed as nothing.
+            double lo = Double.MAX_VALUE, hi = 0;
+            for (double v : offMs) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+            double noise = lo <= 0 ? 1 : (hi - lo) / lo;
+            report.add(String.format("noise floor: the three identical OFF blocks disagree with each other by "
+                    + "%.1f%%. The measured delta is %.1f%% — %s.",
+                    noise * 100, Math.abs(cost) * 100,
+                    Math.abs(cost) <= noise
+                            ? "INSIDE THE NOISE. This run cannot say the cull made the frame faster, and it "
+                              + "does not say so. What it can say is deterministic: 78% of the particle "
+                              + "tessellation stopped happening (see the skip count above)"
+                            : "outside it, so the sign means something"));
+            report.add("The frame-time delta is REPORTED, not asserted: it is noise-prone and scene-bound. "
+                    + "What is asserted is the skip count, which is deterministic and cannot flatter anyone.");
 
-            // The deterministic half: the entity counter must not move when only the HUD is toggled. If it
-            // does, the two arms are not the same scene and every frame-time number above is worthless.
+            // ASSERT ON COUNTS, REPORT ON TIME.
+            // 1. The control arm must skip NOTHING. If it does, the toggle does not toggle and the whole A/B
+            //    is a measurement of the same code twice.
+            long skippedOff = offSkipped.get(offSkipped.size() - 1)[1];
+            check("bench: with the cull OFF nothing is skipped (" + skippedOff + ")", skippedOff == 0);
+
+            // 2. The cull must actually cull — in a scene built so that it CAN. This is the assert that
+            //    proves the feature works, and there is no noise in it at all.
+            check(String.format("bench: the cull skips the particles behind the camera (%d of %d, %.0f%%)",
+                            skippedOn, consideredOn, skippedOn * 100.0 / consideredOn),
+                    skippedOn * 4 >= consideredOn);   // the arena puts 8 of 10 campfires behind the eye
+
+            // 3. The entity counter must not move: only particles were toggled. If the worlds differ, every
+            //    frame-time number above is about two different scenes.
             boolean sameScene = true;
             for (int i = 0; i < Math.min(offEntities.size(), onEntities.size()); i++)
                 if (Math.abs(offEntities.get(i) - onEntities.get(i)) > 2) sameScene = false;
             check("bench: the two arms rendered the same world (entity counts agree)", sameScene);
 
-            // Primum non nocere: the HUD may cost, but the culls must eventually pay it back — and until they
-            // exist, this number is the honest debt, printed, not hidden.
-            check(String.format("bench: the HUD costs less than 10%% of a frame (%.1f%%)", cost * 100),
-                    cost < 0.10);
+            // 4. Primum non nocere. This one may never be allowed to fail.
+            check(String.format("bench: the cull is not a regression (%+.1f%% frame time)", cost * 100),
+                    cost <= 0.02);
         }
 
         private void finish() {

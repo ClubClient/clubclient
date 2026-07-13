@@ -39,6 +39,14 @@ public class ClubConfig {
     // [SEAM:config] Module config sections. Each parallel workstream adds exactly ONE line here, under this
     // anchor, and keeps its own fields in its own class — three branches editing three different lines of the
     // same file is a clean merge; three branches reformatting the same block is not.
+    public Perf perf = new Perf();
+
+    /** Performance. Only techniques that cannot change what the player sees may default to ON. */
+    public static final class Perf {
+        /** Skip tessellating particles the camera cannot see. Behind the camera is invisible BY
+         *  CONSTRUCTION — no distance limit, no per-frame cap, nothing that trades pixels for frames. */
+        public boolean cullParticles = true;
+    }
 
     public Hud hud = new Hud();
 

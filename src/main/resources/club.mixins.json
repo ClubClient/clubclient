@@ -13,7 +13,9 @@
     "MixinMouse",
     "MixinSimpleOption",
     "MouseAccessor",
-    "WorldRendererAccessor"
+    "WorldRendererAccessor",
+    "MixinWorldRendererFrustum",
+    "MixinParticleManager"
   ],
   "injectors": {
     "defaultRequire": 1
