@@ -12,7 +12,8 @@
     "MixinLightmapTextureManager",
     "MixinMouse",
     "MixinSimpleOption",
-    "MouseAccessor"
+    "MouseAccessor",
+    "WorldRendererAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
