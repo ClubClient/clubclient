@@ -1,7 +1,7 @@
 package com.club.mixin;
 
 import com.club.modules.perf.IrisCompat;
-import com.club.modules.perf.ParticleCull;
+import com.club.modules.perf.MainFrustum;
 import net.minecraft.client.render.Frustum;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.util.math.Vec3d;
@@ -32,6 +32,6 @@ public abstract class MixinWorldRendererFrustum {
     @Inject(method = "setupFrustum", at = @At("RETURN"))
     private void club$captureMainFrustum(Vec3d pos, Matrix4f view, Matrix4f proj, CallbackInfo ci) {
         if (IrisCompat.inShadowPass()) return;   // the sun's view of the world is not the player's
-        ParticleCull.frustum(this.frustum, pos);
+        MainFrustum.set(this.frustum, pos);
     }
 }

@@ -70,7 +70,13 @@ public final class ClubBench {
 
     /** The arena's origin. In the air, so the run does not depend on what the seed put on the ground. */
     private static final BlockPos O = new BlockPos(0, 200, 0);
-    private static final int MOBS_VISIBLE = 75, MOBS_HIDDEN = 75, CHESTS = 80;
+    private static final int MOBS_VISIBLE = 75, MOBS_HIDDEN = 75;
+    // THE SCENE HAS TO ASK. Eighty chests in the middle of the frame ask a frustum cull nothing at all — they
+    // are all visible, so the honest answer is zero, and a zero cannot be told from a broken feature. The
+    // chests that make the question real are the ones BEHIND the camera and inside a visible section: vanilla
+    // renders them in full (it only frustum-culls the section, never the block entity), and we should not.
+    // The ones in front are the control: if they ever get skipped, the cull is wrong, not clever.
+    private static final int CHESTS_BEHIND = 60, CHESTS_FRONT = 20;
     // PARTICLE DENSITY IS A PRECONDITION, NOT A DETAIL. Ten campfires give ~300 live particles a frame; the
     // cull then saves ~0.07 ms, which is BELOW this bench's own noise floor — the feature would be invisible
     // not because it does nothing but because the scene asks nothing of it. A particle-dense scene (a mob
@@ -240,8 +246,11 @@ public final class ClubBench {
          *  long OFF followed by one long ON, which measures the GPU warming up rather than the mod. */
         private void block(boolean cullOn) {
             step(2, () -> {
-                com.club.modules.perf.ParticleCull.forceOff = !cullOn;
-                com.club.modules.perf.ParticleCull.resetCounters();
+                // The particle cull stays ON in BOTH halves. The subject under test is the BLOCK-ENTITY cull,
+                // and a delta is only that feature's if nothing else moves with it.
+                com.club.modules.perf.ParticleCull.forceOff = false;
+                com.club.modules.perf.BlockEntityCull.forceOff = !cullOn;
+                com.club.modules.perf.BlockEntityCull.resetCounters();
                 HudProfiler.arm(true);
             });
             step(BLOCK_TICKS, () -> {});
@@ -250,8 +259,8 @@ public final class ClubBench {
                 (cullOn ? on : off).add(HudProfiler.snapshot());
                 (cullOn ? onEntities : offEntities).add(entitiesRendered());
                 (cullOn ? onSkipped : offSkipped).add(new long[] {
-                        com.club.modules.perf.ParticleCull.considered(),
-                        com.club.modules.perf.ParticleCull.skipped() });
+                        com.club.modules.perf.BlockEntityCull.considered(),
+                        com.club.modules.perf.BlockEntityCull.skipped() });
             });
         }
         private final List<long[]> offSkipped = new ArrayList<>(), onSkipped = new ArrayList<>();
@@ -294,11 +303,12 @@ public final class ClubBench {
             for (int i = 0; i < MOBS_VISIBLE; i++) mob(w, O.getZ() + 2 + (i % 7) * 2, i);
             for (int i = 0; i < MOBS_HIDDEN; i++)  mob(w, O.getZ() + 18 + (i % 7) * 2, i);
 
-            for (int i = 0; i < CHESTS; i++) {   // block entities, all in front, all in view
-                int x = O.getX() - 10 + (i % 21);
-                int z = O.getZ() + 3 + (i / 21) * 3;
-                w.setBlockState(new BlockPos(x, O.getY() - 2, z), Blocks.CHEST.getDefaultState());
-            }
+            for (int i = 0; i < CHESTS_BEHIND; i++)   // off-screen, but inside a section the camera can see
+                w.setBlockState(new BlockPos(O.getX() - 10 + (i % 21), O.getY() - 2 + (i / 21),
+                        O.getZ() - 7 - (i % 3) * 2), Blocks.CHEST.getDefaultState());
+            for (int i = 0; i < CHESTS_FRONT; i++)    // the control: these must NEVER be skipped
+                w.setBlockState(new BlockPos(O.getX() - 10 + (i % 21), O.getY() - 2, O.getZ() + 4),
+                        Blocks.CHEST.getDefaultState());
 
             // particles, BEHIND the camera (which sits at z = O.z - 4.5, looking +Z)
             for (int i = 0; i < FIRES_BEHIND; i++)
@@ -394,8 +404,8 @@ public final class ClubBench {
                     + "here to cull, so a zero would mean nothing. Point the camera at the arena.");
 
             report.add(String.format("INFO  scene: %d entities rendered, %d spawned (%d of them walled off), "
-                    + "%d chests, %d campfires behind the camera and %d in front",
-                    ents, MOBS_VISIBLE + MOBS_HIDDEN, MOBS_HIDDEN, CHESTS, FIRES_BEHIND, FIRES_FRONT));
+                    + "%d chests behind the camera + %d in front, %d campfires behind and %d in front",
+                    ents, MOBS_VISIBLE + MOBS_HIDDEN, MOBS_HIDDEN, CHESTS_BEHIND, CHESTS_FRONT, FIRES_BEHIND, FIRES_FRONT));
         }
 
         // ---- the gate -------------------------------------------------------
@@ -454,8 +464,8 @@ public final class ClubBench {
             report.add("== blocks (interleaved, one session) ==");
             for (int i = 0; i < Math.min(off.size(), on.size()); i++) {
                 report.add(String.format("  pair %d — cull OFF: frame %.2f ms (%.0f fps, %d frames, %d entities, "
-                        + "%d particles considered, %d skipped)  |  cull ON: frame %.2f ms (%.0f fps, %d frames, "
-                        + "%d particles considered, %d skipped)",
+                        + "%d BEs considered, %d skipped)  |  cull ON: frame %.2f ms (%.0f fps, %d frames, "
+                        + "%d BEs considered, %d skipped)",
                         i + 1,
                         off.get(i).frameMs(), off.get(i).fps(), off.get(i).frames(), offEntities.get(i),
                         offSkipped.get(i)[0], offSkipped.get(i)[1],
@@ -469,11 +479,10 @@ public final class ClubBench {
             long consideredOn = onSkipped.isEmpty() ? 0 : onSkipped.get(onSkipped.size() - 1)[0];
             long skippedOn = onSkipped.isEmpty() ? 0 : onSkipped.get(onSkipped.size() - 1)[1];
             if (consideredOn < 1000)
-                invalidate("only " + consideredOn + " particles were considered in a measured block — this "
-                        + "scene has nothing to cull, so a zero would mean nothing. The campfires must be lit "
-                        + "and behind the camera.");
+                invalidate("only " + consideredOn + " block entities were considered in a measured block — this "
+                        + "scene has nothing to cull, so a zero would mean nothing.");
             else if (skippedOn == 0)
-                invalidate("the cull skipped NOTHING while " + consideredOn + " particles went past it. Either "
+                invalidate("the cull skipped NOTHING while " + consideredOn + " block entities went past it. Either "
                         + "the camera is pointed at every particle in the scene, or the cull is broken — and "
                         + "the benchmark cannot tell those apart, so it refuses to say either.");
 
@@ -492,9 +501,9 @@ public final class ClubBench {
             double cost = fOff <= 0 ? 0 : (fOn - fOff) / fOff;
 
             report.add("");
-            report.add("== the particle cull ==");
+            report.add("== the block-entity cull ==");
             report.add(String.format("frame time: %.2f ms without it → %.2f ms with it (%+.1f%%). "
-                    + "Particles skipped: %d of %d considered (%.0f%%).",
+                    + "Block entities skipped: %d of %d considered (%.0f%%).",
                     fOff, fOn, cost * 100, skippedOn, consideredOn,
                     consideredOn == 0 ? 0 : skippedOn * 100.0 / consideredOn));
             // THE NOISE FLOOR, MEASURED, NOT ASSUMED. The identical OFF blocks are the same code in the same
@@ -532,7 +541,7 @@ public final class ClubBench {
                     Math.abs(cost) <= noise
                             ? "inside it. Which is why the paired number above, not this one, is what the "
                               + "conclusion rests on. And beneath both: the tessellation of " + skippedOn
-                              + " particles simply stopped happening, on any machine, with no statistics at all"
+                              + " block entities simply stopped happening, on any machine, with no statistics at all"
                             : "outside it"));
             report.add("The frame-time delta is REPORTED, not asserted: it is noise-prone and scene-bound. "
                     + "What is asserted is the skip count, which is deterministic and cannot flatter anyone.");
@@ -545,9 +554,16 @@ public final class ClubBench {
 
             // 2. The cull must actually cull — in a scene built so that it CAN. This is the assert that
             //    proves the feature works, and there is no noise in it at all.
-            check(String.format("bench: the cull skips the particles behind the camera (%d of %d, %.0f%%)",
-                            skippedOn, consideredOn, skippedOn * 100.0 / consideredOn),
-                    skippedOn * 4 >= consideredOn);   // the arena puts 8 of 10 campfires behind the eye
+            double ratio = skippedOn * 1.0 / consideredOn;
+            check(String.format("bench: the cull skips the block entities behind the camera (%d of %d, %.0f%%)",
+                            skippedOn, consideredOn, ratio * 100),
+                    ratio >= 0.33);   // the arena puts 60 of the 80 chests behind the eye
+            // …AND SPARES THE ONES IN FRONT. 60 of 80 is 75%; a cull that skipped more than that would be
+            // eating the chests the player is looking at, and "it went faster" would be the least of it. The
+            // control half of the scene exists to make over-culling FAIL, not to make the number look good.
+            check(String.format("bench: the 20 chests in front of the camera are never skipped (%.0f%% skipped, "
+                            + "and 75%% is every chest behind the eye and not one more)", ratio * 100),
+                    ratio <= 0.78);
 
             // 3. The entity counter must not move: only particles were toggled. If the worlds differ, every
             //    frame-time number above is about two different scenes.

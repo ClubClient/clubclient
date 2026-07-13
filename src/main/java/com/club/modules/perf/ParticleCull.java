@@ -4,7 +4,6 @@ import com.club.config.ClubConfig;
 import net.minecraft.client.particle.BillboardParticle;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.Frustum;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 
@@ -40,16 +39,8 @@ public final class ParticleCull {
     /** Slack on the culling volume, in blocks. A particle's box is its COLLISION box, not its art. */
     private static final double MARGIN = 2.0;
 
-    // The main camera's frustum, captured this frame at setupFrustum together with the position it was built
-    // from. The position is the freshness check: if the camera has moved since, the frustum is not this
-    // frame's and must not be trusted (another mod could own the terrain path and never call setupFrustum).
-    private static Frustum frustum;
-    private static Vec3d frustumAt;
-
     /** Counters — deterministic, machine-independent, and the only thing ClubBench asserts on. */
     private static long considered, skipped;
-
-    public static void frustum(Frustum f, Vec3d cameraPos) { frustum = f; frustumAt = cameraPos; }
 
     public static long considered() { return considered; }
     public static long skipped() { return skipped; }

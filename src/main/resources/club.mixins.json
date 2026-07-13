@@ -15,7 +15,8 @@
     "MouseAccessor",
     "WorldRendererAccessor",
     "MixinWorldRendererFrustum",
-    "MixinParticleManager"
+    "MixinParticleManager",
+    "MixinBlockEntityRenderDispatcher"
   ],
   "injectors": {
     "defaultRequire": 1

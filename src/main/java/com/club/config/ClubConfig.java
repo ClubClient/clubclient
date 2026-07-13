@@ -46,6 +46,10 @@ public class ClubConfig {
         /** Skip tessellating particles the camera cannot see. Behind the camera is invisible BY
          *  CONSTRUCTION — no distance limit, no per-frame cap, nothing that trades pixels for frames. */
         public boolean cullParticles = true;
+        /** Skip block entities that are off-screen inside a VISIBLE section — vanilla frustum-culls the
+         *  16x16x16 section but never the chest inside it. Renderers that asked for anything unusual (a
+         *  beacon's 256 blocks, a piston drawing outside its own block) are never touched. */
+        public boolean cullBlockEntities = true;
     }
 
     public Hud hud = new Hud();
