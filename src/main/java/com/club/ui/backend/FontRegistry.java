@@ -24,9 +24,6 @@ public final class FontRegistry implements GlyphSource {
     /** Set on the first icon-atlas load failure: PUA lookups then fall through to the '?' path
      *  instead of re-throwing every frame (a missing icon atlas must not break text). */
     private boolean iconsBroken;
-    /** Bumped when icon resolution dies — see {@link GlyphSource#epoch()}. Anything caching a resolution
-     *  (TextLayout does) must drop it: the same PUA code point now answers '?' instead of an icon glyph. */
-    private int epoch;
 
     // -------------------------------------------------------------------------
     // GlyphSource
@@ -50,7 +47,7 @@ public final class FontRegistry implements GlyphSource {
                     return true;
                 }
             } catch (Exception e) {
-                iconsBroken = true; epoch++;   // cached resolutions are now wrong — see epoch()
+                iconsBroken = true;
                 System.err.println("[club.ui] icon atlas unavailable — icons disabled: " + e);
             }
         }
@@ -63,9 +60,6 @@ public final class FontRegistry implements GlyphSource {
         out.glyph   = g;
         return true;
     }
-
-    @Override
-    public int epoch() { return epoch; }
 
     /** Returns the metrics object for a given weight (line height, ascent, descent). */
     @Override
@@ -94,10 +88,8 @@ public final class FontRegistry implements GlyphSource {
      * Subsequent PUA lookups fall through to the '?' path; text keeps rendering MODERN.
      */
     public void disableIcons(Exception cause) {
-        if (iconsBroken) return;
-        System.err.println("[club.ui] icon atlas texture unavailable — icons disabled: " + cause);
+        if (!iconsBroken) System.err.println("[club.ui] icon atlas texture unavailable — icons disabled: " + cause);
         iconsBroken = true;
-        epoch++;   // cached resolutions are now wrong — see epoch()
     }
 
     // -------------------------------------------------------------------------
