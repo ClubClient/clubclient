@@ -93,7 +93,11 @@ public abstract class HudElement extends Component {
     public void layoutFromConfig(MinecraftClient mc) {
         int[] b = box(mc);
         if (mc != null) {
-            int sw = mc.getWindow().getScaledWidth(), sh = mc.getWindow().getScaledHeight();
+            // The screen, in CLUB units (Stage 63) — the space the HUD is now laid out and saved in. Reading
+            // Minecraft's scaled size here would clamp against a rectangle that isn't the one we draw into,
+            // and every element would "self-heal" itself into the wrong corner the moment the player touched
+            // their GUI Scale.
+            int sw = com.club.ui.ClubCanvas.widthI(mc), sh = com.club.ui.ClubCanvas.heightI();
             int cx = HudSnap.clampAxis(b[0], b[2], sw);
             int cy = HudSnap.clampAxis(b[1], b[3], sh);
             // The CLAMPED box is what we lay out — that alone fixes the editor (the element is on screen,

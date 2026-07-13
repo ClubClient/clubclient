@@ -360,6 +360,74 @@ public final class ClubHarness {
                 cfg.screenStretch.preset = was; cfg.screenStretch.enabled = wasOn;
             });
 
+            // ===== THE HUD OWNS ITS SIZE (Stage 63) =====
+            // The owner caught this one: "какого хера у нас худы меняют свой размер в зависимости от настроек
+            // в игре". They did — the HUD was laid out in Minecraft's GUI units, so the player's GUI Scale
+            // multiplied every chip, on top of that chip's own Size slider. The menu was cured of exactly this
+            // in Stage 60; the HUD had been left behind.
+            //
+            // The proof has to be in PHYSICAL pixels, because that is what the player sees: take the same
+            // element at GUI Scale 1, 2, 3 and 4, convert its box to real screen pixels, and demand the same
+            // rectangle every time. Before this stage those four numbers were 1:2:3:4.
+            step(2, () -> {
+                int prev = mc.options.getGuiScale().getValue();
+                com.club.ui.hud.HudElement probe = com.club.hud.HudManager.probeElement();
+                if (probe == null) { check("hud: an element to measure", false); return; }
+                double[] physW = new double[4];
+                double[] physX = new double[4];
+                for (int s = 1; s <= 4; s++) {
+                    mc.options.getGuiScale().setValue(s);
+                    mc.onResolutionChanged();
+                    float k = com.club.ui.ClubCanvas.scale(mc);                 // MC units per Club unit
+                    double mcPx = mc.getWindow().getScaleFactor();              // physical px per MC unit
+                    int[] b = probe.box(mc);                                    // Club units
+                    physW[s - 1] = b[2] * k * mcPx;
+                    physX[s - 1] = b[0] * k * mcPx;
+                }
+                mc.options.getGuiScale().setValue(prev);
+                mc.onResolutionChanged();
+                report.add(String.format("INFO  hud size in real pixels at GUI scale 1..4: %.0f %.0f %.0f %.0f "
+                        + "(x: %.0f %.0f %.0f %.0f)", physW[0], physW[1], physW[2], physW[3],
+                        physX[0], physX[1], physX[2], physX[3]));
+                double wSpread = Math.abs(physW[3] - physW[0]);
+                double xSpread = Math.abs(physX[3] - physX[0]);
+                check("hud: the same physical SIZE at every GUI scale (spread " + Math.round(wSpread) + "px)",
+                        wSpread <= 2.0);
+                check("hud: …and the same physical POSITION (spread " + Math.round(xSpread) + "px)",
+                        xSpread <= 2.0);
+            });
+
+            // A config written before Stage 63 holds GUI-space pixels. They have to be converted, once, using
+            // the scale the player was last on — not silently reinterpreted, which would fling the HUD across
+            // the screen for anyone who wasn't on GUI Scale 2.
+            step(2, () -> {
+                ClubConfig.Hud h = cfg.hud;
+                int wasX = h.armorX, wasY = h.armorY; Integer wasSpace = h.space;
+                int prevScale = mc.options.getGuiScale().getValue();
+                // Do it at GUI scale 4 on purpose: that is the stock AUTO scale on 1080p, so it is where most
+                // players' saved coordinates actually come from — and it is the only scale where a wrong
+                // conversion is obvious (the space is 270 units tall, half the canvas, so every number doubles).
+                mc.options.getGuiScale().setValue(4);
+                mc.onResolutionChanged();
+                int scaledH = mc.getWindow().getScaledHeight();
+                h.armorX = 100; h.armorY = 100; h.space = 0;      // pretend: an old file, coords in GUI px
+                com.club.hud.HudSpace.resetForTest();
+                com.club.hud.HudSpace.migrate(mc);
+                float f = com.club.ui.ClubCanvas.HEIGHT / scaledH;
+                check("hud: an old config's coordinates are converted into Club units (100 → "
+                                + h.armorY + ", scaledH " + scaledH + ", factor " + String.format("%.2f", f) + ")",
+                        h.armorY == Math.round(100 * f) && h.space != null && h.space == 1);
+                mc.options.getGuiScale().setValue(prevScale);
+                mc.onResolutionChanged();
+                // …and an auto position (-1) is a decision, not a coordinate: it must survive untouched.
+                h.armorX = -1; h.space = 0;
+                com.club.hud.HudSpace.resetForTest();
+                com.club.hud.HudSpace.migrate(mc);
+                check("hud: an auto position is not rescaled", h.armorX == -1);
+                h.armorX = wasX; h.armorY = wasY; h.space = wasSpace;
+                com.club.hud.HudSpace.resetForTest();
+            });
+
             // ===== COST OF THE MOD, MEASURED (Stage 59) =====
             // The owner asked whether it holds up under load. Everything the mod draws in-world goes
             // through the HUD callback, so measure frames with it ON vs fully OFF, in the same world, in

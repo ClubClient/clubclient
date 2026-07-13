@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 8; // bumped when new fields are added, for migration
+    public int version = 9; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -123,6 +123,21 @@ public class ClubConfig {
         public int sprintX = -1;
         public int sprintY = -1;
         public float sprintScale = 1.0f;
+
+        /**
+         * Which coordinate space the saved x/y above are in (Stage 63).
+         *
+         * <p>{@code null} — the field predates the Club canvas, so a config carrying it was written when HUD
+         * coordinates were absolute pixels of Minecraft's GUI-scaled space, and they have to be converted
+         * once (see {@code com.club.hud.HudSpace}). {@code 1} — Club canvas units.</p>
+         *
+         * <p>Deliberately a boxed Integer: Gson leaves an ABSENT field at its Java default, so an {@code int}
+         * defaulting to 1 would make every old config claim it had already been migrated, and an int
+         * defaulting to 0 would make every FRESH install migrate its own defaults (which are authored in Club
+         * units) and shove the HUD across the screen on any GUI Scale but 2. Null is the only value that
+         * means "this file is older than the question".</p>
+         */
+        public Integer space;
     }
 
     public static ClubConfig get() {
@@ -331,6 +346,18 @@ public class ClubConfig {
             // carrying that default is moved to AUTO — a no-op until a ratio is deliberately picked.
             if ("R16_9".equals(screenStretch.preset)) screenStretch.preset = "AUTO";
             version = 8;
+            changed = true;
+        }
+        if (version < 9) {
+            // Stage 63: the HUD moved onto the Club canvas, so saved x/y no longer mean what they meant.
+            // They were absolute pixels of Minecraft's GUI-scaled space — a space whose size is the player's
+            // GUI Scale setting. Mark them legacy; the conversion itself needs the live window (which does
+            // not exist yet at config-load time) and happens on the first HUD frame — see com.club.hud.HudSpace.
+            //
+            // This runs for files READ FROM DISK only. A fresh install never reaches migrate(), leaves
+            // hud.space null, and is simply stamped as Club-native: its defaults were authored in Club units.
+            hud.space = 0;
+            version = 9;
             changed = true;
         }
         if (changed) save();

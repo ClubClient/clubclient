@@ -29,6 +29,15 @@ public final class HudManager {
     private static final UiContextImpl UI = new UiContextImpl();
     private static final long START = System.nanoTime();
 
+    /** Harness seam (Stage 63): one real element to measure across GUI scales. The Armor chip — it always
+     *  has a box (the editor sample keeps it non-empty) and it sits at a saved coordinate, not an auto one,
+     *  so both its SIZE and its POSITION are meaningful. */
+    public static com.club.ui.hud.HudElement probeElement() {
+        for (var c : CANVAS.children())
+            if (c instanceof com.club.ui.hud.ArmorElement e) return e;
+        return null;
+    }
+
     /** Promo capture (dev only, see com.club.harness): keep drawing the Club HUD while the VANILLA HUD is
      *  hidden — F1 is how you get a frame with no hotbar, no health bar and no debug text in it, but the
      *  same flag would otherwise take our HUD down with it, and a promo shot of an empty screen is not a
@@ -56,15 +65,27 @@ public final class HudManager {
             long t0 = profiling ? System.nanoTime() : 0L;
 
             // V2 HUD (Effects / Target / Info / Armor); duotone icons draw through the PixelIcons DrawContext seam.
-            Ui.beginFrame(ctx);
+            //
+            // Drawn on the CLUB canvas, not in Minecraft's GUI units (Stage 63). The HUD used to be laid out
+            // in the player's GUI Scale, so a video setting resized it — on top of each element's own Size
+            // slider, which meant "1.0" was a different physical size on every machine. One matrix scale maps
+            // Club units to the screen: the HUD is now the size it was designed at, and only its own slider
+            // and the screen resolution can change that. (The letterbox above is NOT in this space — it masks
+            // the world, so it stays in Minecraft's.)
+            float k = com.club.ui.ClubCanvas.scale(mc);
+            ctx.getMatrices().push();
+            ctx.getMatrices().scale(k, k, 1f);
+            Ui.beginFrame(ctx, k);
             PixelIcons.set(ctx);   // duotone icons draw through this DrawContext
             UI.setTime((System.nanoTime() - START) / 1_000_000_000f);
             TargetHud.frame(mc, tickCounter.getTickDelta(true));   // one crosshair raycast per frame, real partial tick
-            CANVAS.setScreen(mc.getWindow().getScaledWidth(), mc.getWindow().getScaledHeight());
+            HudSpace.migrate(mc);   // once: saved positions were absolute GUI pixels of the old space
+            CANVAS.setScreen(com.club.ui.ClubCanvas.widthI(mc), com.club.ui.ClubCanvas.heightI());
             CANVAS.layoutFromConfig(mc);
             CANVAS.render(UI);
-            com.club.ui.LegacyNotice.draw(UI, mc.getWindow().getScaledWidth());   // loud fallback plaque
+            com.club.ui.LegacyNotice.draw(UI, com.club.ui.ClubCanvas.width(mc));   // loud fallback plaque
             Ui.endFrame();   // submit the batched shapes — nothing else will (Stage 61)
+            ctx.getMatrices().pop();
 
             if (profiling) {
                 accNanos += System.nanoTime() - t0; accFrames++;

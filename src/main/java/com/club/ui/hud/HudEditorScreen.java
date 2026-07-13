@@ -57,9 +57,23 @@ public final class HudEditorScreen extends Screen {
     private boolean tbResetArmed;
     private float tbResetArmAt;
 
-    // Last cursor position in GUI px (fed by render each frame) — the arrow-nudge hover target
+    // Last cursor position in CLUB units (fed by render each frame) — the arrow-nudge hover target
     // resolves against it, and a cursor-follow nudge advances it (Stage 36).
     private int lastMx, lastMy;
+
+    // ---- the Club canvas (Stage 63) — the editor edits in the same space the HUD is drawn in ----
+    private float canvasW = 960f, canvasH = com.club.ui.ClubCanvas.HEIGHT, canvasK = 1f;
+
+    private void updateCanvas() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        canvasK = com.club.ui.ClubCanvas.scale(mc);
+        canvasW = com.club.ui.ClubCanvas.width(mc);
+        canvasH = com.club.ui.ClubCanvas.HEIGHT;
+    }
+
+    /** A Minecraft-unit coordinate (or delta) → Club units. */
+    private double cx(double v) { return v / canvasK; }
+    private double cy(double v) { return v / canvasK; }
 
     private void disarmReset() {
         tbResetArmed = false;
@@ -71,6 +85,7 @@ public final class HudEditorScreen extends Screen {
     private ClubConfig.Hud h() { return ClubConfig.get().hud; }
 
     @Override protected void init() {
+        updateCanvas();   // the toolbar is centred on the CLUB canvas, so resolve it before building it
         canvas.onSelectionChanged = this::rebuildPopover;
         buildToolbar();
         rebuildPopover();
@@ -105,7 +120,7 @@ public final class HudEditorScreen extends Screen {
                                 // flag must match, or a click on the quiet "Reset" would fire instantly
         tbH = 40;
         tbW = TB_PAD + TB_LABEL_W + 8 + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP + TB_BTN_W + TB_PAD;
-        tbX = (width - tbW) / 2f;
+        tbX = (canvasW - tbW) / 2f;
         tbY = 8;
         float toggleX = tbX + TB_PAD + TB_LABEL_W + 8;
         float btnY = tbY + (tbH - TB_BTN_H) / 2f;
@@ -221,17 +236,29 @@ public final class HudEditorScreen extends Screen {
         save(); canvas.clearSelection(); rebuildPopover();
     }
 
-    @Override public void render(DrawContext dc, int mx, int my, float d) {
-        Ui.beginFrame(dc);
+    @Override public void render(DrawContext dc, int mxMc, int myMc, float d) {
+        // The editor draws in CLUB units, like the HUD it edits and the menu it was opened from (Stage 63).
+        // It used to work in Minecraft's GUI units — so the editor and the in-world HUD disagreed about how
+        // big a pixel is, and every position you dragged came out a different size once you closed it.
+        MinecraftClient mc = MinecraftClient.getInstance();
+        canvasK = com.club.ui.ClubCanvas.scale(mc);
+        canvasW = com.club.ui.ClubCanvas.width(mc);
+        canvasH = com.club.ui.ClubCanvas.HEIGHT;
+        int mx = (int) Math.round(mxMc / canvasK), my = (int) Math.round(myMc / canvasK);
+
+        dc.getMatrices().push();
+        dc.getMatrices().scale(canvasK, canvasK, 1f);
+        Ui.beginFrame(dc, canvasK);
+        try {
         com.club.hud.PixelIcons.set(dc);   // duotone icons draw through this DrawContext
         var r = Ui.renderer(); Typography ty = Tokens.type();
         if (stHint == null) initStyles();
-        r.rect(0, 0, width, height, 0xFF0A0E15);
+        r.rect(0, 0, canvasW, canvasH, 0xFF0A0E15);
         uiCtx.setTime((System.nanoTime() - start) / 1_000_000_000f);
 
-        canvas.setScreen(width, height);
-        canvas.layoutFromConfig(MinecraftClient.getInstance());
-        Decals.watermark(uiCtx); Decals.crosshair(uiCtx, width, height);
+        canvas.setScreen(Math.round(canvasW), Math.round(canvasH));
+        canvas.layoutFromConfig(mc);
+        Decals.watermark(uiCtx); Decals.crosshair(uiCtx, Math.round(canvasW), Math.round(canvasH));
 
         // armed Reset decays back to the quiet ghost when the hold expires (Stage 35)
         if (tbResetArmed && uiCtx.time() - tbResetArmAt > RESET_ARM_HOLD) disarmReset();
@@ -247,7 +274,7 @@ public final class HudEditorScreen extends Screen {
         toolbar.mouseMoved(mx, my); toolbar.render(uiCtx);
 
         // hint, tucked at the very bottom (out of the way of element positioning)
-        uiCtx.text().draw("Left-drag to move · Right-click for settings", width / 2f, height - 18, stHint);
+        uiCtx.text().draw("Left-drag to move · Right-click for settings", canvasW / 2f, canvasH - 18, stHint);
 
         // popover — compact, re-anchored each frame; grows in on selection, plays the reveal in
         // reverse on deselection (dropped only once fully collapsed), content clipped to the eased height
@@ -273,7 +300,10 @@ public final class HudEditorScreen extends Screen {
                 r.popClip();
             }
         }
-        Ui.endFrame();   // submit the batched shapes — nothing else will (Stage 61)
+        } finally {
+            Ui.endFrame();   // submit the batched shapes — nothing else will (Stage 61)
+            dc.getMatrices().pop();
+        }
     }
 
     private String titleOf(HudElement e) { return e.displayName() + " HUD"; }
@@ -289,15 +319,22 @@ public final class HudEditorScreen extends Screen {
     // input: toolbar + popover widgets first (capture), then canvas drag
     // Route the whole gesture (press→drag→release) to ONE owner so a popover/toolbar click never reaches
     // the canvas (which would otherwise deselect and close the popover on every control click).
-    @Override public boolean mouseClicked(double mx, double my, int b) {
+    //
+    // Mouse coordinates arrive in MINECRAFT units and everything below them lives on the Club canvas, so
+    // they are converted at the boundary (Stage 63) — every one of them, including the drag DELTAS: a drag
+    // measured in the wrong space is an element that lags or races the cursor by exactly the ratio between
+    // the two, which is the kind of bug that gets reported as "the HUD editor feels weird".
+    @Override public boolean mouseClicked(double mxMc, double myMc, int b) {
+        double mx = cx(mxMc), my = cy(myMc);
         focus.clickFocus(mx, my);
         if (toolbar.mouseClicked(mx, my, b)) { pressOwner = 1; return true; }
         if (hasPopover && !popClosing && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH) { popover.mouseClicked(mx, my, b); pressOwner = 2; return true; }
         if (canvas.mouseClicked(mx, my, b)) { pressOwner = 3; return true; }
         pressOwner = 0;
-        return super.mouseClicked(mx, my, b);
+        return super.mouseClicked(mxMc, myMc, b);
     }
-    @Override public boolean mouseReleased(double mx, double my, int b) {
+    @Override public boolean mouseReleased(double mxMc, double myMc, int b) {
+        double mx = cx(mxMc), my = cy(myMc);
         int owner = pressOwner; pressOwner = 0;
         boolean h = switch (owner) {
             case 1 -> toolbar.mouseReleased(mx, my, b);
@@ -305,16 +342,17 @@ public final class HudEditorScreen extends Screen {
             case 3 -> canvas.mouseReleased(mx, my, b);
             default -> false;
         };
-        return h || super.mouseReleased(mx, my, b);
+        return h || super.mouseReleased(mxMc, myMc, b);
     }
-    @Override public boolean mouseDragged(double mx, double my, int b, double dx, double dy) {
+    @Override public boolean mouseDragged(double mxMc, double myMc, int b, double dxMc, double dyMc) {
+        double mx = cx(mxMc), my = cy(myMc), dx = cx(dxMc), dy = cy(dyMc);
         boolean h = switch (pressOwner) {
             case 1 -> toolbar.mouseDragged(mx, my, b, dx, dy);
             case 2 -> popover.mouseDragged(mx, my, b, dx, dy);
             case 3 -> canvas.mouseDragged(mx, my, b, dx, dy);
             default -> false;
         };
-        return h || super.mouseDragged(mx, my, b, dx, dy);
+        return h || super.mouseDragged(mxMc, myMc, b, dxMc, dyMc);
     }
     @Override public boolean keyPressed(int k, int scan, int mods) {
         if (k == GLFW_KEY_ESCAPE) { close(); return true; }
@@ -358,14 +396,18 @@ public final class HudEditorScreen extends Screen {
                 && x >= popX && x <= popX + popW && y >= popY && y <= popY + popH;
     }
 
-    /** Shift the OS cursor by a GUI-px delta (window-scaled), keeping MC's tracked position in sync
-     *  so the move never lands as a phantom look/hover delta. glfwSetCursorPos fires no callback. */
-    private void moveCursorBy(int dxGui, int dyGui) {
+    /** Shift the OS cursor by a CLUB-unit delta, keeping MC's tracked position in sync so the move never
+     *  lands as a phantom look/hover delta. glfwSetCursorPos fires no callback.
+     *
+     *  <p>Two conversions, not one (Stage 63): the nudge is measured in Club units, the cursor lives in
+     *  window pixels, and Minecraft's GUI units sit between them. Skipping the canvas step made the cursor
+     *  drift off the element it was supposed to be riding, by exactly the canvas ratio.</p> */
+    private void moveCursorBy(int dxClub, int dyClub) {
         MinecraftClient mc = MinecraftClient.getInstance();
         var win = mc.getWindow();
         double sx = (double) win.getWidth()  / Math.max(1, win.getScaledWidth());
         double sy = (double) win.getHeight() / Math.max(1, win.getScaledHeight());
-        double nx = mc.mouse.getX() + dxGui * sx, ny = mc.mouse.getY() + dyGui * sy;
+        double nx = mc.mouse.getX() + dxClub * canvasK * sx, ny = mc.mouse.getY() + dyClub * canvasK * sy;
         glfwSetCursorPos(win.getHandle(), nx, ny);
         var mouse = (com.club.mixin.MouseAccessor) mc.mouse;
         mouse.club$setX(nx); mouse.club$setY(ny);

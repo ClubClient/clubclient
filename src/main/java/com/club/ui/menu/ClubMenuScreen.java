@@ -186,19 +186,19 @@ public final class ClubMenuScreen extends Screen {
     // scale, so the window is always the full 660x380 with 4 columns and the full rail, and it keeps the
     // same PROPORTION of the screen on 720p, 1080p, 1440p or 4K. The player's GUI Scale no longer
     // reaches it at all.
-    private static final float CANVAS_H = 540f;
+    // The canvas itself now lives in com.club.ui.ClubCanvas — the HUD moved onto the same space in Stage 63
+    // ("какого хера у нас худы меняют свой размер в зависимости от настроек в игре"), and two copies of this
+    // arithmetic in two files is how they drift apart.
+    private static final float CANVAS_H = com.club.ui.ClubCanvas.HEIGHT;
     private float canvasW = 960f, canvasH = CANVAS_H;
     private float canvasK = 1f;   // Minecraft GUI units per Club unit (the matrix scale)
 
     /** Resolve the Club canvas for the current window. */
     private void updateCanvas() {
         MinecraftClient mc = MinecraftClient.getInstance();
-        var win = mc.getWindow();
-        double mcScale = Math.max(0.0001, win.getScaleFactor());
-        float clubScale = Math.max(0.1f, win.getFramebufferHeight() / CANVAS_H);   // physical px per Club unit
-        canvasK = (float) (clubScale / mcScale);
+        canvasK = com.club.ui.ClubCanvas.scale(mc);
         canvasH = CANVAS_H;
-        canvasW = Math.max(1f, width / canvasK);   // MC units → Club units
+        canvasW = Math.max(1f, width / canvasK);   // this screen's own MC width → Club units
     }
 
     /** MC-unit mouse position → Club-canvas units. */

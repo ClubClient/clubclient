@@ -88,8 +88,11 @@ public final class TargetElement extends HudElement {
         // no-op: the V4 capsule + live edge are drawn in paint() (needs the eased HP fraction)
     }
 
-    @Override public int autoX(MinecraftClient mc) { return mc != null ? mc.getWindow().getScaledWidth() / 2 + 16 : -1; }
-    @Override public int autoY(MinecraftClient mc) { return mc != null ? mc.getWindow().getScaledHeight() / 2 - CONTENT_H / 2 : -1; }
+    // Auto-position: beside the crosshair — which is the centre of the CLUB canvas now, not of Minecraft's
+    // GUI-scaled screen (Stage 63). Both rectangles cover the same monitor, so the centre agrees; the units
+    // do not, and mixing them would offset the chip by half its own width at any scale but 2.
+    @Override public int autoX(MinecraftClient mc) { return mc != null ? com.club.ui.ClubCanvas.widthI(mc) / 2 + 16 : -1; }
+    @Override public int autoY(MinecraftClient mc) { return mc != null ? com.club.ui.ClubCanvas.heightI() / 2 - CONTENT_H / 2 : -1; }
 
     /** In-world: show only when actually aiming at a living entity (no sample fallback outside the editor).
      *  Reads the frame's cached target (resolved once per frame by HudManager) — no extra raycast here. */
