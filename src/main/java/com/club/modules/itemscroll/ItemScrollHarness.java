@@ -1,5 +1,7 @@
 package com.club.modules.itemscroll;
 
+import com.club.mixin.MixinHandledScreenAccessor;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.ChestBlockEntity;
@@ -15,6 +17,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * The module's side of the in-game harness (dev only; nothing calls it in a normal session). It exists
@@ -109,6 +112,89 @@ public final class ItemScrollHarness {
         ScreenHandler handler = screen.getScreenHandler();
         if (slotId < 0 || slotId >= handler.slots.size()) return;
         ItemScrollHooks.act(screen, action, handler.slots.get(slotId), out);
+    }
+
+    // ---- driving a REAL drag ----------------------------------------------------------------------
+    //
+    // Not through act(): through the same path a hand takes. The OS cursor is moved with GLFW, the press
+    // and release go through Fabric's own event invokers, and if an event comes back ALLOWED the harness
+    // calls the screen's vanilla handler itself — because that is what the client would do, and a drag
+    // test that skips it proves nothing about the thing we are afraid of.
+
+    /** Bind the drag to a bare left click for the duration of the test: the harness cannot hold Shift
+     *  (GLFW key state is physical), and a bare LMB drag is also the harshest case — it is the button
+     *  vanilla itself drags with. */
+    public static void bindDragToLeftClick() {
+        ItemScrollBinds.set(ScrollAction.DRAG_MOVE, Gesture.of(GestureInput.LMB, 0));
+    }
+
+    public static void restoreDefaultGestures() {
+        com.club.config.ClubConfig.get().itemScroll.gestures.clear();
+        com.club.config.ClubConfig.save();
+    }
+
+    /** Put the real mouse pointer over the centre of a slot. */
+    public static void moveCursor(MinecraftClient mc, int slotId) {
+        HandledScreen<?> screen = screen(mc);
+        if (screen == null) return;
+        double[] p = slotCentre(mc, screen, slotId);
+        double factor = mc.getWindow().getScaleFactor();
+        GLFW.glfwSetCursorPos(mc.getWindow().getHandle(), p[0] * factor, p[1] * factor);
+    }
+
+    /** @return "consumed" when Club took the press (so vanilla never saw it), or what vanilla then did */
+    public static String dragPress(MinecraftClient mc, int slotId) {
+        HandledScreen<?> screen = screen(mc);
+        if (screen == null) return "no screen";
+        moveCursor(mc, slotId);
+        double[] p = slotCentre(mc, screen, slotId);
+        boolean allowed = ScreenMouseEvents.allowMouseClick(screen).invoker()
+                .allowMouseClick(screen, p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        if (!allowed) return "consumed";
+        screen.mouseClicked(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);   // the client would — so we do
+        return "NOT consumed — vanilla handled the press";
+    }
+
+    public static String dragRelease(MinecraftClient mc) {
+        HandledScreen<?> screen = screen(mc);
+        if (screen == null) return "no screen";
+        double x = mc.mouse.getX() / mc.getWindow().getScaleFactor();
+        double y = mc.mouse.getY() / mc.getWindow().getScaleFactor();
+        boolean allowed = ScreenMouseEvents.allowMouseRelease(screen).invoker()
+                .allowMouseRelease(screen, x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        if (!allowed) return "consumed";
+        screen.mouseReleased(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        return "NOT consumed — vanilla handled the release";
+    }
+
+    /** Vanilla's quick-craft never armed: no drag, no collected slots, no shift-drag quick-move in flight. */
+    public static boolean vanillaDragIdle(MinecraftClient mc) {
+        HandledScreen<?> screen = screen(mc);
+        if (screen == null) return false;
+        MixinHandledScreenAccessor a = (MixinHandledScreenAccessor) screen;
+        return !a.club$cursorDragging() && a.club$cursorDragSlots().isEmpty() && a.club$quickMovingStack().isEmpty();
+    }
+
+    /** Would Club eat this event? False means we let it through — the answer REI and EMI care about. */
+    public static boolean eventLeftToVanilla(MinecraftClient mc, int button, int slotId) {
+        HandledScreen<?> screen = screen(mc);
+        if (screen == null) return false;
+        double[] p = slotCentre(mc, screen, slotId);
+        return ScreenMouseEvents.allowMouseClick(screen).invoker().allowMouseClick(screen, p[0], p[1], button);
+    }
+
+    /** A scroll BESIDE the container box — where REI's and EMI's panels live. We must not touch it. */
+    public static boolean scrollOutsideLeftToVanilla(MinecraftClient mc) {
+        HandledScreen<?> screen = screen(mc);
+        if (screen == null) return false;
+        return ScreenMouseEvents.allowMouseScroll(screen).invoker()
+                .allowMouseScroll(screen, 4, 4, 0, 1);   // top-left corner: outside every container's box
+    }
+
+    private static double[] slotCentre(MinecraftClient mc, HandledScreen<?> screen, int slotId) {
+        MixinHandledScreenAccessor a = (MixinHandledScreenAccessor) screen;
+        Slot slot = screen.getScreenHandler().slots.get(slotId);
+        return new double[] { a.club$x() + slot.x + 8.0, a.club$y() + slot.y + 8.0 };
     }
 
     // ---- reading the world back -------------------------------------------------------------------

@@ -32,4 +32,12 @@ public interface MixinHandledScreenAccessor {
     /** {@code private Slot getSlotAt(double, double)} in 1.21.1 — the only way to hit-test during a drag. */
     @Invoker("getSlotAt")     Slot club$slotAt(double mouseX, double mouseY);
     @Invoker("onMouseClick")  void club$onMouseClick(Slot slot, int slotId, int button, SlotActionType type);
+
+    // Vanilla's OWN drag state. Read-only, and read for one reason: when Club's drag gesture sits on the
+    // same button as vanilla's quick-craft (Shift+LMB does), "it looked fine" and "it fanned the stack out
+    // across the crafting grid" differ by one event we failed to consume. The harness asserts these three
+    // are still idle after a Club drag — a promise the mod can keep, not a comment claiming it does.
+    @Accessor("cursorDragging")   boolean club$cursorDragging();
+    @Accessor("cursorDragSlots")  java.util.Set<Slot> club$cursorDragSlots();
+    @Accessor("quickMovingStack") net.minecraft.item.ItemStack club$quickMovingStack();
 }

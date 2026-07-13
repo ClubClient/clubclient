@@ -489,6 +489,46 @@ public final class ClubHarness {
             step(2, () -> shot("itemscroll-chest-emptied"));
             step(2, () -> mc.setScreen(null));
 
+            // ---- the drag, and the vanilla quick-craft it must never start ----
+            // Club's drag sits on the same button vanilla drags with. "It worked" and "it fanned the stack
+            // out across the grid" differ by ONE event we failed to consume, so the harness drives the real
+            // path — the OS cursor moves, the press goes through Fabric's own invoker, and if the event
+            // comes back allowed the harness calls vanilla's handler itself, exactly as the client would.
+            step(40, () -> report.add("INFO  item scroll: refill — "
+                    + com.club.modules.itemscroll.ItemScrollHarness.openChest(mc)));
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.bindDragToLeftClick());
+            step(5, () -> report.add("INFO  item scroll: drag press — "
+                    + com.club.modules.itemscroll.ItemScrollHarness.dragPress(
+                            mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_A)));
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
+                    mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_B));
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
+                    mc, com.club.modules.itemscroll.ItemScrollHarness.DIRT));
+            step(5, () -> report.add("INFO  item scroll: drag release — "
+                    + com.club.modules.itemscroll.ItemScrollHarness.dragRelease(mc)));
+            step(5, () -> {
+                check("item scroll: a drag across three slots moves all three",
+                        com.club.modules.itemscroll.ItemScrollHarness.containerStacks(mc) == 0);
+                check("item scroll: …and VANILLA'S QUICK-CRAFT NEVER ARMED (no drag, no slots, no shift-move)",
+                        com.club.modules.itemscroll.ItemScrollHarness.vanillaDragIdle(mc));
+                check("item scroll: …and the cursor is EMPTY",
+                        com.club.modules.itemscroll.ItemScrollHarness.cursorEmpty(mc));
+            });
+            step(2, () -> shot("itemscroll-drag"));
+
+            // The other half of good manners: events that are not ours must reach the screen untouched —
+            // this is the rule that keeps REI's and EMI's panels scrolling like they always did.
+            step(2, () -> {
+                check("item scroll: an unbound button is left to vanilla",
+                        com.club.modules.itemscroll.ItemScrollHarness.eventLeftToVanilla(
+                                mc, org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_RIGHT,
+                                com.club.modules.itemscroll.ItemScrollHarness.STONE_A));
+                check("item scroll: a scroll BESIDE the container box is left to vanilla (REI/EMI overlays)",
+                        com.club.modules.itemscroll.ItemScrollHarness.scrollOutsideLeftToVanilla(mc));
+            });
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.restoreDefaultGestures());
+            step(2, () -> mc.setScreen(null));
+
             // The survival screen is the one place both regions are the player's own inventory, so it is
             // the one place a wrong region rule undresses you. Hotbar ↔ main, armour and offhand untouched.
             step(40, () -> report.add("INFO  item scroll: "

@@ -55,7 +55,7 @@ public final class ItemScrollHooks {
     // ---- events -----------------------------------------------------------------------------------
 
     private static boolean onScroll(Screen screen, double mouseX, double mouseY, double horizontal, double vertical) {
-        if (vertical == 0 || !ItemScrollModule.active()) return true;
+        if (vertical == 0 || !ItemScrollModule.active() || cursorLoaded()) return true;
         // Up = out of the hovered slot's inventory, down = into it. The reverse toggle is the whole of the
         // reference's REVERSE_SCROLL_DIRECTION_* config, in one line.
         boolean out = (vertical > 0) != ClubConfig.get().itemScroll.reverseScroll;
@@ -63,7 +63,10 @@ public final class ItemScrollHooks {
     }
 
     private static boolean onClick(Screen screen, double mouseX, double mouseY, int button) {
-        if (!ItemScrollModule.active()) return true;
+        // A loaded cursor means the player is mid-move BY HAND. We do not act, and — just as important —
+        // we do not CONSUME: vanilla's own drag-to-spread lives on these same buttons, and eating the
+        // event would break a thing the player has been doing since 1.5 while doing nothing ourselves.
+        if (!ItemScrollModule.active() || cursorLoaded()) return true;
         GestureInput input = inputOf(button);
         if (input == null) return true;
 
@@ -182,6 +185,12 @@ public final class ItemScrollHooks {
 
     private static int mods() {
         return Gesture.mods(Screen.hasShiftDown(), Screen.hasControlDown(), Screen.hasAltDown());
+    }
+
+    /** Is the player already carrying something on the cursor? Then this gesture is not ours to take. */
+    private static boolean cursorLoaded() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        return mc.player == null || !mc.player.currentScreenHandler.getCursorStack().isEmpty();
     }
 
     private static SlotActionType type(Click.Act act) {
