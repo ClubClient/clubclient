@@ -39,6 +39,7 @@ public class ClubConfig {
     // [SEAM:config] Module config sections. Each parallel workstream adds exactly ONE line here, under this
     // anchor, and keeps its own fields in its own class — three branches editing three different lines of the
     // same file is a clean merge; three branches reformatting the same block is not.
+    public com.club.modules.itemscroll.ItemScrollConfig itemScroll = new com.club.modules.itemscroll.ItemScrollConfig();
 
     public Hud hud = new Hud();
 

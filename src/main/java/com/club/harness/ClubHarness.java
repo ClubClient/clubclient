@@ -430,6 +430,201 @@ public final class ClubHarness {
 
             // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
 
+            // ===== ITEM SCROLL — a real chest, real packets, a real cursor =====
+            // The unit tests prove the PLAN. Only the game can prove that the plan empties a chest and
+            // hands the cursor back empty, because only the game has a handler, a server and a round-trip.
+            step(2, () -> report.add("== item scroll =="));
+            step(2, () -> mc.setScreen(null));
+            step(40, () -> report.add("INFO  item scroll: "
+                    + com.club.modules.itemscroll.ItemScrollHarness.openChest(mc)));
+            step(5, () -> {
+                report.add("INFO  item scroll: screen is " + (mc.currentScreen == null ? "null"
+                        : mc.currentScreen.getClass().getSimpleName()));
+                check("item scroll: a filled chest is open (3 stacks)",
+                        com.club.modules.itemscroll.ItemScrollHarness.containerStacks(mc) == 3);
+            });
+            step(2, () -> shot("itemscroll-chest"));
+
+            // Move one: take all, place ONE, put the rest back. The third click is the whole test — without
+            // it the cursor is still holding 63 stone when the screen closes, and the server drops them.
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.perform(
+                    mc, com.club.modules.itemscroll.ScrollAction.MOVE_ONE,
+                    com.club.modules.itemscroll.ItemScrollHarness.STONE_A, true));
+            step(5, () -> {
+                int left = com.club.modules.itemscroll.ItemScrollHarness.count(
+                        mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_A);
+                check("item scroll: move one leaves 63 in the source (" + left + ")", left == 63);
+                check("item scroll: …and exactly ONE stone reached the player",
+                        com.club.modules.itemscroll.ItemScrollHarness.playerItems(mc, true) == 1);
+                check("item scroll: …and the cursor is EMPTY",
+                        com.club.modules.itemscroll.ItemScrollHarness.cursorEmpty(mc));
+            });
+
+            // Move matching: every stone stack, and nothing else. 63 + 16 = 79, plus the one already moved.
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.perform(
+                    mc, com.club.modules.itemscroll.ScrollAction.MOVE_MATCHING,
+                    com.club.modules.itemscroll.ItemScrollHarness.STONE_A, true));
+            step(5, () -> {
+                int stone = com.club.modules.itemscroll.ItemScrollHarness.playerItems(mc, true);
+                int dirt = com.club.modules.itemscroll.ItemScrollHarness.count(
+                        mc, com.club.modules.itemscroll.ItemScrollHarness.DIRT);
+                check("item scroll: move matching took BOTH stone stacks (" + stone + " stone)", stone == 80);
+                check("item scroll: …and did not touch the dirt (" + dirt + " left)", dirt == 32);
+                check("item scroll: …and the cursor is EMPTY",
+                        com.club.modules.itemscroll.ItemScrollHarness.cursorEmpty(mc));
+            });
+
+            // Move everything: the acceptance case — a chest that moves in one gesture, losing nothing.
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.perform(
+                    mc, com.club.modules.itemscroll.ScrollAction.MOVE_EVERYTHING,
+                    com.club.modules.itemscroll.ItemScrollHarness.DIRT, true));
+            step(5, () -> {
+                check("item scroll: move everything empties the chest",
+                        com.club.modules.itemscroll.ItemScrollHarness.containerStacks(mc) == 0);
+                check("item scroll: …and the dirt arrived intact (32)",
+                        com.club.modules.itemscroll.ItemScrollHarness.playerItems(mc, false) == 32);
+                check("item scroll: …and the cursor is EMPTY",
+                        com.club.modules.itemscroll.ItemScrollHarness.cursorEmpty(mc));
+            });
+            step(2, () -> shot("itemscroll-chest-emptied"));
+            step(2, () -> mc.setScreen(null));
+
+            // ---- the drag, and the vanilla quick-craft it must never start ----
+            // Club's drag sits on the same button vanilla drags with. "It worked" and "it fanned the stack
+            // out across the grid" differ by ONE event we failed to consume, so the harness drives the real
+            // path — the OS cursor moves, the press goes through Fabric's own invoker, and if the event
+            // comes back allowed the harness calls vanilla's handler itself, exactly as the client would.
+            step(40, () -> report.add("INFO  item scroll: refill — "
+                    + com.club.modules.itemscroll.ItemScrollHarness.openChest(mc)));
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.bindDragToLeftClick());
+            step(5, () -> report.add("INFO  item scroll: drag press — "
+                    + com.club.modules.itemscroll.ItemScrollHarness.dragPress(
+                            mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_A)));
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
+                    mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_B));
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
+                    mc, com.club.modules.itemscroll.ItemScrollHarness.DIRT));
+            step(5, () -> report.add("INFO  item scroll: drag release — "
+                    + com.club.modules.itemscroll.ItemScrollHarness.dragRelease(mc)));
+            step(5, () -> {
+                check("item scroll: a drag across three slots moves all three",
+                        com.club.modules.itemscroll.ItemScrollHarness.containerStacks(mc) == 0);
+                check("item scroll: …and VANILLA'S QUICK-CRAFT NEVER ARMED (no drag, no slots, no shift-move)",
+                        com.club.modules.itemscroll.ItemScrollHarness.vanillaDragIdle(mc));
+                check("item scroll: …and the cursor is EMPTY",
+                        com.club.modules.itemscroll.ItemScrollHarness.cursorEmpty(mc));
+            });
+            step(2, () -> shot("itemscroll-drag"));
+
+            // The other half of good manners: events that are not ours must reach the screen untouched —
+            // this is the rule that keeps REI's and EMI's panels scrolling like they always did.
+            step(2, () -> {
+                check("item scroll: an unbound button is left to vanilla",
+                        com.club.modules.itemscroll.ItemScrollHarness.eventLeftToVanilla(
+                                mc, org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_RIGHT,
+                                com.club.modules.itemscroll.ItemScrollHarness.STONE_A));
+                check("item scroll: a scroll BESIDE the container box is left to vanilla (REI/EMI overlays)",
+                        com.club.modules.itemscroll.ItemScrollHarness.scrollOutsideLeftToVanilla(mc));
+            });
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.restoreDefaultGestures());
+            step(2, () -> mc.setScreen(null));
+
+            // ---- the gesture editor, photographed in the three states the owner has to judge ----
+            step(6, () -> mc.setScreen(new com.club.modules.itemscroll.GestureScreen(null)));
+            step(4, () -> shot("itemscroll-gestures"));            // the defaults, and Shift+LMB naming quick-move
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.armRow(mc, 0));   // "Press a gesture…"
+            step(4, () -> {
+                // The arming-click trap, refuted: the click that ARMS a row is itself a left click, and a
+                // capture that started on the press would have just bound Move one to "Left Click".
+                check("item scroll: arming a row does not bind it to the arming click",
+                        com.club.modules.itemscroll.Gesture.of(
+                                com.club.modules.itemscroll.GestureInput.SCROLL, 0).equals(
+                                com.club.modules.itemscroll.ItemScrollBinds.get(
+                                        com.club.modules.itemscroll.ScrollAction.MOVE_ONE)));
+                shot("itemscroll-gestures-armed");
+            });
+
+            // A bare left click into an armed row: refused, out loud. It is how a player picks items up,
+            // and a row that swallowed it would brick every inventory in the game.
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.captureBareLeftClick(mc));
+            step(4, () -> {
+                check("item scroll: a bare left click is REFUSED, and the row keeps its gesture",
+                        com.club.modules.itemscroll.Gesture.of(
+                                com.club.modules.itemscroll.GestureInput.SCROLL, 0).equals(
+                                com.club.modules.itemscroll.ItemScrollBinds.get(
+                                        com.club.modules.itemscroll.ScrollAction.MOVE_ONE)));
+                shot("itemscroll-gestures-refused");
+            });
+
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.stealGesture(mc));// the wheel: Move one's
+            step(4, () -> shot("itemscroll-gestures-stolen"));     // "Taken from Move stack" + that row goes to Not set
+            step(2, () -> {
+                // The editor captured a REAL scroll on a REAL armed row: the wheel was Move one's, and
+                // Move one must have LOST it. Two owners of one gesture is the bug this whole grammar exists
+                // to make impossible, and here it is refuted through the screen, not through the model.
+                check("item scroll: the editor's capture STEALS — Move one loses the wheel",
+                        com.club.modules.itemscroll.ItemScrollBinds.get(
+                                com.club.modules.itemscroll.ScrollAction.MOVE_ONE) == null);
+                check("item scroll: …and Move everything now holds it",
+                        com.club.modules.itemscroll.Gesture.of(
+                                com.club.modules.itemscroll.GestureInput.SCROLL, 0).equals(
+                                com.club.modules.itemscroll.ItemScrollBinds.get(
+                                        com.club.modules.itemscroll.ScrollAction.MOVE_EVERYTHING)));
+            });
+            step(2, () -> com.club.modules.itemscroll.ItemScrollHarness.restoreDefaultGestures());
+            step(2, () -> mc.setScreen(null));
+
+            // The survival screen is the one place both regions are the player's own inventory, so it is
+            // the one place a wrong region rule undresses you. Hotbar ↔ main, armour and offhand untouched.
+            step(40, () -> report.add("INFO  item scroll: "
+                    + com.club.modules.itemscroll.ItemScrollHarness.dressPlayer(mc)));
+            step(20, () -> mc.setScreen(new net.minecraft.client.gui.screen.ingame.InventoryScreen(mc.player)));
+            step(5, () -> report.add("INFO  item scroll: before — " + com.club.modules.itemscroll.ItemScrollHarness.describe(mc)));
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.perform(
+                    mc, com.club.modules.itemscroll.ScrollAction.MOVE_EVERYTHING, 9, true));   // slot 9 = main, row 1
+            step(5, () -> report.add("INFO  item scroll: after  — " + com.club.modules.itemscroll.ItemScrollHarness.describe(mc)));
+            step(5, () -> {
+                check("item scroll: survival screen — main inventory empties into the hotbar",
+                        com.club.modules.itemscroll.ItemScrollHarness.mainInventoryEmpty(mc)
+                        && com.club.modules.itemscroll.ItemScrollHarness.hotbarItems(mc, true) == 64
+                        && com.club.modules.itemscroll.ItemScrollHarness.hotbarItems(mc, false) == 8);
+                check("item scroll: …and the helmet stays on the player's head",
+                        com.club.modules.itemscroll.ItemScrollHarness.stillWearingHelmet(mc));
+                check("item scroll: …and the shield stays in the offhand",
+                        com.club.modules.itemscroll.ItemScrollHarness.stillHoldingShield(mc));
+                check("item scroll: …and the cursor is EMPTY",
+                        com.club.modules.itemscroll.ItemScrollHarness.cursorEmpty(mc));
+            });
+            step(2, () -> shot("itemscroll-inventory"));
+            step(2, () -> mc.setScreen(null));
+
+            // Creative is refused — and this check exists because the harness itself walked into that screen
+            // by accident (vanilla swaps InventoryScreen for the creative one) and the module HAPPILY moved
+            // its fake slots, leaving 64 stairs on the cursor. Now the refusal sits in the act, not the door.
+            step(20, () -> report.add("INFO  item scroll: " + com.club.modules.itemscroll.ItemScrollHarness.restoreCreative(mc)));
+            step(20, () -> mc.setScreen(new net.minecraft.client.gui.screen.ingame.InventoryScreen(mc.player)));
+            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.perform(
+                    mc, com.club.modules.itemscroll.ScrollAction.MOVE_EVERYTHING, 9, true));
+            step(5, () -> {
+                report.add("INFO  item scroll: creative — " + com.club.modules.itemscroll.ItemScrollHarness.describe(mc));
+                check("item scroll: the creative screen is refused — nothing lands on the cursor",
+                        com.club.modules.itemscroll.ItemScrollHarness.cursorEmpty(mc));
+            });
+            step(2, () -> mc.setScreen(null));
+
+            // Two actions can never share a gesture: assigning one takes it from whoever held it.
+            step(2, () -> {
+                java.util.Map<String, String> map = new java.util.HashMap<>();
+                com.club.modules.itemscroll.Gesture stackGesture =
+                        com.club.modules.itemscroll.Gestures.defaultFor(
+                                com.club.modules.itemscroll.ScrollAction.MOVE_STACK);
+                com.club.modules.itemscroll.Gestures.set(map,
+                        com.club.modules.itemscroll.ScrollAction.MOVE_EVERYTHING, stackGesture);
+                check("item scroll: a gesture assigned twice is STOLEN, never shared",
+                        com.club.modules.itemscroll.Gestures.get(map,
+                                com.club.modules.itemscroll.ScrollAction.MOVE_STACK) == null);
+            });
+
             // ===== COST OF THE MOD, MEASURED (Stage 59) =====
             // The owner asked whether it holds up under load. Everything the mod draws in-world goes
             // through the HUD callback, so measure frames with it ON vs fully OFF, in the same world, in
