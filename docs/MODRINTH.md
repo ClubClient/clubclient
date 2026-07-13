@@ -19,29 +19,29 @@
 A first-person utility client for Fabric 1.21.1. Zoom, Fullbright, Freelook, a movable HUD, hand and animation
 controls — in one menu, without fighting the game underneath it.
 
-## The menu
+## 🎛️ The menu
 
 **Right Shift.** Flat, calm, dark. No glow, no glass, no cheat-client neon. Every module is a card; right-click
 a card for its own settings. The whole menu is keyboard-navigable, and every module can take its own hotkey.
 
-## See more
+## 👁️ See more
 
-- **Zoom** — hold **C** to magnify, with an eased FOV rather than a snap. Scroll while holding to dial it from
-  2× to 8×. Your look sensitivity slows with the zoom, so the world crosses the screen at one speed at any
+- 🔍 **Zoom** — hold **C** to magnify, with an eased FOV rather than a snap. Scroll while holding to dial it
+  from 2× to 8×. Your look sensitivity slows with the zoom, so the world crosses the screen at one speed at any
   magnification — a zoom you can actually aim with.
-- **Fullbright** — full brightness in caves and at night. It only touches the world lightmap, so your real
+- 💡 **Fullbright** — full brightness in caves and at night. It only touches the world lightmap, so your real
   Brightness slider and your `options.txt` are never overwritten.
-- **Freelook** — hold **Left Alt** to swing the camera around yourself without turning. Your aim and your
+- 🎥 **Freelook** — hold **Left Alt** to swing the camera around yourself without turning. Your aim and your
   movement don't change. It's a camera, not an aim tool.
-- **Screen Stretch**, **No Hurt Cam**, **No Fire Overlay**, **No Bobbing** — a calmer view, your way.
+- 🖼️ **Screen Stretch**, **No Hurt Cam**, **No Fire Overlay**, **No Bobbing** — a calmer view, your way.
 
-## Move better
+## 🏃 Move better
 
-- **Toggle Sprint** — sprint without holding the key, with a quiet chip on screen so you always know it's on.
-- **Hands** — reposition and scale the first-person hands, each hand independently.
-- **Custom attack animations** — pick a style, then tune its speed and swing.
+- ⚡ **Toggle Sprint** — sprint without holding the key, with a quiet chip on screen so you always know it's on.
+- ✋ **Hands** — reposition and scale the first-person hands, each hand independently.
+- ⚔️ **Custom attack animations** — pick a style, then tune its speed and swing.
 
-## The HUD
+## 📊 The HUD
 
 Status effects, your target's health, worn armour, an FPS readout and the sprint chip, all drawn in one
 consistent "chips" language.
@@ -51,7 +51,7 @@ element for its own settings. The HUD is the size you set it — Minecraft's GUI
 
 ---
 
-## New in v0.1.2
+## ✨ New in v0.1.2
 
 **Club and Minecraft no longer fight over your keys.** Minecraft hands a key press to exactly one binding, so a
 Club key that landed on a key the game already used didn't share it — one of the two actions silently stopped
@@ -81,12 +81,12 @@ doing something.
 **Toggle Sprint** could latch the sprint key down forever if you turned on vanilla's "Sprint: Toggle" while it
 was running. Fixed. And turning off Club's Effects HUD no longer leaves you with no effect display at all.
 
-## It measures its own cost
+## ⚡ It measures its own cost
 
 The in-world HUD draw is **11 GL calls a frame**, down from 43, at roughly **0.45 ms**. That's measured in-game
 on every build and asserted, so it fails its own test if it creeps back.
 
-## Compatibility
+## 🧩 Compatibility
 
 **Sodium**, **Iris** (shaderpacks included) and **Freecam** — the gallery images on this page were shot with all
 three loaded at once.
@@ -94,7 +94,7 @@ three loaded at once.
 Client-side only: Club works on any server and installs on none of them. Fabric 1.21.1, Java 21. Requires
 **Fabric API**.
 
-## Controls
+## ⌨️ Controls
 
 | Action | Default |
 |---|---|
@@ -106,7 +106,7 @@ All rebindable, along with a hotkey for every module.
 
 ---
 
-## Club is a clean client
+## 🛡️ Club is a clean client
 
 Club is not a cheat client. No combat automation, no killaura, no player ESP, no reach, no autoclicker, no
 X-ray. Nothing in it touches what the server sees.
