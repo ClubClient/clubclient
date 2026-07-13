@@ -38,6 +38,7 @@ const T = {
   accent: '#7CABFF',
   accent2: '#78D7FF',
   textHi: '#F4F6FA',
+  text: '#A6ADBB',      // the muted line of the pair — the menu's own hierarchy
   faint: '#8E97A8',
   cat: { visuals: '#9E8BD9', player: '#7FBFA6', combat: '#C9808A', misc: '#8C9BB5' },
 }
@@ -58,10 +59,14 @@ const MENU_PANEL = [300, 160, 1320, 760]
 const SCENES = {
   hero: {
     src: 'promo-02-plate-peaks.png',                 // the clean plate: the ridge, and nothing of ours in it
-    eyebrow: 'FIRST-PERSON UTILITY CLIENT',
-    title: 'Everything you reach for.\nNothing you didn\'t.',
+    // In the mod's voice: plain, concrete, understated. It does not sell, it states — the same register the
+    // menu is written in ("Hold to magnify", "Reset to Default"), not a slogan with a pun in it.
+    eyebrow: 'FABRIC 1.21.1 · CLIENT-SIDE',
+    title: 'The first-person client\nthat stays out of the way.',
     cat: 'visuals',
-    inset: { from: 'promo-00-hero-peaks.png', crop: MENU_PANEL, zoom: 0.72, bleed: -24 },
+    // The panel sits WHOLE in the frame, with air around it. Bleeding it off the right edge cropped the
+    // search field and the version line mid-word — which reads as a mistake, not as a device (owner).
+    inset: { from: 'promo-00-hero-peaks.png', crop: MENU_PANEL, zoom: 0.68, bleed: 104 },
   },
 }
 
@@ -91,7 +96,10 @@ function page(scene) {
 
   const [line1, line2] = scene.title.split('\n')
 
-  return `<style>
+  // Chrome loads this over file:// and, with no charset declared, decodes it as windows-1252 — which turned
+  // the middot in the eyebrow into "Â·" in a shipped frame. Declare it.
+  return `<meta charset="utf-8">
+  <style>
     @font-face { font-family:'Onest'; src:${font('inter_regular.ttf')};  font-weight:400 }
     @font-face { font-family:'Onest'; src:${font('inter_medium.ttf')};   font-weight:500 }
     @font-face { font-family:'Onest'; src:${font('inter_semibold.ttf')}; font-weight:600 }
@@ -133,16 +141,23 @@ function page(scene) {
 <rect width='220' height='220' filter='url(%23n)'/></svg>"); }
 
     /* ---- type ---- */
-    .type { position:absolute; left:104px; bottom:104px; width:880px; }
-    .mark { display:flex; align-items:center; gap:10px; margin-bottom:26px; }
-    .mark svg { width:22px; height:22px; }
-    .mark span { font-weight:600; font-size:17px; letter-spacing:.34em; color:${T.textHi}; opacity:.9 }
-    .eyebrow { font-weight:500; font-size:15px; letter-spacing:.24em; color:${accent};
-               margin-bottom:18px; display:flex; align-items:center; gap:12px }
-    .eyebrow::before { content:''; width:26px; height:2px; background:${accent}; display:block }
-    h1 { font-weight:600; font-size:76px; line-height:1.06; letter-spacing:-.022em; color:${T.textHi};
-         text-shadow:0 2px 40px rgba(0,0,0,.5) }
-    h1 .dim { color:${T.faint} }
+    /* The column stops where the panel begins: 1920 - 104 (right margin) - 898 (panel) = 918, minus a gutter.
+       Type that runs under a floating panel is how a poster starts looking accidental. */
+    .type { position:absolute; left:104px; bottom:104px; width:740px; }
+    /* The mod's own type rules, not a poster's (owner: "подпись не в нашем стиле клиента").
+       Flat. No glow, no text-shadow, no gradient on text — the one sanctioned gradient in the whole design
+       system is the active tab's underline, so that is the only one that appears here, and it appears once.
+       Hierarchy is the menu's: one bright line (textHi), one muted line (text). The wordmark is set exactly
+       as the menu header sets it. */
+    .mark { display:flex; align-items:center; gap:11px; margin-bottom:22px; }
+    .mark svg { width:21px; height:21px; }
+    .mark span { font-weight:600; font-size:18px; letter-spacing:.34em; color:${T.textHi}; }
+    .rule { width:56px; height:2px; border-radius:2px; margin-bottom:22px;
+            background:linear-gradient(90deg, ${T.accent}, ${T.accent2}); }
+    .eyebrow { font-weight:500; font-size:13px; letter-spacing:.26em; color:${T.accent};
+               margin-bottom:20px; }
+    h1 { font-weight:600; font-size:60px; line-height:1.12; letter-spacing:-.018em; color:${T.textHi}; }
+    h1 .dim { color:${T.text}; font-weight:500 }
 
     /* ---- inset ---- */
     .inset { position:absolute; top:50%; transform:translateY(-50%); }
@@ -168,8 +183,9 @@ function page(scene) {
         </svg>
         <span>CLUB</span>
       </div>
+      <div class="rule"></div>
       <div class="eyebrow">${scene.eyebrow}</div>
-      <h1>${line1}<br><span class="${line2?.startsWith('None') ? 'dim' : ''}">${line2 ?? ''}</span></h1>
+      <h1>${line1}<br><span class="dim">${line2 ?? ''}</span></h1>
     </div>
     <div class="grain"></div>
   </div>`
