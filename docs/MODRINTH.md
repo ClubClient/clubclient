@@ -83,8 +83,8 @@ was running. Fixed. And turning off Club's Effects HUD no longer leaves you with
 
 ## ⚡ It measures its own cost
 
-The in-world HUD draw is **11 GL calls a frame**, down from 43, at roughly **0.45 ms**. That's measured in-game
-on every build and asserted, so it fails its own test if it creeps back.
+The in-world HUD draw is **11 GL calls a frame**, down from 43 — one call per shape became one call per batch.
+That number is counted in-game on every build and asserted, so it fails its own test if it creeps back up.
 
 ## 🧩 Compatibility
 

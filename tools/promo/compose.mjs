@@ -109,11 +109,15 @@ const SCENES = {
     title: 'It costs you\nalmost nothing.',
     cat: 'misc',
     card: {
+      // No milliseconds here. The mod's own timer wraps nanoTime around GL submits, so it measures how long
+      // the DRIVER holds the queue — i.e. it measures the world, not the mod: the same build reports 0.45 ms
+      // and 1.22 ms on the same machine. The draw-call count is deterministic and reproducible; it is the only
+      // number that has earned the right to be printed.
       rows: [
         { k: 'GL draw calls per frame', was: '43', now: '11' },
-        { k: 'HUD draw time', was: '1.25 ms', now: '0.45 ms' },
+        { k: 'Shapes batched into one call', was: '1 each', now: 'all' },
       ],
-      foot: 'Measured in-game on every build — and asserted, so it fails its own test if it creeps back.',
+      foot: 'Counted in-game on every build — and asserted, so it fails its own test if it creeps back up.',
     },
   },
 
