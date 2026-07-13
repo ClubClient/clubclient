@@ -38,7 +38,7 @@ public final class SlotPlan {
             }
 
             case MOVE_MATCHING -> {
-                if (hovered.empty()) yield List.of();
+                if (hovered.empty() || !hovered.bulk()) yield List.of();
                 List<Click> clicks = new ArrayList<>();
                 for (SlotView s : slots)
                     if (s.player() == sourceSide(hovered, out) && s.bulk() && canTake(s)
@@ -50,7 +50,9 @@ public final class SlotPlan {
             case MOVE_EVERYTHING -> {
                 // The only action that does not need to know the item — an empty hovered slot still means
                 // "empty this inventory". Result slots are skipped: quick-moving one CRAFTS, and a mass
-                // move must not craft the grid out from under the player.
+                // move must not craft the grid out from under the player. Armour and the offhand belong to
+                // no region, so a bulk gesture aimed at one has nothing to mean and does nothing.
+                if (!hovered.bulk()) yield List.of();
                 List<Click> clicks = new ArrayList<>();
                 for (SlotView s : slots)
                     if (s.player() == sourceSide(hovered, out) && s.bulk() && !s.result() && canTake(s))

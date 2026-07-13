@@ -27,9 +27,11 @@ public final class ItemScrollModule {
             {"mousewheelie",           "Mouse Wheelie"},
     };
 
-    /** Client init: the card's honesty line is contributed from here, so MenuContent stays untouched. */
+    /** Client init: hook the screen events, and contribute the card's honesty line from here so that
+     *  MenuContent stays untouched. */
     public static void init() {
         ModuleNotices.register("Item Scroll", ItemScrollMenu::notice);
+        ItemScrollHooks.register();
     }
 
     private static String sibling;

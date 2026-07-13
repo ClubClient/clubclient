@@ -158,6 +158,18 @@ class SlotPlanTest {
         assertClicks(s.plan(ScrollAction.MOVE_EVERYTHING, 1), Click.quickMove(1));
     }
 
+    @Test void aBulkGestureOverAnArmourSlotDoesNothing() {
+        // Armour and the offhand are not part of a region — "move everything" hovering the helmet has no
+        // sane meaning, and the region it falls into would otherwise be swept instead.
+        Screen s = new Screen().add(false, null, 0)
+                .add(true, "stone", 64)
+                .add(true, "helmet", 1, 1, true, false, false, true);   // armour: not bulk
+        assertTrue(s.plan(ScrollAction.MOVE_EVERYTHING, 2).isEmpty());
+        assertTrue(s.plan(ScrollAction.MOVE_MATCHING, 2).isEmpty());
+        // …but the piece itself still scrolls out one gesture at a time.
+        assertClicks(s.plan(ScrollAction.MOVE_STACK, 2), Click.quickMove(2));
+    }
+
     @Test void deadAndLockedSlotsAreNeverSourced() {
         Screen s = new Screen().add(false, "stone", 64, 64, false, true, false, true)   // disabled (loom)
                                .add(false, "dirt", 64, 64, true, true, false, false)    // cannot take (merchant)
