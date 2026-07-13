@@ -94,6 +94,7 @@ public class ClubClient implements ClientModInitializer {
         com.club.modules.binds.ModuleBinds.init();
 
         // [SEAM:init] Module registration. One line per workstream, logic lives in the module's own package.
+        com.club.modules.itemscroll.ItemScrollModule.init();
 
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ClubConfig.close());

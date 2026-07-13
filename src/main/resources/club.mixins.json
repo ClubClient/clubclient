@@ -12,7 +12,8 @@
     "MixinLightmapTextureManager",
     "MixinMouse",
     "MixinSimpleOption",
-    "MouseAccessor"
+    "MouseAccessor",
+    "MixinHandledScreenAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
