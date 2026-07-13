@@ -1,31 +1,21 @@
-Club — All Rights Reserved
+MIT License
 
-Copyright (c) 2026 Club Dev. All rights reserved.
+Copyright (c) 2026 Club Dev
 
-This mod ("the Software"), including its compiled binaries, source code, assets,
-icons, and textures, is the exclusive property of the copyright holder and is
-protected by copyright law.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-YOU MAY:
-  - Download and use the official compiled build of the Software for your own
-    personal gameplay.
-
-YOU MAY NOT, without the prior written permission of the copyright holder:
-  - Copy, redistribute, re-upload, mirror, repackage, or otherwise make the
-    Software (in whole or in part) available to others, on any platform;
-  - Modify, decompile, reverse-engineer, or create derivative works from the
-    Software;
-  - Reuse any part of its source code, assets, icons, or textures in another
-    project;
-  - Distribute the Software through any channel other than the copyright
-    holder's official release page(s).
-
-The only official distribution channel is the copyright holder's own Modrinth
-project page. Any copy obtained elsewhere is unauthorized.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
