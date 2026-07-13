@@ -113,11 +113,14 @@ const SCENES = {
       // the DRIVER holds the queue — i.e. it measures the world, not the mod: the same build reports 0.45 ms
       // and 1.22 ms on the same machine. The draw-call count is deterministic and reproducible; it is the only
       // number that has earned the right to be printed.
+      // "43 → 11" was the BLIND counter's story — it never saw the icon draws at all. The fixed instrument
+      // counts 15, and the honest before/after cannot be printed until the unbatched path is measured with the
+      // same counter. Until then the frame prints the one number that has actually been counted.
       rows: [
-        { k: 'GL draw calls per frame', was: '43', now: '11' },
-        { k: 'Shapes batched into one call', was: '1 each', now: 'all' },
+        { k: 'GL draw calls per frame', now: '15' },
       ],
-      foot: 'Counted in-game on every build — and asserted, so it fails its own test if it creeps back up.',
+      foot: 'Every shape batched into one call, every glyph into another. Counted in-game on every build — and '
+          + 'asserted, so the mod fails its own test if it creeps back up.',
     },
   },
 
@@ -146,8 +149,7 @@ function page(scene) {
     const rows = (c.rows ?? []).map(r => `
       <div class="cRow">
         <span class="cK">${r.k}</span>
-        <span class="cWas">${r.was}</span>
-        <span class="cArrow">→</span>
+        ${r.was ? `<span class="cWas">${r.was}</span><span class="cArrow">→</span>` : ''}
         <span class="cNow">${r.now}</span>
       </div>`).join('')
     const list = (c.list ?? []).map(n => `

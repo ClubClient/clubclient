@@ -56,7 +56,7 @@ reinterpreted — nothing jumps across the screen.
   at any magnification.
 - The menu draws on its own canvas — at GUI Scale 4 it used to hit the edges of the screen, drop columns and
   squeeze its sidebar.
-- The mod's draw cost: 43 GL calls a frame became 11.
+- The mod's draw cost: every shape is batched into one GL call now, every glyph into another.
 - Screen Stretch ships as **Auto** — a fresh install no longer warps the world of anyone whose monitor isn't
   16:9.
 - Fullbright only touches the world lightmap, so your real Brightness slider and `options.txt` stay honest.
