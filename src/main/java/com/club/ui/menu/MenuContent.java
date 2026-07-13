@@ -6,6 +6,7 @@ import com.club.modules.screenstretch.StretchPreset;
 import com.club.ui.IconGlyph;
 import com.club.ui.component.widget.BoolConsumer;
 import com.club.ui.component.widget.FloatConsumer;
+import net.minecraft.client.MinecraftClient;
 
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -63,6 +64,38 @@ public final class MenuContent {
 
     public record Category(String name, IconGlyph icon, List<Module> modules) {
         public int enabledCount() { int n = 0; for (Module m : modules) if (m.enabled()) n++; return n; }
+    }
+
+    // ---- honesty ------------------------------------------------------------
+
+    /**
+     * Why this module is doing nothing right now, in the player's words — or null when the card means what
+     * it says. Shown as a caption at the top of the popover (Stage 62).
+     *
+     * <p>Two modules could sit there lit, accent-tinted, indistinguishable from a module that is actually
+     * working, while being a deliberate no-op — and the mod never said a word:</p>
+     * <ul>
+     *   <li><b>Toggle Sprint</b> stands down entirely when vanilla's own "Sprint: Toggle" is on (the sticky
+     *       binding flips per press, so forcing it every tick would strobe). Correct — but the card still
+     *       read ON, and the player's conclusion is "this mod's sprint toggle is broken".</li>
+     *   <li><b>Screen Stretch</b> ships enabled with preset AUTO, and AUTO means "do not touch the
+     *       projection" — the right default (a fresh install must not warp a non-16:9 monitor), but a lit
+     *       card promising a stretch that is not happening.</li>
+     * </ul>
+     * A card that lies about one thing makes the player doubt the other eleven.
+     */
+    public static String notice(String moduleName) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null || mc.options == null) return null;
+        ClubConfig c = ClubConfig.get();
+        return switch (moduleName) {
+            case "Toggle Sprint" -> c.toggleSprint.enabled && mc.options.getSprintToggled().getValue()
+                    ? "Idle — vanilla Sprint: Toggle is on" : null;
+            case "Screen Stretch" -> c.screenStretch.enabled
+                    && !com.club.modules.screenstretch.ScreenStretchModule.isActive()
+                    ? "Auto — the world is left untouched" : null;
+            default -> null;
+        };
     }
 
     // ---- tree ---------------------------------------------------------------

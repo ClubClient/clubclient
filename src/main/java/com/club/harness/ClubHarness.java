@@ -254,6 +254,112 @@ public final class ClubHarness {
                 ModuleBinds.set("Fullbright", null);
             });
 
+            // ===== THE VANILLA SEAM (Stage 62) =====
+            // Everything here is a bug the owner could hit by never leaving vanilla's own screens. The mod
+            // used to look only at its own two bind namespaces and never once at options.allKeys.
+
+            // A Club key that lands on a VANILLA key must be NAMED. (Vanilla dispatches one binding per
+            // physical key, so the collision kills one of the two actions — arbitrarily, by hash order.)
+            step(2, () -> {
+                String sneakKey = mc.options.sneakKey.getBoundKeyTranslationKey();
+                String taken = com.club.modules.binds.KeyConflicts.other(sneakKey);
+                check("conflicts: a key vanilla already owns is reported, by vanilla's own name for it ("
+                        + taken + ")", taken != null && !taken.isBlank());
+                check("conflicts: a free key reports nothing",
+                        com.club.modules.binds.KeyConflicts.other("key.keyboard.f13") == null);
+                check("conflicts: an unbound key is not a conflict",
+                        com.club.modules.binds.KeyConflicts.other(InputUtil.UNKNOWN_KEY.getTranslationKey()) == null);
+                // A key only CLUB uses is not a conflict — the scan must skip our own bindings, or every
+                // bind row in the mod would permanently accuse itself.
+                InputUtil.Key free = InputUtil.fromKeyCode(GLFW_KEY_F13, 0);
+                com.club.modules.binds.HoldKeys.set("Zoom", free);
+                check("conflicts: a key only Club uses is not reported as a conflict",
+                        com.club.modules.binds.KeyConflicts.other(free.getTranslationKey()) == null);
+                com.club.modules.binds.HoldKeys.reset("Zoom");
+
+                // …and the one the OWNER should know about: Zoom ships on C, and so does vanilla's
+                // "Save Toolbar Activator". Every install starts with that duplicate — vanilla paints it red
+                // in Controls, and until Stage 62 the Club menu said nothing at all. Reported, not asserted:
+                // the default key is a product decision (C is the OptiFine muscle-memory spot), and the mod's
+                // job is to SAY so, which the popover now does.
+                String shipDefault = com.club.modules.binds.KeyConflicts.other(
+                        ClubClient.zoomKey.getDefaultKey().getTranslationKey());
+                report.add("INFO  Zoom's factory key (C) shares itself with vanilla: "
+                        + (shipDefault == null ? "nothing" : shipDefault));
+            });
+
+            // The trap with no way out: vanilla's Controls screen puts Zoom on the menu key, the two race
+            // for vanilla's single-winner dispatch map, the menu key loses — and the only place to fix the
+            // bind is the menu that can no longer be opened.
+            step(2, () -> {
+                InputUtil.Key menu = InputUtil.fromTranslationKey(ClubClient.openMenuKey.getBoundKeyTranslationKey());
+                ClubClient.zoomKey.setBoundKey(menu);          // exactly what the vanilla Controls screen does
+                net.minecraft.client.option.KeyBinding.updateKeysByCode();
+                com.club.modules.binds.HoldKeys.reconcileMenuKey();
+                check("menu key: a hold key that lands on it is taken back — the menu is always reachable",
+                        !menu.getTranslationKey().equals(ClubClient.zoomKey.getBoundKeyTranslationKey()));
+                check("menu key: …and the menu keeps its own key", !ClubClient.openMenuKey.isUnbound());
+                com.club.modules.binds.HoldKeys.reset("Zoom");
+                check("menu key: Zoom is restorable afterwards", "C".equals(com.club.modules.binds.HoldKeys.label("Zoom")));
+            });
+
+            // A toggle bind that a hold key has quietly taken over must SAY so — vanilla's screen can create
+            // that overlap behind the popover's back, and the row went on showing a dead key as if it worked.
+            step(2, () -> {
+                com.club.modules.binds.ModuleBinds.set("Fullbright", "key.keyboard.k");
+                ClubClient.zoomKey.setBoundKey(InputUtil.fromKeyCode(GLFW_KEY_K, 0));   // the vanilla screen, again
+                net.minecraft.client.option.KeyBinding.updateKeysByCode();
+                check("binds: the row knows which hold module took its key",
+                        "Zoom".equals(com.club.modules.binds.ModuleBinds.shadowedBy("Fullbright")));
+                com.club.modules.binds.HoldKeys.reset("Zoom");
+                check("binds: …and stops saying so once the key is given back",
+                        com.club.modules.binds.ModuleBinds.shadowedBy("Fullbright") == null);
+                com.club.modules.binds.ModuleBinds.set("Fullbright", null);
+            });
+
+            // A key the tick loop can never fire is not a bind: it reads "Not set", it does not read "Mouse 4".
+            step(2, () -> {
+                ClubConfig.get().moduleBinds.put("Fullbright", "key.mouse.4");
+                check("binds: a mouse button in a keyboard-only field reads as unbound, not as a live key",
+                        com.club.modules.binds.ModuleBinds.label("Fullbright") == null);
+                ClubConfig.get().moduleBinds.remove("Fullbright");
+            });
+
+            // Toggle Sprint: the sequence that latched the sprint key down FOREVER. The module force-holds
+            // sprintKey; the player then switches vanilla's "Sprint: Toggle" ON; sprintKey is a
+            // StickyKeyBinding, whose setPressed(false) is a NO-OP in toggle mode — so the release did
+            // nothing and the player sprinted for the rest of the session.
+            step(2, () -> {
+                boolean prevEnabled = cfg.toggleSprint.enabled;
+                boolean prevVanilla = mc.options.getSprintToggled().getValue();
+                cfg.toggleSprint.enabled = true;
+                mc.options.getSprintToggled().setValue(false);
+                ToggleSprintModule.tick(mc);                      // forcing now
+                mc.options.getSprintToggled().setValue(true);     // …and the player flips the vanilla option
+                ToggleSprintModule.tick(mc);                      // off-edge: the release must actually release
+                check("togglesprint: the sprint key is released even when vanilla's Sprint: Toggle takes over",
+                        !mc.options.sprintKey.isPressed());
+                check("togglesprint: the card admits it is idle while vanilla's toggle is on",
+                        com.club.ui.menu.MenuContent.notice("Toggle Sprint") != null);
+                mc.options.getSprintToggled().setValue(prevVanilla);
+                cfg.toggleSprint.enabled = prevEnabled;
+                ToggleSprintModule.tick(mc);
+                mc.options.sprintKey.setPressed(false);
+            });
+
+            // A lit card that is a deliberate no-op has to say which one it is.
+            step(2, () -> {
+                String was = cfg.screenStretch.preset;
+                boolean wasOn = cfg.screenStretch.enabled;
+                cfg.screenStretch.enabled = true; cfg.screenStretch.preset = "AUTO";
+                check("stretch: an enabled-but-AUTO card says the world is untouched",
+                        com.club.ui.menu.MenuContent.notice("Screen Stretch") != null);
+                cfg.screenStretch.preset = "R16_9";   // the ENUM name — fromName() is valueOf(), not the label
+                check("stretch: …and says nothing once it is really stretching",
+                        com.club.ui.menu.MenuContent.notice("Screen Stretch") == null);
+                cfg.screenStretch.preset = was; cfg.screenStretch.enabled = wasOn;
+            });
+
             // ===== COST OF THE MOD, MEASURED (Stage 59) =====
             // The owner asked whether it holds up under load. Everything the mod draws in-world goes
             // through the HUD callback, so measure frames with it ON vs fully OFF, in the same world, in
@@ -457,6 +563,21 @@ public final class ClubHarness {
                             g[0] + 16 <= g[3] + 1 || Math.abs(g[1] - g[3]) < 1.5f);
                 } else check("popover: menu still open for the geometry check", false);
             });
+
+            // The conflict, on screen (Stage 62): Fullbright's toggle put on Q — the key vanilla drops your
+            // item with. The popover must name it. Before, the row just said "Q" and both things fired.
+            step(2, () -> com.club.modules.binds.ModuleBinds.set("Fullbright", "key.keyboard.q"));
+            step(6, () -> mc.setScreen(new ClubMenuScreen()));
+            step(2, () -> key(GLFW_KEY_TAB));               // search focus
+            step(1, () -> type('f'));
+            step(1, () -> type('u'));
+            step(1, () -> type('l'));
+            step(1, () -> type('l'));
+            step(6, () -> {});
+            step(2, () -> key(GLFW_KEY_TAB));               // into grid → Fullbright
+            step(2, () -> key(GLFW_KEY_SPACE));            // open its popover
+            step(10, () -> shot("bind-conflict"));          // "Also: Drop" under the key row
+            step(2, () -> com.club.modules.binds.ModuleBinds.set("Fullbright", null));
 
             // search filter
             step(4, () -> mc.setScreen(new ClubMenuScreen()));

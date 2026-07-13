@@ -102,12 +102,39 @@ public final class ModuleBinds {
         if (healed) ClubConfig.save();
     }
 
-    /** Human label for a bound key ("K", "Left Shift", "Space"), or null when unbound / unparseable.
-     *  ENGLISH, derived from the translation key (see {@link com.club.util.KeyNames}). */
+    /** Human label for a bound key ("K", "Left Shift", "Space"), or null when unbound / unparseable /
+     *  unfireable. ENGLISH, derived from the translation key (see {@link com.club.util.KeyNames}).
+     *
+     *  <p>The KEYSYM check mirrors {@link #tick}'s (Stage 62): tick() only ever fires keyboard keys, so a
+     *  hand-edited {@code "key.mouse.4"} used to render as a live "Mouse 4" on the row while nothing on
+     *  earth could make it toggle. A key the row cannot fire is not a bind — it reads "Not set".</p> */
     public static String label(String moduleName) {
         String t = ClubConfig.get().moduleBinds.get(moduleName);
-        if (t == null || key(t) == null) return null;   // key() also validates (unparseable → unbound)
+        InputUtil.Key k = key(t);                        // key() also validates (unparseable → unbound)
+        if (k == null || k.getCategory() != InputUtil.Type.KEYSYM) return null;
         return com.club.util.KeyNames.english(t);
+    }
+
+    /** The translation key this module's toggle sits on, or null — for the conflict scan (KeyConflicts). */
+    public static String boundKey(String moduleName) {
+        String t = ClubConfig.get().moduleBinds.get(moduleName);
+        return key(t) == null ? null : t;
+    }
+
+    /** The HOLD module currently sitting on this module's toggle key ("Zoom" / "Freelook"), or null.
+     *
+     *  <p>{@link #tick} refuses to fire a toggle whose key a hold module owns — correct (one press must
+     *  not drive two actions), but it did it SILENTLY: vanilla's Controls screen can move Zoom onto a key
+     *  a toggle bind already had, and the popover kept displaying that key as if tapping it still worked.
+     *  The row has to say who took it (Stage 62). */
+    public static String shadowedBy(String moduleName) {
+        String t = boundKey(moduleName);
+        if (t == null) return null;
+        for (String name : HoldKeys.NAMES) {
+            net.minecraft.client.option.KeyBinding kb = HoldKeys.of(name);
+            if (kb != null && !kb.isUnbound() && t.equals(kb.getBoundKeyTranslationKey())) return name;
+        }
+        return null;
     }
 
     /** Assign (translation key) or clear (null) a module's bind; persists immediately. Assigning a

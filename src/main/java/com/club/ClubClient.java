@@ -23,6 +23,9 @@ public class ClubClient implements ClientModInitializer {
     public static KeyBinding zoomKey;
     public static KeyBinding freelookKey;
 
+    /** Raw-poll edge for the menu key (see the tick below) — a press, not a hold, opens the menu. */
+    private static boolean menuKeyWas;
+
     @Override
     public void onInitializeClient() {
         // Register the new UI render stack's core shaders (SDF/MSDF) at client init — this is the
@@ -71,11 +74,19 @@ public class ClubClient implements ClientModInitializer {
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (openMenuKey.wasPressed()) {
-                if (client.player != null) {
-                    client.setScreen(new ClubMenuScreen());
-                }
-            }
+            // The key that OPENS the mod is raw-polled, not read through KeyBinding.wasPressed() (Stage 62).
+            // Vanilla dispatches one binding per physical key — KEY_TO_BINDINGS is a single-winner map — so
+            // a key another mod (or the player, from vanilla's Controls screen) also binds can lose the slot
+            // and never fire. Zoom/Freelook already bypass that map (com.club.util.Keys); the menu key must
+            // too, or the mod becomes unreachable and the only place to fix the bind is the menu it can no
+            // longer open. reconcileMenuKey() then keeps one physical key from driving two CLUB actions.
+            com.club.modules.binds.HoldKeys.reconcileMenuKey();
+            while (openMenuKey.wasPressed()) { /* drain: the queued press must not also fire below */ }
+            boolean menuDown = com.club.util.Keys.held(openMenuKey);
+            if (menuDown && !menuKeyWas && client.player != null && client.currentScreen == null)
+                client.setScreen(new ClubMenuScreen());
+            menuKeyWas = menuDown;
+
             com.club.modules.togglesprint.ToggleSprintModule.tick(client);
             com.club.modules.freelook.FreelookModule.tick(client);
             com.club.modules.binds.ModuleBinds.tick(client);
@@ -89,6 +100,12 @@ public class ClubClient implements ClientModInitializer {
         if (com.club.harness.ClubHarness.enabled()) {
             ClubMod.LOGGER.info("[Club] verification harness ARMED");
             com.club.harness.ClubHarness.start();
+        }
+
+        // Dev-only promo director (CLUB_PROMO): stages the scenes the Modrinth gallery is shot from.
+        if (com.club.harness.ClubPromo.enabled()) {
+            ClubMod.LOGGER.info("[Club] promo director ARMED");
+            com.club.harness.ClubPromo.start();
         }
 
         ClubMod.LOGGER.info("[Club] client initialized");

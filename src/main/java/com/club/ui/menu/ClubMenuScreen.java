@@ -237,6 +237,12 @@ public final class ClubMenuScreen extends Screen {
         query = ""; popModule = null; popCol = null; openDrop = null; pressOwner = 0;
         gridFocused = false; gridFocus = null;
         bindListening = false; bindModule = null; bindReserved = false; keysDown.clear();
+        // gui-move mirrors the raw key state and only acts on EDGES — so it must forget what it thinks is
+        // held whenever the bindings can be cleared behind its back (Stage 62). setScreen() calls
+        // KeyBinding.unpressAll(), and init() runs on the way back in: without this, walking into the HUD
+        // editor and back left W believed-down but actually-up, and the player had to let go and press it
+        // again to move at all.
+        if (moveWasDown != null) java.util.Arrays.fill(moveWasDown, false);
         search = new SearchField("Search modules")
                 .onChange(q -> { query = q; rebuildGrid(GridRebuild.SEARCH); layoutAll(); })
                 .onSubmit(this::submitSearch);   // Enter activates the first result
@@ -560,6 +566,34 @@ public final class ClubMenuScreen extends Screen {
 
     private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
 
+    /**
+     * Why the key on this module's bind row will not do what the row implies — or null when it will
+     * (Stage 62). Two ways a key lies, both previously silent, both reachable without touching the Club UI:
+     *
+     * <ul>
+     *   <li><b>Shadowed.</b> A hold module (Zoom/Freelook) sits on the same key, and {@code ModuleBinds.tick}
+     *       refuses to fire a toggle from it — one press must not drive two actions. Right call, but vanilla's
+     *       Controls screen can create that overlap behind the popover's back, and the row went on showing a
+     *       key that had quietly stopped working.</li>
+     *   <li><b>Taken.</b> The key is also a vanilla (or other mod's) action. Minecraft dispatches ONE binding
+     *       per physical key, so one of the two dies — arbitrarily, by HashMap order (see KeyConflicts). Bind
+     *       Freelook to Left Shift from this popover and you lose sneak, with nothing anywhere saying why.</li>
+     * </ul>
+     *
+     * We name the other action the way the player's own Controls screen names it — that is where they will go
+     * to fix it. Kept short: the popover is a 236px sheet and a caption that outgrows it is clipped mid-word.
+     */
+    private static String bindWarning(Module m, boolean hold) {
+        String shadow = hold ? null : com.club.modules.binds.ModuleBinds.shadowedBy(m.name());
+        if (shadow != null) return shadow + " holds this key";
+        String bound = hold ? com.club.modules.binds.HoldKeys.boundKey(m.name())
+                            : com.club.modules.binds.ModuleBinds.boundKey(m.name());
+        String other = com.club.modules.binds.KeyConflicts.other(bound);
+        if (other == null) return null;
+        if (other.length() > 22) other = other.substring(0, 21) + "…";
+        return "Also: " + other;
+    }
+
     private Column buildSettings(Module m) {
         // Tight row gap (Stage 57): the popover lives BELOW the cards now, so a simple popover must fit
         // that room without scrolling — xs keeps the rows neat but compact; only tall ones (Hands) scroll.
@@ -582,6 +616,14 @@ public final class ClubMenuScreen extends Screen {
         for (Setting s : settings0)
             if (s instanceof SliderSetting) lw = Math.max(lw, Ui.text().width(s.label(), lblRole.weight(), lblRole.size()));
         final float labelW = Math.min(Math.max(lw + 8f, 40f), Math.max(48f, popInnerW * 0.42f));
+
+        // A module that is ON but standing down says so, at the top, before the controls it isn't applying
+        // (Stage 62 — see MenuContent.notice). Hidden behind an expanded dropdown like every other row.
+        if (openDrop == null) {
+            String notice = MenuContent.notice(m.name());
+            if (notice != null)
+                col.add(new Label(notice, Tokens.type().caption()).color(Tokens.palette().stateWarn()));
+        }
 
         List<Setting> settings;
         if (m.hasTabs()) {
@@ -666,6 +708,14 @@ public final class ClubMenuScreen extends Screen {
                 col.add(new Label(bindReserved ? "That key opens the menu"
                                                : "Esc to cancel · Delete to remove", Tokens.type().caption())
                         .color(bindReserved ? Tokens.palette().stateWarn() : Tokens.palette().textFaint()));
+            else {
+                // …and when NOT listening, the row admits what the key will actually do (Stage 62). All
+                // three of these states were silent: the field showed a key, and the key did nothing, or
+                // did something else's job. The player had no way to find that out from inside the mod.
+                String warn = bindWarning(m, hold);
+                if (warn != null)
+                    col.add(new Label(warn, Tokens.type().caption()).color(Tokens.palette().stateWarn()));
+            }
         } else popBindBtn = null;
 
         if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)

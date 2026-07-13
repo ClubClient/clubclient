@@ -29,17 +29,31 @@ public final class HudManager {
     private static final UiContextImpl UI = new UiContextImpl();
     private static final long START = System.nanoTime();
 
+    /** Promo capture (dev only, see com.club.harness): keep drawing the Club HUD while the VANILLA HUD is
+     *  hidden — F1 is how you get a frame with no hotbar, no health bar and no debug text in it, but the
+     *  same flag would otherwise take our HUD down with it, and a promo shot of an empty screen is not a
+     *  promo shot. Inert in production: nothing outside the harness ever sets it. */
+    private static boolean promo;
+    public static void promo(boolean on) { promo = on; }
+
     public static void init() {
         // the HUD callback stops firing outside a world — without this the target cache would pin the
         // unloaded ClientWorld (via the held entity) for as long as the player sits at the title screen
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> TargetHud.clear());
         HudRenderCallback.EVENT.register((ctx, tickCounter) -> {
             MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc.player == null || mc.options.hudHidden) return;
+            if (mc.player == null) return;
+
+            // The letterbox is NOT part of the HUD, and it does not get to opt out (Stage 62). Screen
+            // Stretch warps the world projection unconditionally — the bars are the mask that hides what
+            // the warp over-renders past the frame. Drawn below the two guards, they vanished on F1 and
+            // behind the pause menu, and the player saw the raw stretched edges through the mask's hole.
+            // Whatever hides the HUD must not un-mask the world.
+            drawBlackBars(ctx, mc);
+
+            if (mc.options.hudHidden && !promo) return;
             if (mc.currentScreen != null && mc.currentScreen.shouldPause()) return;
             long t0 = profiling ? System.nanoTime() : 0L;
-
-            drawBlackBars(ctx, mc);
 
             // V2 HUD (Effects / Target / Info / Armor); duotone icons draw through the PixelIcons DrawContext seam.
             Ui.beginFrame(ctx);

@@ -66,6 +66,33 @@ public final class HoldKeys {
         apply(kb, def);
     }
 
+    /** The translation key this hold module's key sits on, or null when unbound — for the conflict scan. */
+    public static String boundKey(String moduleName) {
+        KeyBinding kb = of(moduleName);
+        return (kb == null || kb.isUnbound()) ? null : kb.getBoundKeyTranslationKey();
+    }
+
+    /**
+     * One key = one CLUB action, enforced every tick instead of only at capture (Stage 62).
+     *
+     * <p>The popover refuses to bind a module to the key that opens the menu — but vanilla's own Controls
+     * screen lists all three Club bindings side by side and will happily put Zoom on Right Shift. That
+     * used to be a trap with no way out: the menu key and the hold key then raced for vanilla's
+     * single-winner dispatch map, and if the menu key lost, the menu could not be opened — and the bind
+     * could only be fixed from the menu. The menu key wins here because it is the only way back in.</p>
+     */
+    public static void reconcileMenuKey() {
+        KeyBinding menu = ClubClient.openMenuKey;
+        if (menu == null || menu.isUnbound()) return;
+        String t = menu.getBoundKeyTranslationKey();
+        for (String name : NAMES) {
+            KeyBinding kb = of(name);
+            if (kb != null && !kb.isUnbound() && t.equals(kb.getBoundKeyTranslationKey()))
+                apply(kb, InputUtil.UNKNOWN_KEY);
+        }
+        ModuleBinds.releaseKey(t);
+    }
+
     /** True if a hold key currently sits on this physical key. */
     public static boolean usesKey(String translationKey) {
         if (translationKey == null) return false;
