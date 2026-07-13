@@ -65,6 +65,9 @@ public final class HudManager {
             if (mc.currentScreen != null && mc.currentScreen.shouldPause()) return;
             boolean prof = HudProfiler.armed();
             long t0 = prof ? System.nanoTime() : 0L;
+            // The order recorder (harness only) holds ONE frame: reset it here, so whatever the harness
+            // reads afterwards is the last complete frame and not a pile of them.
+            if (com.club.modules.perf.DrawBoxes.recording) com.club.modules.perf.DrawBoxes.reset();
 
             // V2 HUD (Effects / Target / Info / Armor); duotone icons draw through the PixelIcons DrawContext seam.
             //
@@ -101,10 +104,13 @@ public final class HudManager {
                 HudProfiler.frame(t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3,
                         com.club.ui.backend.ModernBackend.SHAPE_DRAWS,
                         com.club.ui.backend.ModernBackend.TEXT_DRAWS,
-                        PixelIcons.DRAWS);
+                        // every GL draw the icons cost: the batch's one, plus any sprite the atlas could
+                        // not take and that therefore still goes out the old way
+                        com.club.ui.backend.IconBatch.DRAWS + PixelIcons.DRAWS);
             com.club.ui.backend.ModernBackend.DRAWS = 0;
             com.club.ui.backend.ModernBackend.SHAPE_DRAWS = 0;
             com.club.ui.backend.ModernBackend.TEXT_DRAWS = 0;
+            com.club.ui.backend.IconBatch.DRAWS = 0;
             PixelIcons.DRAWS = 0;
         });
     }

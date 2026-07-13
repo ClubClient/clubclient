@@ -225,7 +225,9 @@ public final class ModernBackend implements UiRenderer {
     @Override
     public void popClip() {
         if (clipTop == 0) return;
-        flush(); Backends.MODERN_T.flush();   // queued draws belong to the clip about to be popped
+        // Icons batch across text and shapes, but NEVER across a scissor: a queued sprite must not escape
+        // the rectangle it was drawn inside (Stage 67).
+        flush(); Backends.MODERN_T.flush(); IconBatch.flush();   // queued draws belong to the clip about to be popped
         --clipTop;
         if (clipTop == 0) {
             RenderSystem.disableScissor();
@@ -328,6 +330,16 @@ public final class ModernBackend implements UiRenderer {
         // Texture coords = position relative to shape center (used as local SDF coords).
         float cx = x + halfW;
         float cy = y + halfH;
+
+        // Order proof (Stage 67): the SHAPE's own rect, not the padded quad — the padding is glow falloff
+        // and draws nothing. Recorded in pose space so it is comparable with the text and icon boxes.
+        if (com.club.modules.perf.DrawBoxes.recording && ctx != null) {
+            var mt = ctx.getMatrices().peek().getPositionMatrix();
+            com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.SHAPE,
+                    mt.m00() * x + mt.m10() * y + mt.m30(), mt.m01() * x + mt.m11() * y + mt.m31(),
+                    mt.m00() * (x + w) + mt.m10() * (y + h) + mt.m30(),
+                    mt.m01() * (x + w) + mt.m11() * (y + h) + mt.m31());
+        }
 
         // Upload uniforms then emit one quad.
         drawShapeQuad(qx0, qy0, qx1, qy1, cx, cy,
@@ -537,7 +549,7 @@ public final class ModernBackend implements UiRenderer {
             }
             return;
         }
-        flush(); Backends.MODERN_T.flush();   // queued draws belong to the OUTER clip — out before we narrow the scissor
+        flush(); Backends.MODERN_T.flush(); IconBatch.flush();   // queued draws belong to the OUTER clip — out before we narrow the scissor
 
         float nx, ny, nw, nh;
         if (clipTop > 0) {

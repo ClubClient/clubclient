@@ -34,7 +34,14 @@ public final class Ui {
      * 61): they sit in a buffer until something forces them out, and the end of the pass is the last
      * such point — miss it and the frame's final shapes are simply never drawn. Cheap and idempotent.
      */
-    public static void endFrame() { Backends.MODERN_R.flush(); Backends.MODERN_T.flush(); }
+    public static void endFrame() {
+        Backends.MODERN_R.flush();
+        Backends.MODERN_T.flush();
+        // Icons last (Stage 67): they are the one batch that outlives the interleaving, which is the whole
+        // reason four GL draws become one. Safe only because nothing drawn after an icon overlaps it — a
+        // property the harness ASSERTS (DrawBoxes), with real armour and effects, at every GUI scale.
+        com.club.ui.backend.IconBatch.flush();
+    }
 
     public static boolean modernAvailable() { return UiShaders.ready() && Backends.MODERN_T.healthy() && Backends.MODERN_R.healthy(); }
     public static Backend backend() {

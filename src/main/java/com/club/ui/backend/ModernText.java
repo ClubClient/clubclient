@@ -333,6 +333,10 @@ public final class ModernText implements UiText {
             tq[o + 4] = d[i + 4]; tq[o + 5] = d[i + 5];
             tq[o + 6] = d[i + 6]; tq[o + 7] = d[i + 7];
             tc[tn] = argb;
+            // Order proof (Stage 67): a glyph drawn AFTER an icon that overlaps it would be stolen by the
+            // icon batch. Recorded per glyph, in the same pose space as the icon quads.
+            com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.TEXT,
+                    tq[o], tq[o + 1], tq[o + 2], tq[o + 3]);
             tn++;
         }
     }

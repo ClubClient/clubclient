@@ -38,12 +38,32 @@ public final class PixelIcons {
     // Tone/level/percentile math lives in the pure {@link PixelMath} (unit-tested, Stage 28).
 
     /** A baked mask + the art's tight-bounds center (texels) — vanilla sprites pad unevenly, so
-     *  icons must center on their VISIBLE art, not the texture square (owner: «цифры не встают»). */
-    private record Baked(Identifier tex, float cx, float cy) {}
+     *  icons must center on their VISIBLE art, not the texture square (owner: «цифры не встают»).
+     *  {@code u0..v1} place the same mask inside the shared ATLAS (Stage 67): one texture for every icon
+     *  is what lets them go out in one draw instead of four. {@code tex} is kept as the per-sprite texture
+     *  the pre-batch path used — it is the A/B control and the fallback if the icon shader never loads. */
+    private record Baked(Identifier tex, float cx, float cy, float u0, float v0, float u1, float v1) {}
 
     private static DrawContext dc;
     private static final Map<Identifier, Baked> baked = new HashMap<>();
     private static final Set<Identifier> failed = new HashSet<>();
+
+    /**
+     * A/B SEAM (harness only). Off, every icon takes the ORIGINAL per-sprite DrawContext path, unchanged —
+     * not "the batch with one quad in it", which would prove nothing. Toggled inside one session, because
+     * comparing two runs is the mistake this workstream exists to stop. Production leaves it on.
+     */
+    public static volatile boolean batchEnabled = true;
+
+    // ---- the shared atlas ---------------------------------------------------
+    // Every sprite used to carry its own texture, so every sprite forced its own bind and its own draw.
+    // They are blitted into one image instead, with a transparent 1px gutter (NEAREST sampling must never
+    // be able to reach a neighbour's texel). A shelf packer, because icons are small and few.
+    private static final int ATLAS = 512, PAD = 1;
+    private static NativeImage atlasImg;
+    private static NativeImageBackedTexture atlasTex;
+    private static Identifier atlasId;
+    private static int shelfX, shelfY, shelfH;
 
     /** Icons drawn since the last reset. Each one is a REAL GL draw the V2 backend never sees: it goes out
      *  through vanilla's immediate path, and every icon carries its own texture, so every icon forces its
@@ -59,6 +79,39 @@ public final class PixelIcons {
         var tm = MinecraftClient.getInstance().getTextureManager();
         for (Baked b : baked.values()) tm.destroyTexture(b.tex());
         baked.clear(); failed.clear();
+        if (atlasId != null) tm.destroyTexture(atlasId);
+        atlasImg = null; atlasTex = null; atlasId = null;
+        shelfX = shelfY = shelfH = 0;
+    }
+
+    /**
+     * Places a baked mask in the shared atlas and returns its UV rect, or null if it will not fit (a huge
+     * HD-pack sprite, or simply too many icons). A null here is not a failure — the caller keeps the
+     * per-sprite path for that icon, and it costs exactly what it cost before.
+     */
+    private static float[] pack(NativeImage img) {
+        int w = img.getWidth(), h = img.getHeight();
+        if (w > ATLAS || h > ATLAS) return null;
+        if (atlasImg == null) {
+            atlasImg = new NativeImage(ATLAS, ATLAS, true);
+            for (int y = 0; y < ATLAS; y++) for (int x = 0; x < ATLAS; x++) atlasImg.setColor(x, y, 0);
+            atlasTex = new NativeImageBackedTexture(atlasImg);
+            atlasTex.setFilter(false, false);   // NEAREST, like the per-sprite textures — pixel art stays crisp
+            atlasId = Identifier.of("club", "pixel/atlas");
+            MinecraftClient.getInstance().getTextureManager().registerTexture(atlasId, atlasTex);
+            shelfX = shelfY = shelfH = 0;
+        }
+        if (shelfX + w > ATLAS) { shelfX = 0; shelfY += shelfH + PAD; shelfH = 0; }   // next shelf
+        if (shelfY + h > ATLAS) return null;                                          // atlas full
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                atlasImg.setColor(shelfX + x, shelfY + y, img.getColor(x, y));
+        float[] uv = { shelfX / (float) ATLAS, shelfY / (float) ATLAS,
+                       (shelfX + w) / (float) ATLAS, (shelfY + h) / (float) ATLAS };
+        shelfX += w + PAD;
+        shelfH = Math.max(shelfH, h);
+        atlasTex.upload();
+        return uv;
     }
 
     /**
@@ -84,6 +137,23 @@ public final class PixelIcons {
             if (bk == null) { failed.add(src); return false; }
             baked.put(src, bk);
         }
+        float k = sizePx / srcSize;
+        // land the ART's center on the box center — sprites pad their square unevenly
+        float ox = x + (srcSize * 0.5f - bk.cx()) * k;
+        float oy = y + (srcSize * 0.5f - bk.cy()) * k;
+
+        // BATCHED (Stage 67): one texture, one draw for every icon in the pass. The tint rides the vertex as
+        // the RAW byte and ui_icon.fsh does the lift and clamp — the same float math, not a rounded copy of
+        // it. Falls back to the per-sprite path below for anything the atlas could not take, or if the icon
+        // shader never loaded: a missing shader must cost frames, never pixels.
+        if (batchEnabled && bk.u1() > 0f && com.club.ui.backend.IconBatch.ready()) {
+            int argb = ((int) (alpha * 255f + 0.5f) << 24) | (tint & 0xFFFFFF);
+            com.club.ui.backend.IconBatch.quad(atlasId, dc.getMatrices().peek().getPositionMatrix(),
+                    ox, oy, ox + srcSize * k, oy + srcSize * k,
+                    bk.u0(), bk.v0(), bk.u1(), bk.v1(), argb);
+            return true;
+        }
+
         // clamp(tint·LIFT): the mask's white level is 1/LIFT, so highlight = tint·LIFT, base = tint,
         // shadow/outline scale down — the exact tones of the approved board (same per-channel clamp).
         float r = PixelMath.shaderChannel((tint >> 16) & 0xFF);
@@ -92,14 +162,17 @@ public final class PixelIcons {
         RenderSystem.setShaderColor(r, g, b, alpha);
         var m = dc.getMatrices();
         m.push();
-        float k = sizePx / srcSize;
-        // land the ART's center on the box center — sprites pad their square unevenly
-        m.translate(x + (srcSize * 0.5f - bk.cx()) * k, y + (srcSize * 0.5f - bk.cy()) * k, 0f);
+        m.translate(ox, oy, 0f);
         m.scale(k, k, 1f);
         dc.drawTexture(bk.tex(), 0, 0, 0f, 0f, srcSize, srcSize, srcSize, srcSize);
         m.pop();
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         DRAWS++;
+        var mat = dc.getMatrices().peek().getPositionMatrix();
+        com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.ICON,
+                mat.m00() * ox + mat.m10() * oy + mat.m30(), mat.m01() * ox + mat.m11() * oy + mat.m31(),
+                mat.m00() * (ox + srcSize * k) + mat.m10() * (oy + srcSize * k) + mat.m30(),
+                mat.m01() * (ox + srcSize * k) + mat.m11() * (oy + srcSize * k) + mat.m31());
         return true;
     }
 
@@ -143,12 +216,19 @@ public final class PixelIcons {
                 }
             }
             img.close();
+            // The atlas copy is what makes the batch possible; the standalone texture stays as the fallback
+            // (and as the A/B control). A sprite the atlas cannot take is not an error — it just keeps
+            // costing what it always cost.
+            float[] uv = pack(out);
+
             NativeImageBackedTexture tex = new NativeImageBackedTexture(out);
             tex.setFilter(false, false);   // NEAREST both ways — crisp pixels at any HUD scale
             Identifier id = Identifier.of("club",
                     "pixel/" + src.getNamespace() + "/" + src.getPath().replace(".png", "").replace('/', '_'));
             mc.getTextureManager().registerTexture(id, tex);
-            return new Baked(id, PixelMath.tightCenter(minX, maxX), PixelMath.tightCenter(minY, maxY));
+            return new Baked(id, PixelMath.tightCenter(minX, maxX), PixelMath.tightCenter(minY, maxY),
+                    uv == null ? 0f : uv[0], uv == null ? 0f : uv[1],
+                    uv == null ? 0f : uv[2], uv == null ? 0f : uv[3]);
         } catch (Exception e) {
             return null;   // missing/broken texture → caller falls back to its SDF glyph
         }

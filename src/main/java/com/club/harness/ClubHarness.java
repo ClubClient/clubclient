@@ -166,17 +166,17 @@ public final class ClubHarness {
 
         // ---- the A/B (Stage 65) -------------------------------------------------
 
-        private final List<com.club.modules.perf.HudProfiler.Snapshot> cacheOff = new ArrayList<>();
-        private final List<com.club.modules.perf.HudProfiler.Snapshot> cacheOn  = new ArrayList<>();
+        private final List<com.club.modules.perf.HudProfiler.Snapshot> batchOff = new ArrayList<>();
+        private final List<com.club.modules.perf.HudProfiler.Snapshot> batchOn  = new ArrayList<>();
 
-        /** One measured window with the glyph cache in a given state. Interleaved by the caller. */
+        /** One measured window with the icon batch in a given state. Interleaved by the caller. */
         private void abWindow(boolean on) {
-            step(2, () -> { com.club.ui.text.TextLayout.cacheEnabled = on; com.club.hud.HudManager.profile(true); });
+            step(2, () -> { com.club.hud.PixelIcons.batchEnabled = on; com.club.hud.HudManager.profile(true); });
             step(90, () -> {});                                  // ~4.5 s of real frames
             step(2, () -> {
                 var s = com.club.hud.HudManager.stats();
                 com.club.hud.HudManager.profile(false);
-                (on ? cacheOn : cacheOff).add(s);
+                (on ? batchOn : batchOff).add(s);
             });
         }
 
@@ -548,6 +548,62 @@ public final class ClubHarness {
             for (int i = 0; i < 3; i++) { abWindow(false); abWindow(true); }
             step(2, this::reportPerf);
 
+            // ===== THE ICON BATCH IS INVISIBLE — PROVED, NOT PROMISED (Stage 67) =====
+            // Batching the duotone icons draws them as a GROUP, at the end of the pass, instead of one at a
+            // time between the text and the gauges. That is a change of painter's order, and the owner's
+            // rule is that the picture may not move by a pixel. The reorder is invisible if and only if
+            // nothing drawn AFTER an icon overlaps it — a directional property, so it is asserted on the
+            // real draw sequence, with real armour and real effects (an empty HUD proves nothing), at every
+            // GUI scale, because the scale changes the layout and could bring a glyph onto a sprite.
+            step(2, () -> {
+                cfg.hud.armor = cfg.hud.potions = cfg.hud.info = cfg.hud.sprint = cfg.hud.target = true;
+                if (mc.player != null) {
+                    mc.player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                            net.minecraft.entity.effect.StatusEffects.SPEED, 1200, 1));
+                    mc.player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                            net.minecraft.entity.effect.StatusEffects.REGENERATION, 1200, 0));
+                    mc.player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                            net.minecraft.entity.effect.StatusEffects.NIGHT_VISION, 1200, 0));
+                }
+                mc.setScreen(null);
+            });
+            step(10, () -> {});   // let the chips reveal (they animate in; a half-drawn HUD is a weak test)
+            for (int gs = 1; gs <= 4; gs++) {
+                final int scale = gs;
+                step(2, () -> {
+                    prevGuiScale = mc.options.getGuiScale().getValue();
+                    mc.options.getGuiScale().setValue(scale);
+                    mc.onResolutionChanged();
+                    com.club.modules.perf.DrawBoxes.recording = true;
+                });
+                step(6, () -> {});   // several real frames; the recorder keeps the last complete one
+                step(2, () -> {
+                    int icons = com.club.modules.perf.DrawBoxes.count(com.club.modules.perf.DrawBoxes.ICON);
+                    int covered = com.club.modules.perf.DrawBoxes.iconsCoveredLater();
+                    String who = com.club.modules.perf.DrawBoxes.firstOffender();
+                    com.club.modules.perf.DrawBoxes.recording = false;
+                    report.add(String.format("INFO  order @ GUI scale %d: %d icons, %d text, %d shapes drawn%s",
+                            scale, icons,
+                            com.club.modules.perf.DrawBoxes.count(com.club.modules.perf.DrawBoxes.TEXT),
+                            com.club.modules.perf.DrawBoxes.count(com.club.modules.perf.DrawBoxes.SHAPE),
+                            com.club.modules.perf.DrawBoxes.overflowed() ? " (RECORDER OVERFLOWED)" : ""));
+                    // Zero icons would make the check pass by measuring nothing — the exact failure this
+                    // workstream keeps finding in other people's asserts.
+                    check("order: the HUD actually drew icons at GUI scale " + scale + " (" + icons + ")",
+                            icons > 0 && !com.club.modules.perf.DrawBoxes.overflowed());
+                    check("order: nothing drawn after an icon overlaps it at GUI scale " + scale
+                            + (covered == 0 ? "" : " — " + who), covered == 0);
+                });
+            }
+            step(2, () -> {
+                mc.options.getGuiScale().setValue(prevGuiScale);
+                mc.onResolutionChanged();
+                // The effects were staged for the ORDER proof (an empty HUD proves nothing there). They must
+                // not stay for the perf A/B: that one has to measure the HUD a player actually runs, so the
+                // draw-count pair it prints is the mod's, not the test's.
+                if (mc.player != null) mc.player.clearStatusEffects();
+            });
+
             // ===== VISUAL SCENES =====
             step(2, () -> report.add("== visual scenes =="));
 
@@ -756,8 +812,8 @@ public final class ClubHarness {
         /** The perf verdict: what the HUD costs, whether the instrument can be believed, and what the glyph
          *  cache actually bought — measured ON against OFF, interleaved, in this one session. */
         private void reportPerf() {
-            com.club.ui.text.TextLayout.cacheEnabled = true;   // production state, whatever the last window was
-            if (cacheOff.size() < 3 || cacheOn.size() < 3) {
+            com.club.hud.PixelIcons.batchEnabled = true;   // production state, whatever the last window was
+            if (batchOff.size() < 3 || batchOn.size() < 3) {
                 check("perf: the profiler saw all six windows", false);
                 return;
             }
@@ -767,7 +823,7 @@ public final class ClubHarness {
                 report.add("INVALID  the machine never settled — the numbers below describe this run's load, "
                         + "not the mod. No perf assert is made from them.");
 
-            var s = cacheOn.get(cacheOn.size() - 1);
+            var s = batchOn.get(batchOn.size() - 1);
             report.add(String.format(
                     "INFO  hud cost: SHARE %.2f%% of a frame — %.3f ms of a %.2f ms frame (%.0f fps) — "
                     + "raycast %.3f | layout %.3f | build %.3f | submit %.3f (mean %.3f, p95 %.3f; %d frames)",
@@ -784,41 +840,40 @@ public final class ClubHarness {
                     + "out through vanilla's immediate path; the old counter could not see them at all.",
                     s.glDraws(), s.shapeDraws(), s.textDraws(), s.iconDraws(), com.club.ui.Ui.backend()));
 
-            double off = medianShare(cacheOff), on = medianShare(cacheOn);
+            double off = medianShare(batchOff), on = medianShare(batchOn);
             double delta = off <= 0 ? 0 : (off - on) / off;
             StringBuilder w = new StringBuilder();
             for (int i = 0; i < 3; i++)
                 w.append(String.format(" off %.2f%%/%.0ffps → on %.2f%%/%.0ffps |",
-                        cacheOff.get(i).share() * 100, cacheOff.get(i).fps(),
-                        cacheOn.get(i).share() * 100, cacheOn.get(i).fps()));
-            report.add("INFO  glyph cache A/B, interleaved in one session:" + w);
+                        batchOff.get(i).share() * 100, batchOff.get(i).fps(),
+                        batchOn.get(i).share() * 100, batchOn.get(i).fps()));
+            report.add("INFO  icon batch A/B, interleaved in one session:" + w);
             report.add(String.format("INFO  glyph cache: median share %.2f%% off → %.2f%% on (%+.1f%%). "
                     + "Text phase %.3f ms → %.3f ms.",
                     off * 100, on * 100, -delta * 100,
-                    cacheOff.get(2).textBuildMs(), cacheOn.get(2).textBuildMs()));
+                    batchOff.get(2).textBuildMs(), batchOn.get(2).textBuildMs()));
 
             // THE INSTRUMENT'S OWN TEST: the three OFF windows are the same code in the same scene. If they
             // cannot agree with each other, nothing measured against them means anything — and that failure
             // must be visible, not averaged away.
-            double instr = worstSpread(cacheOff);
+            double instr = worstSpread(batchOff);
             if (gateTimedOut)
                 report.add("SKIP  perf: the instrument repeats itself (the run is INVALID — see above)");
             else
                 check(String.format("perf: the instrument repeats itself — three identical windows agree on "
                         + "the HUD's share of the frame within 20%% (%.1f%%)", instr * 100), instr <= 0.20);
 
-            // Primum non nocere. A cache that makes the HUD cost MORE is a cache we delete, and this is the
-            // one perf claim that may never be allowed to fail.
+            // Primum non nocere. A change that makes the HUD cost MORE is a change we delete, and this is
+            // the one perf claim that may never be allowed to fail.
             if (!gateTimedOut)
-                check(String.format("perf: the glyph cache is not a regression (%.2f%% → %.2f%%)",
+                check(String.format("perf: the icon batch is not a regression (%.2f%% → %.2f%%)",
                         off * 100, on * 100), on <= off * 1.02);
 
-            // The draw counters are deterministic per SCENE — but this is a live world (a mob can wander
-            // into the crosshair and add a text run), so the tolerance is one draw, not zero. A pinned scene
-            // belongs to ClubBench; here the point is only that the counter SEES everything it should.
-            check(String.format("perf: the GL draw count is stable across the A/B (%.1f vs %.1f)",
-                            cacheOff.get(2).glDraws(), cacheOn.get(2).glDraws()),
-                    Math.abs(cacheOff.get(2).glDraws() - cacheOn.get(2).glDraws()) < 1.0);
+            // The deterministic half of the proof, and the one that needs no statistics at all: every icon
+            // used to be its own GL draw, and now they are one. This is the number we may print.
+            double dOff = batchOff.get(2).glDraws(), dOn = batchOn.get(2).glDraws();
+            check(String.format("perf: the icon batch really collapses the draws (%.0f → %.0f a frame)", dOff, dOn),
+                    dOn <= dOff - 2.0);
             check("perf: the icon draws are counted, not invisible (" + Math.round(s.iconDraws()) + "/frame)",
                     s.iconDraws() > 0);
         }
