@@ -62,15 +62,30 @@ Item Scroll **включён по умолчанию, мгновенный, бе
 | Чат | Ветка | Владеет целиком |
 |---|---|---|
 | **A · Item Scroll** | `feat/itemscroll` | `com/club/modules/itemscroll/**`, `com/club/mixin/MixinHandledScreen*.java`, `docs/ITEMSCROLL.md` |
-| **B · Оптимизация** | `feat/perf` | `com/club/modules/perf/**`, `com/club/mixin/MixinWorldRendererCull.java`, `MixinBlockEntityRenderDispatcher.java`, `MixinParticleManager.java`, `MixinMinecraftClientFps.java`, `com/club/harness/ClubBench.java`, `docs/PERF.md` |
+| **B · Оптимизация** | `feat/perf` | `com/club/modules/perf/**`, `com/club/mixin/MixinWorldRendererCull.java`, `MixinBlockEntityRenderDispatcher.java`, `MixinParticleManager.java`, `MixinMinecraftClientFps.java`, `com/club/harness/ClubBench.java`, `docs/PERF.md` **+ путь отрисовки HUD** (`com/club/hud/**`, `com/club/ui/hud/**`, `com/club/ui/text/**`, `com/club/ui/backend/**`) — см. правило ниже |
 
 **Ничей (общий) — трогать ТОЛЬКО через швы §4:**
 `ClubConfig.java` · `MenuContent.java` (**только одна строка под якорем `[SEAM:cards]`** — больше ничего) · `ClubClient.java` ·
 `club.mixins.json` · `ClubHarness.java`
 
-**Никто не трогает:** `com/club/ui/**` (**всё меню и все поповеры заморожены владельцем**), `com/club/hud/**`,
-`com/club/modules/{zoom,freelook,fullbright,togglesprint,hands,animations,screenstretch,binds}/**`,
+**Никто не трогает:** `com/club/ui/menu/**` и `com/club/ui/component/**` (**меню и поповеры заморожены
+владельцем**), `com/club/modules/{zoom,freelook,fullbright,togglesprint,hands,animations,screenstretch,binds}/**`,
 `ClubPromo.java`, `tools/promo/**`.
+
+### Правило для чата B: HUD можно трогать, но ТОЛЬКО за цену, не за вид
+
+Собственная стоимость мода (0.45 мс) физически лежит в `HudManager`, `TargetHud`, шейпинге текста и
+элементах HUD. Запретить их и одновременно требовать «верни свои 0.45 мс» — противоречие, и оно было в
+первой версии этого плана. Чат B их трогает, при одном жёстком условии:
+
+> **Картинка не меняется ни на пиксель. Меняется только цена.**
+
+- Никаких изменений раскладки, цветов, размеров, текстов, поведения элементов.
+- Кэш — да (рейкаст цели, ширины текста, геометрия). Новая логика отображения — нет.
+- Доказательство: скриншоты харнесса **до и после** должны совпадать; существующие проверки HUD
+  (Stage 63: `90 90 90 90` на четырёх GUI Scale) остаются зелёными.
+- Если для ускорения хочется поменять то, что видно, — **это не оптимизация, это редизайн**. Стоп, спросить
+  владельца.
 
 ---
 
@@ -99,6 +114,16 @@ new Category("Misc", IconGlyph.MISC, List.of(
 
 Аналогично: `ClubClient.onInitializeClient` → `// [SEAM:init]`; `club.mixins.json` → массив `client`
 (добавлять в конец); `ClubHarness.build()` → `// [SEAM:checks]`.
+
+**Строка notice() — БЕЗ якоря вообще.** `MenuContent.notice()` был switch по именам модулей, и второй якорь в
+замороженном файле — плохое решение. Теперь он падает в реестр: модуль регистрирует свою строку **из своего
+пакета**, и `MenuContent` не трогается вовсе:
+
+```java
+// в init() своего модуля
+ModuleNotices.register("Performance", () ->
+        FabricLoader.getInstance().isModLoaded("sodium") ? "Entity culling: handled by Sodium" : null);
+```
 
 **Каждый чат обязан:** свою логику держать в своём пакете; в общий файл добавлять **только вызов**. Никакой
 бизнес-логики в `MenuContent` или `ClubClient`.

@@ -94,7 +94,10 @@ public final class MenuContent {
             case "Screen Stretch" -> c.screenStretch.enabled
                     && !com.club.modules.screenstretch.ScreenStretchModule.isActive()
                     ? "Auto — the world is left untouched" : null;
-            default -> null;
+            // Anything else answers for ITSELF, from its own package (com.club.modules.ModuleNotices). A switch
+            // in this file was fine while the menu owned every module; it is not fine when parallel workstreams
+            // each need a line in it, in a file that is otherwise frozen.
+            default -> com.club.modules.ModuleNotices.get(moduleName);
         };
     }
 
