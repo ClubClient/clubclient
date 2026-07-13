@@ -16,7 +16,9 @@
     "WorldRendererAccessor",
     "MixinWorldRendererFrustum",
     "MixinParticleManager",
-    "MixinBlockEntityRenderDispatcher"
+    "MixinBlockEntityRenderDispatcher",
+    "MixinWorldRendererSections",
+    "MixinEntityRenderDispatcher"
   ],
   "injectors": {
     "defaultRequire": 1

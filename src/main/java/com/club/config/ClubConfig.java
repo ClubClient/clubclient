@@ -50,6 +50,9 @@ public class ClubConfig {
          *  16x16x16 section but never the chest inside it. Renderers that asked for anything unusual (a
          *  beacon's 256 blocks, a piston drawing outside its own block) are never touched. */
         public boolean cullBlockEntities = true;
+        /** Skip entities in chunk sections the occlusion graph dropped. OFF whenever Sodium is installed —
+         *  Sodium already does this, better integrated, and it nulls the very list we would read. */
+        public boolean cullEntities = true;
     }
 
     public Hud hud = new Hud();
