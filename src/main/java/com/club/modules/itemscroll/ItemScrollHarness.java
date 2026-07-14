@@ -163,34 +163,37 @@ public final class ItemScrollHarness {
     }
 
     /** Put the real mouse pointer over the centre of a slot. */
-    /**
-     * Put the cursor over a slot — and make the CLIENT believe it.
-     *
-     * <p>{@code glfwSetCursorPos} moves the pointer but fires no cursor callback (the repo learned this once
-     * already, in HudEditorScreen). So Minecraft's own tracked mouse position never moved, the drag never saw
-     * the cursor cross the second and third slots, and the test dragged across three slots and moved exactly
-     * one — while reporting "press consumed, release consumed", because both of those really did happen.</p>
-     *
-     * <p>It passed on the branch and failed the moment it ran anywhere else, which is the signature of a test
-     * that depends on a platform behaviour rather than on the product. The harness now updates what the client
-     * reads (the tracked position) and drives the drag event the client would have driven — so the thing under
-     * test is Club's drag, not GLFW's callback policy.</p>
-     */
     public static void moveCursor(MinecraftClient mc, int slotId) {
         HandledScreen<?> screen = screen(mc);
         if (screen == null) return;
         double[] p = slotCentre(mc, screen, slotId);
         double factor = mc.getWindow().getScaleFactor();
-        double px = p[0] * factor, py = p[1] * factor;
-        GLFW.glfwSetCursorPos(mc.getWindow().getHandle(), px, py);
+        // Write the position the CLIENT tracks, not the one the OS owns.
+        //
+        // This used to call glfwSetCursorPos, which merely ASKS the OS to move the pointer; the client only
+        // learns about it if the window is focused and the OS delivers the callback. On one machine it did,
+        // on another it did not — so the drag test was really testing the window manager, and it failed on a
+        // clean tree with one slot moved out of three. Mouse.x/y is the very field a real cursor event
+        // writes, and MinecraftClient feeds it straight into the screen's mouseX/mouseY every frame, which
+        // is the seam the drag samples. Same path, no OS in it. (MouseAccessor already exists — the menu
+        // re-centres the cursor with it.)
+        com.club.mixin.MouseAccessor mouse = (com.club.mixin.MouseAccessor) mc.mouse;
+        mouse.club$setX(p[0] * factor);
+        mouse.club$setY(p[1] * factor);
+        // …and ask the OS to put the real pointer in the same place. NOT as the mechanism — as agreement:
+        // if the window is focused and a cursor callback does arrive, it now carries the coordinates we
+        // already wrote instead of dragging the tracked position back to wherever the physical mouse sits.
+        GLFW.glfwSetCursorPos(mc.getWindow().getHandle(), p[0] * factor, p[1] * factor);
+    }
 
-        var mouse = (com.club.mixin.MouseAccessor) mc.mouse;
-        double fromX = mc.mouse.getX(), fromY = mc.mouse.getY();
-        mouse.club$setX(px);
-        mouse.club$setY(py);
-        // …and the event itself: the real client turns a cursor move with a button held into mouseDragged.
-        screen.mouseDragged(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT,
-                p[0] - fromX / factor, p[1] - fromY / factor);
+    /** The slot the module would see under the cursor right now — the mechanism the drag depends on. */
+    public static int hoveredSlotId(MinecraftClient mc) {
+        HandledScreen<?> screen = screen(mc);
+        if (screen == null) return -1;
+        double factor = mc.getWindow().getScaleFactor();
+        Slot slot = ((MixinHandledScreenAccessor) screen)
+                .club$slotAt(mc.mouse.getX() / factor, mc.mouse.getY() / factor);
+        return slot == null ? -1 : slot.id;
     }
 
     /** @return "consumed" when Club took the press (so vanilla never saw it), or what vanilla then did */
