@@ -39,6 +39,7 @@ public enum IconGlyph {
     TOGGLE_SPRINT(0xE01A),
     FREELOOK(0xE01B),
     ITEM_SCROLL(0xE01C),
+    PERFORMANCE(0xE01D),
     // service
     SEARCH(0xE020),
     /** The CLUB mark — the club card suit (trefoil), solid. Header wordmark + editor watermark. */

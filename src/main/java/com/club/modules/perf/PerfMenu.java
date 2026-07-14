@@ -51,7 +51,7 @@ public final class PerfMenu {
         return new MenuContent.Module(
                 "Performance",
                 "Skip drawing what you cannot see. Nothing here changes the picture.",
-                IconGlyph.MISC,
+                IconGlyph.PERFORMANCE,
                 // The master toggle switches everything off at once — the first thing to try when a player
                 // suspects us of a rendering bug, and the answer we want them to be able to give in one click.
                 () -> p.cullParticles || p.cullBlockEntities || p.throttleWhenUnfocused,
