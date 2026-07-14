@@ -39,6 +39,10 @@ public final class IrisCompat {
             Class<?> c = Class.forName("net.irisshaders.iris.shadows.ShadowRenderingState");
             inShadowPass = MethodHandles.lookup()
                     .findStatic(c, "areShadowsCurrentlyBeingRendered", MethodType.methodType(boolean.class));
+            // Say it out loud. "The guard exists" and "the guard is armed" are different claims, and only a
+            // shaderpack actually running would exercise the second one — so the log is how we know the
+            // reflection found what it went looking for, on a machine where nobody is watching shadows.
+            System.out.println("[club.perf] Iris detected — shadow-pass guard ARMED (" + c.getName() + ")");
         } catch (Throwable t) {
             // A version of Iris that moved the class is not a crash — it is a mod that gets no cull.
             System.err.println("[club.perf] Iris is present but its shadow-pass flag was not found ("
