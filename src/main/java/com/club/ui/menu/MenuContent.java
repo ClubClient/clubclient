@@ -133,7 +133,7 @@ public final class MenuContent {
                 // [SEAM:cards] New module cards go here, one line each, calling a factory in the module's own
                 // package. This anchor must survive any refactor of this file (see docs/NEXT-PLAN.md).
                 com.club.modules.itemscroll.ItemScrollMenu.card(),
-                flag("Hide Effects", "Hide the vanilla status-effect overlay.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
+                flag("Hide Effects", "Hide Minecraft's own potion icons.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
         );
     }
 
@@ -146,7 +146,10 @@ public final class MenuContent {
         AnimationType[] at = AnimationType.values();
         String[] labels = new String[at.length];
         for (int i = 0; i < at.length; i++) labels[i] = at[i].label();
-        return new Module("Animations", "Custom first-person attack animation.", IconGlyph.ANIMATIONS,
+        // Card descriptions are written for a PLAYER, not for us (owner, v0.1.3 item 6: "всё меню написано на
+        // каком-то логичном, но НЕЧЕЛОВЕЧЕСКОМ английском"). "Custom first-person attack animation" is a
+        // spec line, not a sentence: it names the feature and says nothing about what it does for you.
+        return new Module("Animations", "Replace the vanilla swing with one of your own.", IconGlyph.ANIMATIONS,
             () -> c.animations.enabled, v -> { c.animations.enabled = v; save(); },
             () -> { c.animations.type = "CLASSIC"; c.animations.speed = 1f; c.animations.amplitude = 1f; c.animations.enabled = true; save(); },
             List.of(
@@ -212,7 +215,7 @@ public final class MenuContent {
         StretchPreset[] sp = StretchPreset.values();
         String[] labels = new String[sp.length];
         for (int i = 0; i < sp.length; i++) labels[i] = sp[i].label();
-        return new Module("Screen Stretch", "Stretch the view to a target aspect ratio.", IconGlyph.SCREEN_STRETCH,
+        return new Module("Screen Stretch", "Play at a different aspect ratio than your monitor has.", IconGlyph.SCREEN_STRETCH,
             () -> c.screenStretch.enabled, v -> { c.screenStretch.enabled = v; save(); },
             // Reset goes back to AUTO (no stretch) — resetting must never hand a non-16:9 player a
             // warped world, which "R16_9" did (Stage 59 audit).
@@ -246,7 +249,7 @@ public final class MenuContent {
 
     /** Action-only module: no master toggle, no reset — a single button that opens the HUD editor. */
     private static Module hudEditor(Runnable openHudEditor) {
-        return new Module("HUD Editor", "Position and configure your HUD elements.", IconGlyph.HUD_EDITOR,
+        return new Module("HUD Editor", "Drag the HUD wherever you want it.", IconGlyph.HUD_EDITOR,
             null, null, null,
             List.of(new ActionSetting("Open Editor", openHudEditor)));
     }
