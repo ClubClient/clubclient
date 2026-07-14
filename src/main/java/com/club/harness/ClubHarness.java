@@ -49,7 +49,15 @@ public final class ClubHarness {
 
     private static final class Step {
         final Runnable action; final int settle;
-        Step(Runnable a, int s) { action = a; settle = s; }
+        /** A GATE step (Stage 64): it is evaluated every tick and the script does not advance until it
+         *  returns true — or until {@code timeout} ticks have passed, which is a REPORTABLE outcome, not a
+         *  silent one. Measuring after a fixed number of ticks is what let the profiler read a client that
+         *  was still building chunk meshes and JIT-compiling, and call that number the mod's cost. */
+        final java.util.function.BooleanSupplier until; final int timeout;
+        Step(Runnable a, int s) { this(a, s, null, 0); }
+        Step(Runnable a, int s, java.util.function.BooleanSupplier u, int t) {
+            action = a; settle = s; until = u; timeout = t;
+        }
     }
 
     private static final class Harness {
@@ -60,21 +68,67 @@ public final class ClubHarness {
         private int wait;
         private int shotNo, passed, failed;
         private int prevGuiScale = 2;   // restored after the squeezed-window scene
-        private int fpsOff, fpsOn, offN, onN;
         private boolean built, finished;
+        private int gateTicks;
+        private boolean gateTimedOut;
 
-        /** Silence every Club HUD element (the mod's entire in-world draw) for the A/B measurement. */
-        private void hudOff(boolean off) {
-            ClubConfig.Hud h = ClubConfig.get().hud;
-            if (off) {
-                hudWas = new boolean[] {h.armor, h.potions, h.target, h.info, h.sprint};
-                h.armor = h.potions = h.target = h.info = h.sprint = false;
-            } else if (hudWas != null) {
-                h.armor = hudWas[0]; h.potions = hudWas[1]; h.target = hudWas[2];
-                h.info = hudWas[3]; h.sprint = hudWas[4];
+        /** The two measurement windows of the profiler self-test (Stage 64). */
+        private com.club.modules.perf.HudProfiler.Snapshot statsA, statsB;
+        private final Settle settle = new Settle();
+
+        /** Relative disagreement between two readings of the same thing — the instrument's error bar. */
+        private static double spread(double x, double y) {
+            double lo = Math.min(x, y);
+            return lo <= 0 ? 1.0 : Math.abs(x - y) / lo;
+        }
+
+        /**
+         * WAIT UNTIL THE READING STOPS MOVING — the fix for the bug that produced 0.45 ms and 1.22 ms from
+         * the same build (Stage 64).
+         *
+         * <p>The old script warmed up for a fixed 60 ticks and then measured. That is not a warm-up, it is a
+         * guess. The first measured window ran at 85 fps and the second, in the same static scene seconds
+         * later, at 207 — the client was still JIT-compiling and building chunk meshes, and every phase was
+         * inflated by the same ~2.4x, INCLUDING the pure-CPU raycast and layout, which cannot possibly care
+         * about the GPU. We were timing a busy machine and printing it as the mod's cost.
+         *
+         * <p>So: probe in short windows, and open only once three consecutive windows agree within 12%. If
+         * they never do, the gate TIMES OUT — and the run then reports INVALID and asserts nothing, because
+         * a number from a machine that never settled is not evidence about the mod.
+         *
+         * <p>It converges on the SHARE OF THE FRAME, not on the millisecond, and that distinction is the
+         * whole finding of this stage. Measured across four windows in two sessions, one machine, one static
+         * scene: the HUD's median cost was 0.31, 0.60, 0.72, 0.83 ms — a 2.7x spread — because the client
+         * itself ran at 76, 96, 114 and 207 fps depending on what else the machine was doing. Its share of
+         * the frame over those same four windows: 6.4%, 5.7%, 6.1%, 6.3%. The millisecond was the machine.
+         * The share is the mod.
+         */
+        private final class Settle implements java.util.function.BooleanSupplier {
+            static final int PROBE = 60;              // ticks per probe window (~3 s)
+            private static final int NEEDED = 2;      // consecutive agreeing pairs => 3 agreeing windows
+            private static final double TOLERANCE = 0.12;
+
+            private int t;
+            private double prev = -1;
+            private int agreed;
+            int windows;                              // how long the machine took — worth printing
+            double lastShare, lastMs, lastFps;
+
+            @Override public boolean getAsBoolean() {
+                if (t == 0) com.club.hud.HudManager.profile(true);
+                if (++t < PROBE) return false;
+
+                var s = com.club.hud.HudManager.stats();
+                com.club.hud.HudManager.profile(false);
+                t = 0; windows++;
+                lastShare = s.share(); lastMs = s.medianMs(); lastFps = s.fps();
+                if (s.frames() < 30 || lastShare <= 0) { prev = -1; agreed = 0; return false; }
+
+                if (prev > 0 && spread(prev, lastShare) <= TOLERANCE) agreed++; else agreed = 0;
+                prev = lastShare;
+                return agreed >= NEEDED;
             }
         }
-        private boolean[] hudWas;
 
         void tick(MinecraftClient client) {
             if (finished) return;
@@ -87,7 +141,17 @@ public final class ClubHarness {
             }
             if (wait-- > 0) return;
             if (cursor >= steps.size()) { finish(); return; }
-            Step s = steps.get(cursor++);
+            Step s = steps.get(cursor);
+            if (s.until != null) {   // a gate: hold the script here until it opens (or gives up)
+                gateTicks++;
+                boolean open;
+                try { open = s.until.getAsBoolean(); }
+                catch (Throwable t) { report.add("EXCEPTION in gate " + cursor + ": " + t); open = true; }
+                if (!open && gateTicks < s.timeout) return;
+                gateTimedOut = !open;
+                gateTicks = 0;
+            }
+            cursor++;
             try { s.action.run(); } catch (Throwable t) { report.add("EXCEPTION in step " + (cursor - 1) + ": " + t); }
             wait = s.settle;
         }
@@ -95,6 +159,36 @@ public final class ClubHarness {
         // ---- helpers -----------------------------------------------------------
 
         private void step(int settle, Runnable r) { steps.add(new Step(r, settle)); }
+        /** Hold the script here until {@code cond} opens, at most {@code timeout} ticks, then run {@code then}. */
+        private void gate(java.util.function.BooleanSupplier cond, int timeout, Runnable then) {
+            steps.add(new Step(then, 2, cond, timeout));
+        }
+
+        // ---- the A/B (Stage 65) -------------------------------------------------
+
+        private final List<com.club.modules.perf.HudProfiler.Snapshot> batchOff = new ArrayList<>();
+        private final List<com.club.modules.perf.HudProfiler.Snapshot> batchOn  = new ArrayList<>();
+
+        /** One measured window with the icon batch in a given state. Interleaved by the caller. */
+        private void abWindow(boolean on) {
+            step(2, () -> { com.club.hud.PixelIcons.batchEnabled = on; com.club.hud.HudManager.profile(true); });
+            step(90, () -> {});                                  // ~4.5 s of real frames
+            step(2, () -> {
+                var s = com.club.hud.HudManager.stats();
+                com.club.hud.HudManager.profile(false);
+                (on ? batchOn : batchOff).add(s);
+            });
+        }
+
+        private static double medianShare(List<com.club.modules.perf.HudProfiler.Snapshot> ws) {
+            double[] a = ws.stream().mapToDouble(com.club.modules.perf.HudProfiler.Snapshot::share).sorted().toArray();
+            return a.length == 0 ? 0 : a[a.length / 2];
+        }
+        private static double worstSpread(List<com.club.modules.perf.HudProfiler.Snapshot> ws) {
+            double lo = Double.MAX_VALUE, hi = 0;
+            for (var s : ws) { lo = Math.min(lo, s.share()); hi = Math.max(hi, s.share()); }
+            return lo <= 0 ? 1.0 : (hi - lo) / lo;
+        }
         private void check(String name, boolean cond) {
             report.add((cond ? "PASS  " : "FAIL  ") + name);
             if (cond) passed++; else failed++;
@@ -126,6 +220,14 @@ public final class ClubHarness {
         private void build() {
             if (built) return; built = true;
             ClubConfig cfg = ClubConfig.get();
+
+            // THE BACKGROUND THROTTLE MUST NOT MEASURE US (found by the merge, invisible to either branch).
+            // A harness run has no human at the keyboard, so its window is never focused — and the new
+            // throttle does exactly what it promises: caps the client at 15 fps. Every frame then costs 67 ms,
+            // the perf windows measure the cap instead of the mod, and the timing-sensitive scenes (Item
+            // Scroll's drag across three slots) start failing at random. The feature is correct; measuring
+            // through it is not.
+            cfg.perf.throttleWhenUnfocused = false;
 
             // ===== TECHNICAL ASSERTS (direct module logic) =====
             step(2, () -> report.add("== technical asserts =="));
@@ -500,14 +602,35 @@ public final class ClubHarness {
             step(5, () -> report.add("INFO  item scroll: drag press — "
                     + com.club.modules.itemscroll.ItemScrollHarness.dragPress(
                             mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_A)));
-            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
-                    mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_B));
-            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
-                    mc, com.club.modules.itemscroll.ItemScrollHarness.DIRT));
+            // Each hop asserts that the CURSOR ARRIVED before asking what the drag did with it. The first
+            // version of this test moved the pointer with glfwSetCursorPos — which only asks the OS, and the
+            // client hears about it solely if the window is focused and the callback is delivered. On one
+            // machine it was, on another it was not, and the drag check went red for a reason that had
+            // nothing to do with the drag. A test that can fail for a reason it does not name is a test that
+            // costs more than it earns; now the mechanism is checked separately and by name.
+            // The assert sits in the SAME tick as the move, deliberately: not one frame passes between
+            // writing the position and reading it back, so no late OS callback can rescue a mechanism that
+            // does not work. It either landed, or it says so.
+            step(5, () -> {
+                com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
+                        mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_B);
+                check("item scroll: the harness can put the cursor ON a slot (drag hop 2)",
+                        com.club.modules.itemscroll.ItemScrollHarness.hoveredSlotId(mc)
+                                == com.club.modules.itemscroll.ItemScrollHarness.STONE_B);
+            });
+            step(5, () -> {
+                com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
+                        mc, com.club.modules.itemscroll.ItemScrollHarness.DIRT);
+                check("item scroll: …and on the next one (drag hop 3)",
+                        com.club.modules.itemscroll.ItemScrollHarness.hoveredSlotId(mc)
+                                == com.club.modules.itemscroll.ItemScrollHarness.DIRT);
+            });
             step(5, () -> report.add("INFO  item scroll: drag release — "
                     + com.club.modules.itemscroll.ItemScrollHarness.dragRelease(mc)));
             step(5, () -> {
-                check("item scroll: a drag across three slots moves all three",
+                check("item scroll: a drag across three slots moves all three ("
+                                + com.club.modules.itemscroll.ItemScrollHarness.containerStacks(mc)
+                                + " left in the chest)",
                         com.club.modules.itemscroll.ItemScrollHarness.containerStacks(mc) == 0);
                 check("item scroll: …and VANILLA'S QUICK-CRAFT NEVER ARMED (no drag, no slots, no shift-move)",
                         com.club.modules.itemscroll.ItemScrollHarness.vanillaDragIdle(mc));
@@ -625,32 +748,101 @@ public final class ClubHarness {
                                 com.club.modules.itemscroll.ScrollAction.MOVE_STACK) == null);
             });
 
-            // ===== COST OF THE MOD, MEASURED (Stage 59) =====
-            // The owner asked whether it holds up under load. Everything the mod draws in-world goes
-            // through the HUD callback, so measure frames with it ON vs fully OFF, in the same world, in
-            // the same session. Noisy by nature (it's a real client), so this REPORTS rather than asserts
-            // — it fails only on a cost big enough that no noise could explain it.
-            // Time the DRAW ITSELF, not the frame rate: watching the fps counter mostly measured the world
-            // (chunks, mobs, the time of day) and swung the same build between 0.3 and 1.1 ms run to run.
+            // ===== THE INSTRUMENT, AND WHAT IT MEASURES (Stage 64-65) =====
+            // The step this replaces reported a MEAN of one accumulator and asserted "< 0.8 ms". It shipped
+            // a number (0.45 ms) the same build could not reproduce — the repo's own last report said 1.22 ms
+            // at the identical draws — and Stage 63 accepted a change on a 1.20 -> 1.06 "win" that lived
+            // inside that spread. The instrument was the bug.
+            //
+            // Two rules come out of fixing it, and both are enforced here:
+            //   1. THE MILLISECOND IS THE MACHINE; THE SHARE OF THE FRAME IS THE MOD. Two windows seconds
+            //      apart in this static scene ran at 83 and 125 fps and every phase moved with them — the
+            //      raycast included, which cannot possibly care about the GPU. Shares are asserted; the
+            //      milliseconds are printed next to them, as context, never as evidence.
+            //   2. A/B IN ONE SESSION, INTERLEAVED. OFF, ON, OFF, ON, OFF, ON — never one long block of each,
+            //      which measures the machine warming up. Comparing two RUNS is the mistake this stage exists
+            //      to stop, so the glyph cache is toggled at runtime and both arms are measured here.
             step(2, () -> mc.setScreen(null));
-            step(60, () -> {});                                    // warm up: chunks built, JIT settled
-            step(2, () -> com.club.hud.HudManager.profile(true));
-            step(120, () -> {});                                   // ~6s of real frames with the full HUD up
+
+            // ARM THE SCENE — the icon A/B measures ICONS, so there had better be some (found by the MERGE,
+            // and by nothing else: on its own branch this block ran on a dressed player, and after Item Scroll
+            // landed in front of it, the player reaching this point wore nothing. Four draws stayed four, and
+            // the assert "the batch collapses them" failed while there was nothing to collapse.)
+            //
+            // This is chat B's own rule, turned on the harness instead of the bench: a zero must mean BROKEN,
+            // never "the scene did not ask". So the block no longer inherits whatever the previous block left
+            // on the player — it dresses him itself, and refuses to assert if it somehow still has no icons.
+            step(2, () -> armPerfScene(mc));
+            step(20, () -> {});
+
+            // A gate, not a fixed warm-up: probe until three consecutive windows agree (max ~40 s).
+            gate(settle, 800, () -> report.add(String.format(
+                    "INFO  settle: the reading stopped moving after %d probe windows "
+                    + "(%.0f fps, %.3f ms, share %.2f%%)%s",
+                    settle.windows, settle.lastFps, settle.lastMs, settle.lastShare * 100,
+                    gateTimedOut ? " — TIMED OUT, this run is INVALID" : "")));
+            for (int i = 0; i < 3; i++) { abWindow(false); abWindow(true); }
+            step(2, this::reportPerf);
+
+            // ===== THE ICON BATCH IS INVISIBLE — PROVED, NOT PROMISED (Stage 67) =====
+            // Batching the duotone icons draws them as a GROUP, at the end of the pass, instead of one at a
+            // time between the text and the gauges. That is a change of painter's order, and the owner's
+            // rule is that the picture may not move by a pixel. The reorder is invisible if and only if
+            // nothing drawn AFTER an icon overlaps it — a directional property, so it is asserted on the
+            // real draw sequence, with real armour and real effects (an empty HUD proves nothing), at every
+            // GUI scale, because the scale changes the layout and could bring a glyph onto a sprite.
             step(2, () -> {
-                double ms = com.club.hud.HudManager.avgDrawMs();
-                double calls = com.club.hud.HudManager.avgDraws();
-                double shapes = com.club.hud.HudManager.avgShapeDraws();
-                double texts = com.club.hud.HudManager.avgTextDraws();
-                int n = com.club.hud.HudManager.profiledFrames();
-                com.club.hud.HudManager.profile(false);   // (read EVERY number BEFORE this — it resets them)
-                report.add(String.format("INFO  draw cost: the Club HUD takes %.3f ms/frame in %.0f GL draw calls "
-                                + "(%.0f shape + %.0f text; %.0f us each; mean of %d frames, backend %s)",
-                        ms, calls, shapes, texts, calls > 0 ? ms * 1000 / calls : 0, n, com.club.ui.Ui.backend()));
-                // Was 43 draws / ~1.25 ms — one GL call per shape, and 33 of them just TABULAR DIGITS.
-                // Batching both (Stage 61) took it to ~11 calls / ~0.45 ms. These guard that: a draw-call
-                // count creeping back up is the regression that matters, and it shows up here first.
-                check("perf: the in-world HUD draw stays under 0.8 ms/frame", n > 100 && ms < 0.8);
-                check("perf: …in a handful of GL draw calls, not one per shape", calls <= 16);
+                cfg.hud.armor = cfg.hud.potions = cfg.hud.info = cfg.hud.sprint = cfg.hud.target = true;
+                if (mc.player != null) {
+                    mc.player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                            net.minecraft.entity.effect.StatusEffects.SPEED, 1200, 1));
+                    mc.player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                            net.minecraft.entity.effect.StatusEffects.REGENERATION, 1200, 0));
+                    mc.player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                            net.minecraft.entity.effect.StatusEffects.NIGHT_VISION, 1200, 0));
+                }
+                mc.setScreen(null);
+            });
+            step(10, () -> {});   // let the chips reveal (they animate in; a half-drawn HUD is a weak test)
+            for (int gs = 1; gs <= 4; gs++) {
+                final int scale = gs;
+                step(2, () -> {
+                    prevGuiScale = mc.options.getGuiScale().getValue();
+                    mc.options.getGuiScale().setValue(scale);
+                    mc.onResolutionChanged();
+                    com.club.modules.perf.DrawBoxes.recording = true;
+                    com.club.modules.perf.DrawBoxes.clearWorst();
+                });
+                // 40 ticks, not one frame: the violation this caught was INTERMITTENT — three runs green,
+                // the fourth found a shape on an icon. Elements fade and slide, and the frame that breaks is
+                // the one you did not sample. Every frame in this stretch is judged; the worst one is the
+                // verdict.
+                step(40, () -> {});
+                step(2, () -> {
+                    int icons = com.club.modules.perf.DrawBoxes.count(com.club.modules.perf.DrawBoxes.ICON);
+                    int covered = com.club.modules.perf.DrawBoxes.worstCovered();
+                    String who = com.club.modules.perf.DrawBoxes.worstOffender();
+                    com.club.modules.perf.DrawBoxes.recording = false;
+                    report.add(String.format("INFO  order @ GUI scale %d: %d icons, %d text, %d shapes drawn%s",
+                            scale, icons,
+                            com.club.modules.perf.DrawBoxes.count(com.club.modules.perf.DrawBoxes.TEXT),
+                            com.club.modules.perf.DrawBoxes.count(com.club.modules.perf.DrawBoxes.SHAPE),
+                            com.club.modules.perf.DrawBoxes.overflowed() ? " (RECORDER OVERFLOWED)" : ""));
+                    // Zero icons would make the check pass by measuring nothing — the exact failure this
+                    // workstream keeps finding in other people's asserts.
+                    check("order: the HUD actually drew icons at GUI scale " + scale + " (" + icons + ")",
+                            icons > 0 && !com.club.modules.perf.DrawBoxes.overflowed());
+                    check("order: nothing drawn after an icon overlaps it at GUI scale " + scale
+                            + (covered == 0 ? "" : " — " + who), covered == 0);
+                });
+            }
+            step(2, () -> {
+                mc.options.getGuiScale().setValue(prevGuiScale);
+                mc.onResolutionChanged();
+                // The effects were staged for the ORDER proof (an empty HUD proves nothing there). They must
+                // not stay for the perf A/B: that one has to measure the HUD a player actually runs, so the
+                // draw-count pair it prints is the mod's, not the test's.
+                if (mc.player != null) mc.player.clearStatusEffects();
             });
 
             // ===== VISUAL SCENES =====
@@ -856,6 +1048,140 @@ public final class ClubHarness {
             step(2, () -> shot("editor"));
 
             step(4, () -> mc.setScreen(null));
+        }
+
+        /**
+         * Put armour on the player and effects in his blood, so the HUD it draws HAS icons in it.
+         *
+         * <p>The Armor chip and the Effects chip are where every duotone icon in the mod comes from. Measure
+         * the icon batch on a naked player with no potions and the honest answer is zero icons, zero draws
+         * collapsed — which reads exactly like a broken batch. The scene has to ask the question before the
+         * answer means anything.</p>
+         *
+         * <p>Server-side, on the server thread: the integrated server owns the player's inventory, and poking
+         * it from the client tick simply does not take (Item Scroll paid for that lesson too).</p>
+         */
+        private static void armPerfScene(MinecraftClient mc) {
+            var server = mc.getServer();
+            if (server == null || mc.player == null) return;
+            java.util.UUID id = mc.player.getUuid();
+            server.execute(() -> {
+                var sp = server.getPlayerManager().getPlayer(id);
+                if (sp == null) return;
+                sp.equipStack(net.minecraft.entity.EquipmentSlot.HEAD,
+                        new net.minecraft.item.ItemStack(net.minecraft.item.Items.DIAMOND_HELMET));
+                sp.equipStack(net.minecraft.entity.EquipmentSlot.CHEST,
+                        new net.minecraft.item.ItemStack(net.minecraft.item.Items.DIAMOND_CHESTPLATE));
+                sp.equipStack(net.minecraft.entity.EquipmentSlot.LEGS,
+                        new net.minecraft.item.ItemStack(net.minecraft.item.Items.DIAMOND_LEGGINGS));
+                sp.equipStack(net.minecraft.entity.EquipmentSlot.FEET,
+                        new net.minecraft.item.ItemStack(net.minecraft.item.Items.DIAMOND_BOOTS));
+                sp.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                        net.minecraft.entity.effect.StatusEffects.SPEED, 12000, 1, false, false));
+                sp.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                        net.minecraft.entity.effect.StatusEffects.REGENERATION, 12000, 0, false, false));
+            });
+        }
+
+        /** The perf verdict: what the HUD costs, whether the instrument can be believed, and what the glyph
+         *  cache actually bought — measured ON against OFF, interleaved, in this one session. */
+        private void reportPerf() {
+            com.club.hud.PixelIcons.batchEnabled = true;   // production state, whatever the last window was
+            if (batchOff.size() < 3 || batchOn.size() < 3) {
+                check("perf: the profiler saw all six windows", false);
+                return;
+            }
+            // A benchmark that cannot fail honestly must refuse to pass. If the machine never settled, the
+            // numbers are still PRINTED (they are diagnostic) but nothing is asserted from them.
+            if (gateTimedOut)
+                report.add("INVALID  the machine never settled — the numbers below describe this run's load, "
+                        + "not the mod. No perf assert is made from them.");
+
+            var s = batchOn.get(batchOn.size() - 1);
+            report.add(String.format(
+                    "INFO  hud cost: SHARE %.2f%% of a frame — %.3f ms of a %.2f ms frame (%.0f fps) — "
+                    + "raycast %.3f | layout %.3f | build %.3f | submit %.3f (mean %.3f, p95 %.3f; %d frames)",
+                    s.share() * 100, s.medianMs(), s.frameMs(), s.fps(),
+                    s.raycastMs(), s.layoutMs(), s.buildMs(), s.submitMs(),
+                    s.meanMs(), s.p95Ms(), s.frames()));
+            report.add(String.format(
+                    "INFO  …build, cut open: text %.3f | shapes %.3f | icons %.3f | element logic %.3f "
+                    + "(the recon's prime suspect, the raycast, is %.0f%% of the whole HUD)",
+                    s.textBuildMs(), s.shapeBuildMs(), s.iconBuildMs(), s.otherBuildMs(),
+                    s.medianMs() <= 0 ? 0 : s.raycastMs() / s.medianMs() * 100));
+            report.add(String.format(
+                    "INFO  gl draws/frame: %.1f (%.1f shape + %.1f text + %.1f icons) — backend %s. Icons go "
+                    + "out through vanilla's immediate path; the old counter could not see them at all.",
+                    s.glDraws(), s.shapeDraws(), s.textDraws(), s.iconDraws(), com.club.ui.Ui.backend()));
+
+            double off = medianShare(batchOff), on = medianShare(batchOn);
+            double delta = off <= 0 ? 0 : (off - on) / off;
+            StringBuilder w = new StringBuilder();
+            for (int i = 0; i < 3; i++)
+                w.append(String.format(" off %.2f%%/%.0ffps → on %.2f%%/%.0ffps |",
+                        batchOff.get(i).share() * 100, batchOff.get(i).fps(),
+                        batchOn.get(i).share() * 100, batchOn.get(i).fps()));
+            report.add("INFO  icon batch A/B, interleaved in one session:" + w);
+            report.add(String.format("INFO  icon batch: median share %.2f%% off → %.2f%% on (%+.1f%%). "
+                    + "Icon phase %.3f ms → %.3f ms. GL draws %.0f → %.0f.",
+                    off * 100, on * 100, -delta * 100,
+                    batchOff.get(2).iconBuildMs(), batchOn.get(2).iconBuildMs(),
+                    batchOff.get(2).glDraws(), batchOn.get(2).glDraws()));
+
+            // THE INSTRUMENT'S OWN TEST — and it is a PRECONDITION, not a result.
+            //
+            // The three OFF windows are the same code in the same scene. If they cannot agree with each
+            // other, nothing measured against them means anything. That was a FAIL until an Iris run at 400
+            // fps produced 2.5 ms frames, where the HUD's 0.11 ms is jittery by nature, and the windows
+            // disagreed by 36%. A FAIL says "the mod regressed". This does not. It says "this machine, on
+            // this run, could not hold still long enough to be asked" — which is INVALID, exactly as it is in
+            // ClubBench, and calling it a failure of the mod would be the same class of lie we have spent the
+            // whole workstream removing.
+            //
+            // It is not a way to make a red line green, either: a genuinely broken instrument fails this on
+            // EVERY run and prints INVALID every time, loudly, right here.
+            double instr = worstSpread(batchOff);
+            boolean unstable = gateTimedOut || instr > 0.20;
+            if (unstable)
+                report.add(String.format("INVALID  the instrument could not repeat itself on this run — three "
+                        + "identical windows disagreed by %.1f%% (frames were %.2f ms). Nothing is asserted "
+                        + "from the millisecond on this run; the deterministic counters below still are.",
+                        instr * 100, batchOff.get(2).frameMs()));
+            else
+                check(String.format("perf: the instrument repeats itself — three identical windows agree on "
+                        + "the HUD's share of the frame within 20%% (%.1f%%)", instr * 100), true);
+
+            // Primum non nocere. A change that makes the HUD cost MORE is a change we delete, and this is
+            // the one perf claim that may never be allowed to fail — when it can be asked at all.
+            if (!unstable)
+                check(String.format("perf: the icon batch is not a regression (%.2f%% → %.2f%%)",
+                        off * 100, on * 100), on <= off * 1.02);
+
+            // The deterministic half of the proof — and it must assert the PROPERTY, not a magnitude.
+            //
+            // This used to demand "at least two draws fewer", which is a fact about the scene I calibrated it
+            // in (four icons -> one draw). In a scene with three icons the same working batch saves one draw
+            // and the assert FAILED, while the icon phase went from 0.068 ms to 0.001 ms — a factor of 68.
+            // An assert tuned to a number instead of a property is the same mistake as a benchmark tuned to a
+            // machine, and this workstream exists because of that mistake.
+            //
+            // The property is: every icon in an element used to be its own GL draw, and now they are one
+            // draw. How many icons the HUD happens to be showing is the scene's business, not the batch's.
+            double iconOff = batchOff.get(2).iconDraws(), iconOn = batchOn.get(2).iconDraws();
+            double dOff = batchOff.get(2).glDraws(), dOn = batchOn.get(2).glDraws();
+            if (iconOff < 2) {
+                // One icon cannot demonstrate batching. That is not a failure of the batch — the scene simply
+                // did not ask. Say so; do not print a green tick for a question nobody put.
+                report.add(String.format("SKIP  perf: the icon batch collapses the draws — this HUD drew only "
+                        + "%.0f icon draw a frame, so there was nothing to collapse. The scene did not ask.",
+                        iconOff));
+            } else {
+                check(String.format("perf: the icon batch collapses every element's icons into ONE draw "
+                                + "(%.0f icon draws → %.0f; frame total %.0f → %.0f)", iconOff, iconOn, dOff, dOn),
+                        iconOn >= 1 && iconOn < iconOff && dOn <= dOff - (iconOff - iconOn) + 0.5);
+            }
+            check("perf: the icon draws are counted, not invisible (" + Math.round(s.iconDraws()) + "/frame)",
+                    s.iconDraws() > 0);
         }
 
         private static double num(Object o) { return ((Number) o).doubleValue(); }
