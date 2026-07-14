@@ -241,94 +241,98 @@ https://github.com/ClubClient/clubclient      ← карточка во весь
 Два сообщения даже лучше: человек видит блок на своём языке сразу, а не листает чужой. Английский
 первым — трафик пойдёт с Modrinth и GitHub. **Закрепить оба.**
 
-### 6.1. Закреп в `📌│rules`
+### 6.1. Закреп в `📌│rules` — ДВА сообщения
+
+Discord понимает настоящий markdown: `#` и `##` — заголовки, `-#` — мелкий серый текст. Пользоваться
+болдом вместо заголовков — значит получить однородную стену. Первая редакция этих текстов была именно
+такой, и владелец это увидел раньше меня.
+
+**Сообщение 1 (английское):**
 
 ```
-**Club** — a first-person utility client for Minecraft 1.21.1 (Fabric).
-Zoom, fullbright, freelook, item scrolling, a movable HUD. Open source, MIT.
+# Club
+A first-person utility client for Minecraft 1.21.1 · Fabric · MIT
 
-📥  **Download** — <https://modrinth.com/mod/clubclient>
-💻  **Source** — <https://github.com/ClubClient/clubclient>
-🐛  **Bugs** — <https://github.com/ClubClient/clubclient/issues>
+**Download** · <https://modrinth.com/mod/clubclient>
+**Source** · <https://github.com/ClubClient/clubclient>
+**Bugs** · <https://github.com/ClubClient/clubclient/issues>
 
-**Rules**
+## Rules
 
-**1. Club is not a cheat client.**
-No killaura, no ESP, no reach, no autoclicker, no X-ray. This is not a temporary stance and it is not
-up for discussion — requests for these are closed without a reply. Everything Club does is about your
-own view of the game and your own convenience at the keyboard.
+**1 · Club is not a cheat client**
+No killaura, no ESP, no reach, no autoclicker, no X-ray. This is not a temporary stance and it is not up for discussion — requests are closed without a reply.
 
-**2. A bug goes to GitHub, not here.**
-`#support` is for getting set up. A bug reported in chat is a bug that gets lost — the tracker has a
-form, a history, and a search. https://github.com/ClubClient/clubclient/issues
+**2 · Bugs go to GitHub, not here**
+`#support` is for getting set up. A bug reported in chat is a bug that gets lost.
 
-**3. In `#support`, bring the evidence.**
-Your full mod list, and `latest.log` as a **file** (it lives in `.minecraft/logs/`). Not a screenshot
-of it — we cannot search a picture, and the line that matters is almost never the one on screen.
+**3 · In `#support`, bring the evidence**
+Your full mod list, and `latest.log` as a **file** — not a screenshot of it.
 
-**4. No advertising, no drama, no hostility.**
-That is the whole of it.
+**4 · No advertising, no drama, no hostility**
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**Club** — клиентский мод для Minecraft 1.21.1 (Fabric).
-Зум, фулбрайт, фрилук, перенос предметов колесом, перетаскиваемый HUD. Открытые исходники, MIT.
-
-📥  **Скачать** — <https://modrinth.com/mod/clubclient>
-💻  **Исходники** — <https://github.com/ClubClient/clubclient>
-🐛  **Баги** — <https://github.com/ClubClient/clubclient/issues>
-
-**Правила**
-
-**1. Club — не чит-клиент.**
-Killaura, ESP, reach, автокликер, X-ray — этого не будет. Это не временная позиция и не предмет для
-обсуждения: такие просьбы закрываются без ответа. Всё, что делает Club, — про твой собственный взгляд
-на игру и твоё удобство за клавиатурой.
-
-**2. Баг — на GitHub, а не сюда.**
-`#support` — это «помогите настроить». Баг, написанный в чат, — это потерянный баг: в трекере есть
-форма, история и поиск.
-
-**3. В `#support` приходи с доказательствами.**
-Полный список модов и `latest.log` **файлом** (лежит в `.minecraft/logs/`). Не скриншотом — по
-картинке нельзя искать, а нужная строка почти никогда не та, что видна на экране.
-
-**4. Без рекламы, драмы и хамства.**
-Это всё.
+-# The source is public. You don't have to take our word for any of this.
 ```
 
-### 6.2. Закреп в `🛠│support`
+**Сообщение 2 (русское):**
 
 ```
-**Before you post, bring these four things.** Without them the answer is always the same question, and
-we both lose a day.
+# Club
+Клиентский мод для Minecraft 1.21.1 · Fabric · MIT
 
-**1.** Your **Club version** (the mod list in-game, or the jar's filename).
-**2.** Your **full mod list** — every mod, not just the ones you suspect. A conflict is usually with
-the mod you would never have mentioned.
-**3.** `latest.log`, as a **file** — drag it into the chat. It is in `.minecraft/logs/`. If the game
-crashed, the crash report from `.minecraft/crash-reports/` instead.
-**4.** Does it still happen with **only Club and Fabric API** installed? This one question separates
-our bug from a conflict, and it saves days. "I haven't tested that" is a fine answer — just say it.
+**Скачать** · <https://modrinth.com/mod/clubclient>
+**Исходники** · <https://github.com/ClubClient/clubclient>
+**Баги** · <https://github.com/ClubClient/clubclient/issues>
 
-And tell us if you run **Sodium**, **Iris**, a **shaderpack**, or **Freecam**. They rewrite the same
-rendering Club hooks into, so they matter more than the rest of your list.
+## Правила
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**1 · Club — не чит-клиент**
+Killaura, ESP, reach, автокликер, X-ray — этого не будет. Это не временная позиция и не предмет для обсуждения: такие просьбы закрываются без ответа.
 
-**Прежде чем писать, собери четыре вещи.** Без них ответ всегда один и тот же вопрос, и мы оба теряем
-день.
+**2 · Баги — на GitHub, а не сюда**
+`#support` — это «помогите настроить». Баг, написанный в чат, — это потерянный баг.
 
-**1.** **Версия Club** (список модов в игре или имя джарника).
-**2.** **Полный список модов** — все, а не только подозрительные. Конфликт обычно с тем модом, который
-ты бы и не подумал назвать.
-**3.** `latest.log` **файлом** — перетащи его в чат. Лежит в `.minecraft/logs/`. Если игра упала —
-краш-репорт из `.minecraft/crash-reports/`.
-**4.** Воспроизводится ли **только с Club и Fabric API**? Этот один вопрос отделяет наш баг от
-конфликта и экономит дни. «Не проверял» — нормальный ответ, просто скажи это.
+**3 · В `#support` приходи с доказательствами**
+Полный список модов и `latest.log` **файлом** — не скриншотом.
 
-И скажи, стоят ли у тебя **Sodium**, **Iris**, **шейдерпак** или **Freecam**. Они переписывают тот же
-рендер, в который встраивается Club, — они важнее всего остального списка.
+**4 · Без рекламы, драмы и хамства**
+
+-# Исходники открыты. Верить нам на слово не нужно.
+```
+
+### 6.2. Закреп в `🛠│support` — ДВА сообщения
+
+**Сообщение 1 (английское):**
+
+```
+## Before you post
+
+Four things. Without them the answer is always the same question, and we both lose a day.
+
+**1 ·** Your **Club version**
+**2 ·** Your **full mod list** — every mod, not just the ones you suspect
+**3 ·** `latest.log` as a **file** — drag it in. It's in `.minecraft/logs/`
+**4 ·** Does it still happen with **only Club + Fabric API**?
+
+Also say if you run **Sodium**, **Iris**, a **shaderpack** or **Freecam** — they rewrite the same rendering Club hooks into.
+
+-# A conflict is usually with the mod you would never have mentioned.
+```
+
+**Сообщение 2 (русское):**
+
+```
+## Прежде чем писать
+
+Четыре вещи. Без них ответ всегда один и тот же вопрос, и мы оба теряем день.
+
+**1 ·** **Версия Club**
+**2 ·** **Полный список модов** — все, а не только подозрительные
+**3 ·** `latest.log` **файлом** — перетащи в чат. Лежит в `.minecraft/logs/`
+**4 ·** Воспроизводится ли **только с Club + Fabric API**?
+
+И скажи, стоят ли **Sodium**, **Iris**, **шейдерпак** или **Freecam** — они переписывают тот же рендер, в который встраивается Club.
+
+-# Конфликт обычно с тем модом, который ты бы и не подумал назвать.
 ```
 
 ### 6.3. Шаблон поста в `📢│announcements`
