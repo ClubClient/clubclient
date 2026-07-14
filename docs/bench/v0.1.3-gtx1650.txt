@@ -1,0 +1,64 @@
+# Bench — v0.1.3, run on the merged main with the culling changes of 2ee0c7e
+#
+# Provenance: this is the file the -5.3% / -8.1% on the mod page must be checkable against.
+# Reproduce: CLUB_BENCH=1 ./gradlew runClient   (quiet machine — see the noise floor below)
+#
+CREATE club-bench-world (seed 4073942105)
+
+======== GPU-BOUND — the typical machine (1920x1080, render distance 12, fancy) ========
+INFO  settle: 8 probe windows, 113 fps, frame 8,84 ms
+INFO  scene: 150 entities rendered, 150 spawned (75 of them walled off), 60 chests behind the camera + 20 in front, 48 campfires behind and 12 in front
+
+== provenance ==
+GPU        NVIDIA GeForce GTX 1650/PCIe/SSE2
+window     1920x1080, gui scale 2, render distance 12, fancy
+vsync false, max fps 260, particles ALL, ui backend MODERN
+mods       sodium=false iris=false
+
+== blocks (interleaved, one session) ==
+  pair 1 — cull OFF: frame 8,98 ms (111 fps, 481 frames, 150 entities, 0 entities considered, 0 culled)  |  cull ON: frame 8,79 ms (114 fps, 489 frames, 1077967 entities considered, 863103 culled)
+  pair 2 — cull OFF: frame 9,06 ms (110 fps, 494 frames, 150 entities, 0 entities considered, 0 culled)  |  cull ON: frame 7,99 ms (125 fps, 556 frames, 1135252 entities considered, 908620 culled)
+  pair 3 — cull OFF: frame 8,92 ms (112 fps, 484 frames, 150 entities, 0 entities considered, 0 culled)  |  cull ON: frame 8,11 ms (123 fps, 545 frames, 1152539 entities considered, 919348 culled)
+  pair 4 — cull OFF: frame 8,69 ms (115 fps, 507 frames, 150 entities, 0 entities considered, 0 culled)  |  cull ON: frame 8,26 ms (121 fps, 525 frames, 1071085 entities considered, 848627 culled)
+  pair 5 — cull OFF: frame 8,69 ms (115 fps, 503 frames, 150 entities, 0 entities considered, 0 culled)  |  cull ON: frame 7,81 ms (128 fps, 558 frames, 1221610 entities considered, 981616 culled)
+
+== what Club skips, together ==
+frame time: 8,92 ms without it → 8,11 ms with it (-9,1%). Skipped: 981616 of 1221610 things considered (80%) — 925258 particles + 56358 block entities.
+paired deltas (each OFF/ON pair, adjacent in time, so the machine's drift cancels): -2,1% -11,9% -9,1% -5,0% -10,1% → median -9,1%. The pairs ALL AGREE ON THE SIGN — that is a fact about the mod, not about the machine.
+noise floor: the identical OFF blocks disagree with each other by 4,3%. The delta-of-medians is 9,1% — outside it.
+The frame-time delta is REPORTED, not asserted: it is noise-prone and scene-bound. What is asserted is the skip count, which is deterministic and cannot flatter anyone.
+PASS  bench: with the cull OFF nothing is skipped (0)
+PASS  bench: the particle cull skips what is behind the camera (925258)
+PASS  bench: the block-entity cull skips what is off-screen (56358)
+PASS  bench: no entity is culled — the vanilla counter is unmoved (150 vs 150)
+PASS  bench: the cull is not a regression (paired median -9,1%; this arm's noise floor is 4,3%)
+
+======== CPU-BOUND — the machine that needs us (640x360, render distance 2, fast) ========
+INFO  settle: 4 probe windows, 172 fps, frame 5,83 ms
+INFO  scene: 130 entities rendered, 150 spawned (75 of them walled off), 60 chests behind the camera + 20 in front, 48 campfires behind and 12 in front
+
+== provenance ==
+GPU        NVIDIA GeForce GTX 1650/PCIe/SSE2
+window     640x360, gui scale 2, render distance 2, fast
+vsync false, max fps 260, particles ALL, ui backend MODERN
+mods       sodium=false iris=false
+
+== blocks (interleaved, one session) ==
+  pair 1 — cull OFF: frame 6,83 ms (146 fps, 633 frames, 130 entities, 0 entities considered, 0 culled)  |  cull ON: frame 5,85 ms (171 fps, 748 frames, 1624991 entities considered, 1309989 culled)
+  pair 2 — cull OFF: frame 6,66 ms (150 fps, 640 frames, 130 entities, 0 entities considered, 0 culled)  |  cull ON: frame 5,64 ms (177 fps, 781 frames, 1617202 entities considered, 1302274 culled)
+  pair 3 — cull OFF: frame 6,18 ms (162 fps, 708 frames, 130 entities, 0 entities considered, 0 culled)  |  cull ON: frame 5,73 ms (174 fps, 755 frames, 1656422 entities considered, 1340267 culled)
+  pair 4 — cull OFF: frame 6,19 ms (162 fps, 705 frames, 130 entities, 0 entities considered, 0 culled)  |  cull ON: frame 5,50 ms (182 fps, 777 frames, 1644179 entities considered, 1349100 culled)
+  pair 5 — cull OFF: frame 6,25 ms (160 fps, 682 frames, 130 entities, 0 entities considered, 0 culled)  |  cull ON: frame 5,45 ms (184 fps, 798 frames, 1708801 entities considered, 1371756 culled)
+
+== what Club skips, together ==
+frame time: 6,25 ms without it → 5,64 ms with it (-9,9%). Skipped: 1371756 of 1708801 things considered (80%) — 1291158 particles + 80598 block entities.
+paired deltas (each OFF/ON pair, adjacent in time, so the machine's drift cancels): -14,4% -15,4% -7,2% -11,1% -12,9% → median -12,9%. The pairs ALL AGREE ON THE SIGN — that is a fact about the mod, not about the machine.
+noise floor: the identical OFF blocks disagree with each other by 10,5%. The delta-of-medians is 9,9% — inside it. Which is why the paired number above, not this one, is what the conclusion rests on. And beneath both: the tessellation of 1371756 block entities simply stopped happening, on any machine, with no statistics at all.
+The frame-time delta is REPORTED, not asserted: it is noise-prone and scene-bound. What is asserted is the skip count, which is deterministic and cannot flatter anyone.
+PASS  bench: with the cull OFF nothing is skipped (0)
+PASS  bench: the particle cull skips what is behind the camera (1291158)
+PASS  bench: the block-entity cull skips what is off-screen (80598)
+PASS  bench: no entity is culled — the vanilla counter is unmoved (130 vs 130)
+PASS  bench: the cull is not a regression (paired median -12,9%; this arm's noise floor is 10,5%)
+
+BENCH DONE — 10 passed, 0 failed

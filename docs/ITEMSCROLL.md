@@ -192,7 +192,9 @@ record SlotView(int id, boolean playerSide, boolean hotbar, boolean enabled,
 
 ## 9. Что доказано в игре (не «должно работать»)
 
-Харнесс: **82 passed, 0 failed** (и столько же с Sodium + Freecam).
+Харнесс на слитом main: **94 passed, 0 failed**. Под Sodium + Freecam — **92 passed, 0 failed**; с Iris и
+шейдерпаком поверх — тоже **92 / 0** (две проверки закономерно пропускаются: часть рендера принадлежит
+Sodium). «82» в ранней редакции — число с ветки `feat/itemscroll`, где проверок было меньше.
 
 | Проверка | Почему она есть |
 |---|---|
