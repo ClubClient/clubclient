@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- block entities: a chest — the lid seam and the latch. The one object every player pictures when
+       told "the chest inside a chunk you can't see", so the icon says the sentence for us. -->
+  <rect x="3.5" y="6.5" width="17" height="11" rx="1.5" stroke-width="2"/>
+  <line x1="3.5" y1="11" x2="20.5" y2="11" stroke-width="2"/>
+  <rect x="10.5" y="10" width="3" height="4" rx="1" stroke-width="1.8"/>
+</svg>

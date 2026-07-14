@@ -35,9 +35,14 @@ class KeyedModulesTest {
 
         // Set once, in a menu, and never thought about again. A key row on these is clutter, and clutter is
         // what the owner actually complained about ("это начинает выглядеть как мусорка").
+        //
+        // "Performance" is NOT in this list any more, and its absence is deliberate: it stopped being a module
+        // in v0.1.3 and became a CATEGORY. Its three cards are named below. A test that goes on asserting
+        // things about a module nobody ships is a test that has quietly stopped testing anything.
         for (String setOnce : new String[] {
                 "Hands", "Animations", "Screen Stretch", "HUD Editor",
-                "No Hurt Cam", "No Fire Overlay", "No Bobbing", "Hide Effects", "Performance" }) {
+                "No Hurt Cam", "No Fire Overlay", "No Bobbing", "Hide Effects",
+                "Particles", "Block Entities", "Background FPS" }) {
             assertFalse(ModuleBinds.KEYED.contains(setOnce), setOnce + " is a set-once preference, not a hotkey");
             assertFalse(ModuleBinds.hasKeyRow(setOnce), setOnce + " must show no key row at all");
         }

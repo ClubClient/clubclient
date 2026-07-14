@@ -916,6 +916,39 @@ public final class ClubHarness {
             step(5, () -> {});
             step(2, () -> shot("menu-category"));
 
+            // The Performance CATEGORY (v0.1.3 item 5) — three cards where there was one, and the one thing
+            // an owner cannot judge from a report. Selected by NAME, not by counting Ctrl+Tabs: a relative
+            // hop breaks the moment a category is added, and this commit adds one.
+            step(4, () -> mc.setScreen(new ClubMenuScreen()));
+            step(2, () -> {
+                if (mc.currentScreen instanceof ClubMenuScreen cs) cs.selectCategory("Performance");
+            });
+            step(8, () -> {});
+            step(2, () -> shot("menu-performance"));
+            // A CARD THAT DOES NOT SHOW ITS OWN SETTING IS A MENU THAT LIES — the exact class of bug v0.1.2
+            // shipped "the menu stopped lying" for. The three Performance cards each hold a lambda over
+            // ClubConfig.Perf; if that reference ever goes stale (a config reload, a sanitize() that replaces
+            // the section), the card keeps painting the OLD value and the player toggles a ghost.
+            step(0, () -> {
+                if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("perf cards: menu open", false); return; }
+                ClubConfig.Perf p = ClubConfig.get().perf;
+                Boolean particles = cs.cardEnabledByName("Particles");
+                Boolean blocks    = cs.cardEnabledByName("Block Entities");
+                Boolean bg        = cs.cardEnabledByName("Background FPS");
+                report.add(String.format("INFO  perf cards: Particles card=%s cfg=%s · Block Entities card=%s cfg=%s "
+                                + "· Background FPS card=%s cfg=%s",
+                        particles, p.cullParticles, blocks, p.cullBlockEntities, bg, p.throttleWhenUnfocused));
+                check("perf cards: every card shows the config value it is bound to",
+                        Boolean.valueOf(p.cullParticles).equals(particles)
+                                && Boolean.valueOf(p.cullBlockEntities).equals(blocks)
+                                && Boolean.valueOf(p.throttleWhenUnfocused).equals(bg));
+            });
+            // Hand the screen back. The scene that follows measures the HUD's own draw cost, and a HUD behind
+            // an open menu is not drawn at all — leaving this screen up made "the icon draws are counted, not
+            // invisible" report 0/frame and go red, which is precisely what that check exists to do. It caught
+            // me, not the code.
+            step(2, () -> mc.setScreen(null));
+
             // fresh menu, then open the FIRST card's popover via keyboard. The rail sits on Visuals after
             // the switch above, so this is ZOOM — the Stage-58 "Hold key" row (Strength / Smoothness /
             // Hold key / Reset), and the shot proves nothing hides under the scrollbar.

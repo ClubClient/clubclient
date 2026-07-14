@@ -39,7 +39,11 @@ public enum IconGlyph {
     TOGGLE_SPRINT(0xE01A),
     FREELOOK(0xE01B),
     ITEM_SCROLL(0xE01C),
+    /** The rail glyph of the Performance CATEGORY (v0.1.3) — a gauge. Its three cards carry their own. */
     PERFORMANCE(0xE01D),
+    PARTICLES(0xE01E),
+    BLOCK_ENTITIES(0xE01F),
+    BACKGROUND_FPS(0xE022),
     // service
     SEARCH(0xE020),
     /** The CLUB mark — the club card suit (trefoil), solid. Header wordmark + editor watermark. */

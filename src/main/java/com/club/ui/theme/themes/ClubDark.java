@@ -81,7 +81,14 @@ public final class ClubDark {
             0xFFC9808A,   // Combat  — muted crimson (attack/damage)
             0xFF9E8BD9,   // Visuals — muted violet (render; continuity with the enabled-edge violet)
             0xFF7FBFA6,   // Player  — cold teal-green (body/self)
-            0xFF8C9BB5);  // Misc    — slate (neutral toolbox, the quietest)
+            0xFF8C9BB5,   // Misc    — slate (neutral toolbox, the quietest)
+            // Performance — muted sand (v0.1.3). It had to be a fifth hue that no existing one owns, and the
+            // obvious candidates were all taken by something that MEANS: any blue is the brand accent (which
+            // marks INTERACTION, never identity — v2.5 rule), any strong amber is stateWarn, red is stateLow,
+            // and green is stateGood, which the Target HP bar now speaks. Sand sits between slate and warm,
+            // owns nothing else, and is lightness-matched to the other four so no category shouts over its
+            // neighbours. It also, deliberately, is not a colour anyone reads as "speed".
+            0xFFC0A47E); // Performance — muted sand (rendering / cost)
 
         return new Theme(p, radius, spacing, type, surface, accent, border, shadow, glow, elevation, motion, interaction, categories);
     }

@@ -9,4 +9,4 @@ package com.club.ui.theme;
  * ({@link Accent#accent()}): search focus, sliders, buttons, popover controls are identical in every
  * category. Text is never tinted with a category color (v2.5 rule).
  */
-public record CategoryAccents(int combat, int visuals, int player, int misc) {}
+public record CategoryAccents(int combat, int visuals, int player, int misc, int performance) {}

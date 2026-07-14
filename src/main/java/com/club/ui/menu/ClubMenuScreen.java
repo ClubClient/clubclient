@@ -299,13 +299,18 @@ public final class ClubMenuScreen extends Screen {
         railBarBlend = new Transition(1f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
     }
 
-    /** Identity colour of a category (Stage 11 palette A) — keyed off its semantic icon. */
+    /** Identity colour of a category (Stage 11 palette A) — keyed off its semantic icon.
+     *
+     *  <p>The {@code default} arm is a quiet trap and worth naming: a new category whose glyph nobody added
+     *  here does not fail, it silently comes out SLATE — the Misc colour — and looks deliberate. Performance
+     *  (v0.1.3) is listed explicitly for exactly that reason. If you add a sixth, add it here too. */
     private int catAccent(int i) {
         return switch (cats.get(i).icon()) {
-            case COMBAT  -> Tokens.categories().combat();
-            case VISUALS -> Tokens.categories().visuals();
-            case PLAYER  -> Tokens.categories().player();
-            default      -> Tokens.categories().misc();
+            case COMBAT      -> Tokens.categories().combat();
+            case VISUALS     -> Tokens.categories().visuals();
+            case PLAYER      -> Tokens.categories().player();
+            case PERFORMANCE -> Tokens.categories().performance();
+            default          -> Tokens.categories().misc();
         };
     }
 
@@ -626,6 +631,17 @@ public final class ClubMenuScreen extends Screen {
         for (int i = 0; i < grid.children().size(); i++)
             if (((ModuleTile) grid.children().get(i)).m.hasToggle()) return i;
         return -1;
+    }
+
+    /** Harness seam: what a NAMED card in the current category reports as its state, or null if not here.
+     *  Boxed on purpose — "absent" and "off" are different answers, and a check that cannot tell them apart
+     *  would go green on a card that vanished. */
+    public Boolean cardEnabledByName(String name) {
+        for (var ch : grid.children()) {
+            ModuleTile t = (ModuleTile) ch;
+            if (t.m.name().equals(name)) return t.m.enabled();
+        }
+        return null;
     }
 
     /** Harness seam: is the i-th card's module enabled? */

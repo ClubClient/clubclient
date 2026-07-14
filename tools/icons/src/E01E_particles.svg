@@ -1,0 +1,9 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- particles: motes at three depths. Not a "sparkle" — the module is about the ones you CANNOT see,
+       so they scatter rather than radiate from a centre. Stroke circles at the icon's own weight. -->
+  <circle cx="6.5" cy="8" r="1.6" stroke-width="2"/>
+  <circle cx="13" cy="5.5" r="1.2" stroke-width="1.8"/>
+  <circle cx="18.5" cy="10" r="1.9" stroke-width="2"/>
+  <circle cx="9" cy="15.5" r="1.2" stroke-width="1.8"/>
+  <circle cx="15.5" cy="18" r="1.6" stroke-width="2"/>
+</svg>

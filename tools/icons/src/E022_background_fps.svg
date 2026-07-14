@@ -1,0 +1,7 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- background throttle: two windows, and the one in FRONT is not yours. That is the whole feature —
+       it does nothing while you are looking at the game, and the icon must not imply otherwise. No
+       lightning bolt: this gives zero in-game FPS, and a bolt would promise the one thing it never does. -->
+  <rect x="3" y="4.5" width="12" height="10" rx="1.5" stroke-width="2"/>
+  <rect x="9" y="9.5" width="12" height="10" rx="1.5" stroke-width="2"/>
+</svg>
