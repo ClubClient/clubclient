@@ -2,9 +2,9 @@
 
 > Сервер: `discord.gg/kq2DYuTQnW` (guild `1526569728850661466`). Инвайт вечный — проверено.
 >
-> Правило этого документа то же, что у мода: **ничего лишнего**. Шесть каналов, **одна роль**, ноль
-> ботов, ноль декоративных полок. Пустая полка — категория под несуществующий продукт, роль, которую
-> никто не носит, — кричит «заброшено» громче, чем её отсутствие.
+> Правило этого документа то же, что у мода: **ничего лишнего**. Семь каналов (шесть текстовых + форум),
+> **одна роль**, ноль ботов, ноль декоративных полок. Пустая полка — категория под несуществующий продукт,
+> роль, которую никто не носит, — кричит «заброшено» громче, чем её отсутствие.
 
 ---
 
@@ -41,6 +41,7 @@ CLUB                        читают. Пишешь только ты (и Git
 COMMUNITY                   говорят. Пишут все.
    💬│general
    🛠│support
+   💡│suggestions          ← ФОРУМ, не текстовый канал
    🖼│showcase
 ```
 
@@ -55,7 +56,51 @@ COMMUNITY                   говорят. Пишут все.
 🔄│changelog
 💬│general
 🛠│support
+💡│suggestions
 🖼│showcase
+```
+
+### `💡│suggestions` — ФОРУМ, и вот почему это не противоречит «одному трекеру»
+
+Правило «баг → GitHub, а не в чат» остаётся. Но **предложение — не баг**:
+
+> **Баг требует артефакта** — лога, списка модов, версии. Поэтому ему нужна форма, и живёт он на GitHub.
+> **Предложение не требует ничего, кроме мысли.** Гнать за ним игрока на GitHub — значит не получить ни
+> одного предложения: обычный игрок не заводит issue, он пишет в чат.
+
+Идеи рождаются здесь, на GitHub их переносит **владелец**, когда идея набрала поддержку. Мост держит
+мейнтейнер, а не пользователь.
+
+**Тип канала — Форум, не текстовый.** В плоском чате идея тонет за час. В форуме каждое предложение —
+отдельный пост со своим обсуждением, а голосуют реакциями. Бот не нужен: это встроено и бесплатно
+(Сообщество уже включено).
+
+**Теги** (Настройки канала → Теги). «Требовать тег при создании поста» — **ВЫКЛ**: теги ставит владелец,
+а не автор.
+
+| Тег | Значение |
+|---|---|
+| `Considering` | посмотрел, думаю |
+| `Planned` | будет сделано |
+| `Shipped` | вышло в релизе |
+| `Declined` | нет, и написал почему |
+| `Not a cheat client` | закрыто по правилу №1 |
+
+**Рекомендации по публикации** (Discord показывает этот текст ПЕРЕД тем, как человек нажмёт «создать
+пост» — это самый дешёвый фильтр из существующих):
+
+```
+**Before you post**
+
+**1 ·** Club is not a cheat client. No killaura, no ESP, no reach, no autoclicker, no X-ray. These are closed without discussion — it is the whole positioning of the mod, not a mood.
+
+**2 ·** One idea per post. Search first: if it exists, add a reaction instead of a new post.
+
+**3 ·** Tell us what you do TODAY instead. The workaround you use says more about the feature than the request does.
+
+**4 ·** If another mod already does it well, say so. Club deliberately does not duplicate Sodium or EntityCulling — knowing what exists is how we decide.
+
+Tags are set by the maintainer. An idea that gains traction gets an issue on GitHub.
 ```
 
 **Чего не делаем:** голосового канала (вечное «0 участников» — самый громкий сигнал мёртвого сервера),
@@ -69,6 +114,7 @@ COMMUNITY                   говорят. Пишут все.
 |---|---|
 | `rules`, `announcements`, `changelog` | **Отправлять сообщения — ВЫКЛ.** Читать — вкл. |
 | `general`, `support`, `showcase` | всё как обычно |
+| `suggestions` (форум) | создавать посты — можно. **«Управлять тегами» — ВЫКЛ**: теги ставит владелец, иначе автор сам себе поставит `Planned` |
 
 Правый клик по каналу → Настройки → Права доступа → роль `@everyone` → «Отправлять сообщения» в ✗.
 
@@ -268,7 +314,10 @@ No killaura, no ESP, no reach, no autoclicker, no X-ray. This is not a temporary
 **3 · In `#support`, bring the evidence**
 Your full mod list, and `latest.log` as a **file** — not a screenshot of it.
 
-**4 · No advertising, no drama, no hostility**
+**4 · Ideas go to `#suggestions`**
+One idea per post. If it gains traction it gets an issue on GitHub — you do not have to open one yourself.
+
+**5 · No advertising, no drama, no hostility**
 
 -# The source is public. You don't have to take our word for any of this.
 ```
@@ -294,7 +343,10 @@ Killaura, ESP, reach, автокликер, X-ray — этого не будет
 **3 · В `#support` приходи с доказательствами**
 Полный список модов и `latest.log` **файлом** — не скриншотом.
 
-**4 · Без рекламы, драмы и хамства**
+**4 · Идеи — в `#suggestions`**
+Одна идея — один пост. Если наберёт поддержку, я сам заведу issue на GitHub — тебе этого делать не нужно.
+
+**5 · Без рекламы, драмы и хамства**
 
 -# Исходники открыты. Верить нам на слово не нужно.
 ```
@@ -362,7 +414,7 @@ Also say if you run **Sodium**, **Iris**, a **shaderpack** or **Freecam** — th
 
 1. Настройки сервера → **иконка** (`build/discord/icon.png`), **имя** `Club`, **описание** (§4).
 2. Создать две категории: `Club`, `Community`.
-3. Создать шесть каналов (имена — §2), разложить по категориям.
+3. Создать шесть текстовых каналов + ФОРУМ `💡│suggestions` (имена — §2), разложить по категориям.
 4. Права `@everyone` на трёх верхних каналах (§3).
 5. Роль `Club Dev` (§3). `Contributor`, `Moderator`, `Creator` — **не сейчас**: их некому носить.
 6. Создать приватный служебный канал **`mod-log`** (§4) — он нужен раньше, чем кажется.
