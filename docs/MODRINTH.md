@@ -41,6 +41,16 @@ a card for its own settings. The whole menu is keyboard-navigable, and every mod
 - ✋ **Hands** — reposition and scale the first-person hands, each hand independently.
 - ⚔️ **Custom attack animations** — pick a style, then tune its speed and swing.
 
+## 🖱️ Item Scrolling
+
+Move items with the mouse instead of clicking them one at a time.
+
+- **Scroll** over a slot to move one item · **Shift** for the whole stack · **Ctrl** for every stack of that
+  type · **Ctrl+Shift** for everything · **Shift+drag** across slots to move each one you cross.
+- Every gesture is **rebindable** — pick the modifier and the button for each action, on its own screen. Two
+  actions can never share a gesture, and if one of yours overrides something vanilla already does with it, the
+  row says so instead of quietly eating the click.
+
 ## 📊 The HUD
 
 Status effects, your target's health, worn armour, an FPS readout and the sprint chip, all drawn in one
@@ -81,10 +91,37 @@ doing something.
 **Toggle Sprint** could latch the sprint key down forever if you turned on vanilla's "Sprint: Toggle" while it
 was running. Fixed. And turning off Club's Effects HUD no longer leaves you with no effect display at all.
 
-## ⚡ It measures its own cost
+## ⚡ It stops drawing what you cannot see
 
-The in-world HUD draws in **15 GL calls a frame** — every shape batched into one call, every glyph into another.
-That number is counted in-game on every build and asserted, so the mod fails its own test if it creeps back up.
+Minecraft does not cull particles at all — it builds the geometry for every live one, every frame, including
+the ones behind your head. **Club skips those.** Nothing you can see changes: in a campfire-heavy scene, 81% of
+the particle work simply does not happen. Same for block entities that sit off-screen inside a section the
+frustum kept — vanilla culls the 16×16×16 box, never the chest inside it.
+
+Measured, interleaved in one session, on a fixed-seed scene:
+
+| | frame time |
+|---|---|
+| A normal machine | **−5.3%** |
+| A CPU-bound machine | **−8.1%** |
+
+Where the **GPU** is your bottleneck, our own benchmark refuses to claim a win — and prints that it refuses.
+We publish what we measured, in the scene we measured it.
+
+And the mod pays its own way: its HUD draws in **12 GL calls a frame**, down from 15 once the icons stopped
+going out one at a time. That number is counted in-game on every build and asserted, so the mod fails its own
+test if it creeps back up.
+
+**What we did not build:** an entity culler. It existed, it measured −22%, and it was deleted — vanilla's
+visible-section list only holds sections that contain blocks, so a phantom in open sky belongs to none of them
+and would have vanished while you watched it. Want that? Run **Sodium** and **EntityCulling**. We do not
+duplicate them, and we will not pretend we could do it better.
+
+## 🔋 Background throttle
+
+Cap the frame rate while the window is behind something else. This gives **zero in-game FPS** — it is a
+battery, fan-noise and second-monitor feature, and calling it an FPS boost would be a lie. It can never raise a
+limit you chose yourself.
 
 ## 🧩 Compatibility
 

@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.1.3
+
+**Item Scrolling.** Move items with the mouse instead of clicking them one at a time.
+
+- **Scroll** over a slot to move one item · **Shift** for the whole stack · **Ctrl** for every stack of that
+  type · **Ctrl+Shift** for everything in the inventory · **Shift+drag** across slots to move each one you cross.
+- Every gesture is **rebindable** — pick the modifier and the button for each action on its own screen. Two
+  actions can never share a gesture: assigning one takes it from the other, and the row says so.
+- If a gesture overrides something vanilla already does with it (Shift+click is vanilla's own quick-move), the
+  row tells you, instead of quietly eating the click.
+
+**Club stops drawing what you cannot see.**
+
+- **Particles behind the camera** are no longer tessellated. Minecraft culls particles not at all — it builds
+  the geometry for every live one, every frame, including the ones behind your head. Nothing you can see
+  changes: 81% of the particle work simply does not happen in a campfire-heavy scene.
+- **Block entities off-screen inside a visible section.** Vanilla frustum-culls the 16×16×16 section but never
+  the chest inside it. Anything that asked for unusual treatment — a beacon's beam, an end gateway, a moving
+  piston — is never touched.
+- Measured, interleaved in one session, on a fixed-seed scene: **−5.3%** frame time on a normal machine,
+  **−8.1%** on a CPU-bound one. Where your GPU is the bottleneck, our own benchmark refuses to claim a win —
+  and says so.
+
+**The HUD got cheaper to draw.** Its icons were 4 of the 15 GL calls a frame and a third of its cost, each one
+going out through vanilla's immediate path. They batch now: **15 → 12 calls**, the icon phase from 0.13 ms to
+0.003 ms. Not a pixel of it looks different, and the harness asserts that by geometry, not by eye.
+
+**Background throttle.** Cap the frame rate while the window is behind something else. This gives **zero
+in-game FPS** — it is a battery, fan-noise and second-monitor feature, and calling it an FPS boost would be a
+lie. It can never raise a limit you chose yourself.
+
+*What we did not ship:* an entity culler. It was built, measured at −22% frame time, and deleted — vanilla's
+visible-section list only contains sections that hold blocks, so a phantom in open sky belongs to none of them
+and would have vanished while you watched it. If you want that, run **Sodium** (it owns the occlusion graph) and
+**EntityCulling** on top. We do not duplicate them.
+
 ## v0.1.2
 
 **Club and Minecraft stopped fighting over your keys.**

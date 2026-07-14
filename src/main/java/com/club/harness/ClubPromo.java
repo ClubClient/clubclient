@@ -307,6 +307,12 @@ public final class ClubPromo {
                     () -> mc.setScreen(null)));                            // the HUD, at first light, in pink
             scene(new Scene("hud-taiga", deep, 12500L, 100f, -16f, 5,
                     () -> mc.setScreen(null)));
+            // Item Scroll's gesture editor, over a real world. The harness shoots this screen too, but on the
+            // dev plain with mobs and a vanilla hotbar in frame — exactly the junk the owner threw the first
+            // gallery out for. A feature that ships as a headline gets photographed like one.
+            scene(new Scene("gestures-peaks", peaks, 12250L, 112f, -8f, 18,
+                    () -> mc.setScreen(new com.club.modules.itemscroll.GestureScreen(null))));
+
             scene(new Scene("editor-taiga", deep, 12500L, 100f, -16f, 5,
                     () -> mc.setScreen(new HudEditorScreen())));           // drag it where you want it
         }

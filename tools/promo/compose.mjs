@@ -98,33 +98,42 @@ const SCENES = {
     eyebrow: 'HUD EDITOR',
     title: 'Drag it. Snap it.\nNudge it a pixel.',
     cat: 'player',
-    inset: { from: 'promo-06-editor-taiga.png', crop: EDITOR_TOOLBAR, zoom: 1.85, bleed: 110 },
+    inset: { from: 'promo-07-editor-taiga.png', crop: EDITOR_TOOLBAR, zoom: 1.85, bleed: 110 },
+  },
+
+  // The headline feature of v0.1.3. Shot in the promo world, not in the harness plain — a feature that ships
+  // as a headline gets photographed like one.
+  '05-itemscroll': {
+    src: 'promo-02-plate-peaks.png',
+    eyebrow: 'ITEM SCROLLING',
+    title: 'Scroll to move one.\nHold Ctrl to move them all.',
+    cat: 'misc',
+    inset: { from: 'promo-06-gestures-peaks.png', crop: [588, 196, 748, 690], zoom: 0.95, bleed: 110 },
   },
 
   // Two frames whose subject is a NUMBER, not a screenshot — drawn in the mod's own card language instead of
   // photographed. A picture of a profiler is a picture of a profiler; it is not a picture of a fast mod.
-  '05-perf': {
+  '06-perf': {
     src: 'promo-02-plate-peaks.png',
     eyebrow: 'PERFORMANCE',
     title: 'It costs you\nalmost nothing.',
     cat: 'misc',
     card: {
-      // No milliseconds here. The mod's own timer wraps nanoTime around GL submits, so it measures how long
-      // the DRIVER holds the queue — i.e. it measures the world, not the mod: the same build reports 0.45 ms
-      // and 1.22 ms on the same machine. The draw-call count is deterministic and reproducible; it is the only
-      // number that has earned the right to be printed.
-      // "43 → 11" was the BLIND counter's story — it never saw the icon draws at all. The fixed instrument
-      // counts 15, and the honest before/after cannot be printed until the unbatched path is measured with the
-      // same counter. Until then the frame prints the one number that has actually been counted.
+      // Every number here was measured by an instrument that had to be repaired three times before it would
+      // agree with itself, and interleaved OFF/ON inside one session — never two runs compared. What it could
+      // not prove, it does not print: on a GPU-bound machine the benchmark refuses to claim a win, and the
+      // frame says so out loud rather than quietly showing the CPU-bound column.
       rows: [
-        { k: 'GL draw calls per frame', now: '15' },
+        { k: 'Frame time, a normal machine', now: '−5.3%' },
+        { k: 'Frame time, a CPU-bound machine', now: '−8.1%' },
+        { k: 'Particle work skipped', now: '81%' },
       ],
-      foot: 'Every shape batched into one call, every glyph into another. Counted in-game on every build — and '
-          + 'asserted, so the mod fails its own test if it creeps back up.',
+      foot: 'Measured interleaved in one session on a fixed-seed scene. Where your GPU is the bottleneck, our '
+          + 'own benchmark refuses to claim a win — and prints that it refuses.',
     },
   },
 
-  '06-compat': {
+  '07-compat': {
     src: 'promo-05-hud-taiga.png',
     eyebrow: 'COMPATIBILITY',
     title: 'Drops into\nyour modpack.',
