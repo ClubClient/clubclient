@@ -33,10 +33,14 @@ import net.minecraft.client.MinecraftClient;
  *
  * <p><b>The bug was never the logic — it was the contrast.</b> The old code already brightened on
  * {@code isSprinting()}; the owner still read the chip as tracking the module, because the two tones it
- * used ({@code textMuted} ↔ {@code textHi}) are ADJACENT steps of the text ramp and are simply not
- * legible against a world that is moving. It is {@code textFaint} ↔ {@code textHi} now — a real gap.
- * The label carries no colour at all: a category tint may not touch text (CategoryAccents, v2.5 rule),
- * and this is auxiliary state, one step above the FPS whisper and below the content chips.</p>
+ * used ({@code textMuted} #A6ADBB ↔ {@code textHi} #F4F6FA) are ADJACENT steps of the ramp and simply are
+ * not legible against a world that is moving. The idle tone is {@code textDesc} (#767E8E) now — two steps
+ * down, and the same tone the module card paints an OFF name in, so the HUD and the menu say "idle" the
+ * same way. Not {@code textFaint} (#5A6273): that is the quietest step in the ramp, drawn for footnotes on
+ * a dark PANEL, and over a bright world it stops being quiet and starts being invisible.</p>
+ *
+ * <p>The label carries no colour at all: a category tint may not touch text (CategoryAccents, v2.5 rule),
+ * and this is auxiliary state — one step above the FPS whisper, below the content chips.</p>
  *
  * <p>The stand-down case is not left silent just because the chip is gone: the module card carries the
  * notice that says WHY it is idle. That is the surface with room for a sentence; a 20px capsule is not.</p>
@@ -100,7 +104,7 @@ public final class SprintElement extends HudElement {
         // report is whether the player is actually MOVING under it. Bright = running. Faint = armed, idle.
         // The editor's sample shows the bright state — a sample must show the element at full strength.
         boolean running = !live || (mc != null && mc.player != null && mc.player.isSprinting());
-        int col = Color.scaleAlpha(running ? Tokens.palette().textHi() : Tokens.palette().textFaint(), alpha);
+        int col = Color.scaleAlpha(running ? Tokens.palette().textHi() : Tokens.palette().textDesc(), alpha);
         float lh = Ui.text().lineHeight(Weight.MEDIUM, TEXT_SIZE);
         ctx.text().draw(LABEL, ox + PAD_X * s, oy + (CONTENT_H - lh) * 0.5f * s,
                 TextStyle.of(Weight.MEDIUM, TEXT_SIZE * s, col).effect(HudPaint.textShadow(alpha)));

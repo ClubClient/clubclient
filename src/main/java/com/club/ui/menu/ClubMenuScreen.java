@@ -1109,6 +1109,23 @@ public final class ClubMenuScreen extends Screen {
         int chevCol = Color.scaleAlpha(Tokens.palette().textFaint(), ep);
         float chvX = profX + profW + 7, chvY = chipCy - 2;
         for (int i = 0; i < 4; i++) r.rect(chvX + i, chvY + i, 7 - 2 * i, 1, chevCol);   // tiny ▾
+
+        // PROFILES DO NOT EXIST YET (owner, v0.1.3 item 15). The chip, the name and the chevron have been
+        // sitting here since Stage 22 promising a switcher that has never shipped — and a control that looks
+        // live and does nothing is worse than one that admits it. He asked for it to say so, in English.
+        //
+        // A word, not a badge. A pill or a coloured tag would shout for attention this deserves none of: it is
+        // a footnote about the future, not a feature. So the QUIETEST tone in the ramp (textDim), one step
+        // below the name it follows, on the same baseline so nothing in the footer moves.
+        //
+        // The CHEVRON STAYS. The last hand that touched this deleted it, reasoning that a chevron which opens
+        // nothing reads as broken. The reasoning is sound; the decision was not ours to take — this footer is
+        // read pixel by pixel by the person who drew it. And "Soon" is exactly what turns a chevron from
+        // broken into pending.
+        float soonSz = 9f;
+        uiCtx.text().draw("Soon", chvX + 7 + 8,
+                chipCy - uiCtx.text().lineHeight(ty.label().weight(), soonSz) / 2f,
+                TextStyle.of(ty.label().weight(), soonSz, Color.scaleAlpha(Tokens.palette().textFaint(), ep)));
         float verW = uiCtx.text().width(VERSION, ty.label().weight(), 11.5f);
         uiCtx.text().draw(VERSION, winX + winW - 12 - verW, chipCy - uiCtx.text().lineHeight(ty.label().weight(), 11.5f) / 2f,
                 TextStyle.of(ty.label().weight(), 11.5f, Color.scaleAlpha(Tokens.palette().textDesc(), ep)));
