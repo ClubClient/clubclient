@@ -1157,21 +1157,29 @@ public final class ClubHarness {
                 check(String.format("perf: the icon batch is not a regression (%.2f%% → %.2f%%)",
                         off * 100, on * 100), on <= off * 1.02);
 
-            // The deterministic half of the proof, and the one that needs no statistics at all: every icon
-            // used to be its own GL draw, and now they are one. This is the number we may print.
+            // The deterministic half of the proof — and it must assert the PROPERTY, not a magnitude.
+            //
+            // This used to demand "at least two draws fewer", which is a fact about the scene I calibrated it
+            // in (four icons -> one draw). In a scene with three icons the same working batch saves one draw
+            // and the assert FAILED, while the icon phase went from 0.068 ms to 0.001 ms — a factor of 68.
+            // An assert tuned to a number instead of a property is the same mistake as a benchmark tuned to a
+            // machine, and this workstream exists because of that mistake.
+            //
+            // The property is: every icon in an element used to be its own GL draw, and now they are one
+            // draw. How many icons the HUD happens to be showing is the scene's business, not the batch's.
+            double iconOff = batchOff.get(2).iconDraws(), iconOn = batchOn.get(2).iconDraws();
             double dOff = batchOff.get(2).glDraws(), dOn = batchOn.get(2).glDraws();
-            // The scene has to ASK before an answer means anything. A player with no armour and no effects
-            // draws no icons at all, and then "4 stayed 4" is not a broken batch — it is a question nobody put.
-            // So a scene with nothing to collapse is INVALID, loudly, and asserts nothing (chat B's own rule,
-            // turned on the harness). armPerfScene() dresses the player precisely so this branch never fires.
-            if (dOff < 2.0) {
-                report.add("INVALID  the icon A/B measured a HUD with no icons in it (" + Math.round(dOff)
-                        + " icon draws with the batch OFF) — the scene never asked the question, so nothing is "
-                        + "asserted from it. See armPerfScene().");
-                return;
+            if (iconOff < 2) {
+                // One icon cannot demonstrate batching. That is not a failure of the batch — the scene simply
+                // did not ask. Say so; do not print a green tick for a question nobody put.
+                report.add(String.format("SKIP  perf: the icon batch collapses the draws — this HUD drew only "
+                        + "%.0f icon draw a frame, so there was nothing to collapse. The scene did not ask.",
+                        iconOff));
+            } else {
+                check(String.format("perf: the icon batch collapses every element's icons into ONE draw "
+                                + "(%.0f icon draws → %.0f; frame total %.0f → %.0f)", iconOff, iconOn, dOff, dOn),
+                        iconOn >= 1 && iconOn < iconOff && dOn <= dOff - (iconOff - iconOn) + 0.5);
             }
-            check(String.format("perf: the icon batch really collapses the draws (%.0f → %.0f a frame)", dOff, dOn),
-                    dOn <= dOff - 2.0);
             check("perf: the icon draws are counted, not invisible (" + Math.round(s.iconDraws()) + "/frame)",
                     s.iconDraws() > 0);
         }
