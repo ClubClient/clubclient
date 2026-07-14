@@ -32,8 +32,6 @@ jobs:
       # Without this every run re-downloads Minecraft, the mappings and the whole Loom cache.
       - name: cache gradle
         uses: gradle/actions/setup-gradle@v6
-      - name: make gradle wrapper executable
-        run: chmod +x ./gradlew
       - name: build
         run: ./gradlew build
       - name: capture build artifacts
