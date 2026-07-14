@@ -29,11 +29,17 @@ public final class FreelookModule {
         pitch = Math.max(-90f, Math.min(90f, pitch + (float) (dy * 0.15)));
     }
 
-    /** END_CLIENT_TICK: edge-driven engage/release. Uses the RAW key (Keys.held) so freelook works
-     *  even if its key is also bound to something else. */
+    /**
+     * END_CLIENT_TICK: edge-driven engage/release. Uses the RAW key (Keys.held) so freelook works even if its
+     * key is also bound to something else.
+     *
+     * <p><b>No {@code enabled} flag here either</b> — same reasoning as {@link com.club.modules.zoom.ZoomModule}
+     * (owner, v0.1.3). A hold module has no off state to store: freelook you are not holding IS off, and
+     * unbinding the key is how you switch it off. {@code ClubConfig.Freelook.enabled} survives only so an old
+     * file loads; no code reads it.
+     */
     public static void tick(MinecraftClient mc) {
-        boolean want = ClubConfig.get().freelook.enabled
-                && com.club.util.Keys.held(com.club.ClubClient.freelookKey)
+        boolean want = com.club.util.Keys.held(com.club.ClubClient.freelookKey)
                 && mc.player != null && mc.currentScreen == null
                 && mc.getCameraEntity() == mc.player;
         apply(want, mc);

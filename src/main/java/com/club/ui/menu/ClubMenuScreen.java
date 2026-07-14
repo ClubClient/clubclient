@@ -610,6 +610,30 @@ public final class ClubMenuScreen extends Screen {
         return new double[] { (t.xLeft() + t.width() / 2f) * canvasK, (t.yTop() + t.height() / 2f) * canvasK };
     }
 
+    /**
+     * Harness seam: the index of the first card in this category that actually HAS a toggle, or -1.
+     *
+     * <p>The click test used to hard-code card 0, and card 0 of Visuals is Zoom — which lost its on/off
+     * switch in v0.1.3 (a hold module has no off state; the key is the switch). A click on a toggle-less card
+     * flips nothing, so {@code enabled()} read false before AND after, and the check went red for a reason
+     * that had nothing to do with the thing it was testing: whether a real mouse click, converted out of
+     * Minecraft's units and into the mod's own canvas, LANDS where it appears to.
+     *
+     * <p>Asking for a card that can answer is not weakening the check — the conversion it exercises is the
+     * same for every tile. Hard-coding an index that happened to work was the weak part.
+     */
+    public int firstTogglableCard() {
+        for (int i = 0; i < grid.children().size(); i++)
+            if (((ModuleTile) grid.children().get(i)).m.hasToggle()) return i;
+        return -1;
+    }
+
+    /** Harness seam: is the i-th card's module enabled? */
+    public boolean cardEnabled(int i) {
+        if (i < 0 || i >= grid.children().size()) return false;
+        return ((ModuleTile) grid.children().get(i)).m.enabled();
+    }
+
     /** Harness seam: is the first card's module enabled? */
     public boolean firstCardEnabled() {
         if (grid.children().isEmpty()) return false;
@@ -782,7 +806,12 @@ public final class ClubMenuScreen extends Screen {
             }
         }
 
-        if (m.hasToggle() && openDrop == null) {
+        // A KEY ROW ONLY WHERE A KEY EARNS ONE (owner, v0.1.3 item 3.2). It used to appear on all thirteen
+        // cards, which is why he called the popover a bin: nobody rebinds their hands mid-duel, picks a swing
+        // animation between hits, or hot-keys the HUD editor. The list lives in ModuleBinds.KEYED, which is
+        // also the gate the tick loop reads — so a row removed here cannot leave a key that still fires with
+        // nowhere left to un-bind it.
+        if (com.club.modules.binds.ModuleBinds.hasKeyRow(m.name()) && openDrop == null) {
             // The module's key row. TWO kinds, and saying which is which is the whole point (Stage 58):
             //   • HOLD modules (Zoom, Freelook) → "Hold key": rebinds the REAL vanilla binding you hold.
             //     They must not also have a toggle bind — binding Zoom to its own hold key made one

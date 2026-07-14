@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 9; // bumped when new fields are added, for migration
+    public int version = 10; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -395,6 +395,27 @@ public class ClubConfig {
             // hud.space null, and is simply stamped as Club-native: its defaults were authored in Club units.
             hud.space = 0;
             version = 9;
+            changed = true;
+        }
+        if (version < 10) {
+            // v0.1.3 item 3.2: a "Toggle key" row appeared on every card, and the owner cut it back to the
+            // modules a player would plausibly flip MID-FIGHT (ModuleBinds.KEYED). Removing a control is not
+            // the same as removing its effect — and the difference here is a trap, not an untidiness.
+            //
+            // A v9 file can carry a bind on, say, Hide Effects. Drop only the ROW and that key goes on
+            // toggling the module forever, with nowhere left in the UI to un-bind it. Worse if it is also a
+            // vanilla key: the player has silently lost a vanilla action and cannot get it back. That is
+            // precisely the "the menu can no longer be locked away from you" bug v0.1.2 shipped a fix for,
+            // in a new costume — and the fix is not "be careful", it is to make the state unreachable.
+            //
+            // Two locks, because one is a door and the other is the act: ModuleBinds.init() no longer even
+            // REGISTERS a module outside KEYED, so a stale entry cannot fire; and this deletes the entry, so
+            // the file does not carry a claim the mod will not honour. Either alone would leave a lie behind.
+            if (moduleBinds != null
+                    && moduleBinds.keySet().removeIf(name -> !com.club.modules.binds.ModuleBinds.KEYED.contains(name))) {
+                changed = true;
+            }
+            version = 10;
             changed = true;
         }
         if (changed) save();

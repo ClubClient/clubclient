@@ -32,6 +32,31 @@ public final class ModuleBinds {
     private static final Set<String> BAD = new HashSet<>();       // strings that failed to parse (don't retry)
     private static final Set<String> down = new HashSet<>();      // bound keys currently held (edge detect)
 
+    /**
+     * The modules that get a key at all. THE OWNER'S RULE, VERBATIM: a key earns its row only if a player
+     * would plausibly flip it MID-FIGHT, without opening a menu — "она нужна только для функций, которые
+     * вероятно будут переключать во время боя".
+     *
+     * <p>A "Toggle key" row on all thirteen cards was clutter for its own sake. Nobody rebinds their hands
+     * mid-duel, picks a new swing animation between hits, or hot-keys the HUD editor. Three modules survive
+     * that test, and Zoom and Freelook get a HOLD key instead (see {@link HoldKeys}) — which is not a toggle
+     * at all: the key IS the feature.
+     *
+     * <p><b>This set is also the READ gate, not just the door.</b> {@link #init} registers only these, so a
+     * bind left in an old config for a module that no longer has a row is INERT — it cannot fire. That is not
+     * tidiness, it is the difference between removing a control and creating a trap: a key that still works
+     * with no UI left to un-bind it is exactly the "the menu can no longer be locked away from you" bug that
+     * v0.1.2 shipped a fix for, wearing a new costume. The migration (ClubConfig v10) then deletes those
+     * entries outright, so the config does not carry a lie either.
+     */
+    public static final Set<String> KEYED = Set.of("Toggle Sprint", "Fullbright", "Item Scroll");
+
+    /** Does this module show a key row in its popover? True for {@link #KEYED} and for the HOLD modules,
+     *  whose row rebinds the real vanilla binding they are held on. The single source of truth for the UI. */
+    public static boolean hasKeyRow(String moduleName) {
+        return KEYED.contains(moduleName) || HoldKeys.isHold(moduleName);
+    }
+
     /** Build the module registry once — record closures point at the live ClubConfig. HOLD modules
      *  (Zoom, Freelook — see {@link HoldKeys}) are excluded: their key is the hold key, and a toggle
      *  bind on the SAME key flipped the module off on the very press that was meant to act (Stage 58).
@@ -40,7 +65,7 @@ public final class ModuleBinds {
         java.util.ArrayList<MenuContent.Module> flat = new java.util.ArrayList<>();
         for (MenuContent.Category cat : MenuContent.build(() -> {}))
             for (MenuContent.Module m : cat.modules())
-                if (m.hasToggle() && !HoldKeys.isHold(m.name())) flat.add(m);
+                if (m.hasToggle() && KEYED.contains(m.name()) && !HoldKeys.isHold(m.name())) flat.add(m);
         modules = flat;
     }
 

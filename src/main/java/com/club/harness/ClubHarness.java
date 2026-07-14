@@ -1057,15 +1057,24 @@ public final class ClubHarness {
             // conversion is off, everything LOOKS right and nothing is clickable (Stage 60).
             step(4, () -> mc.setScreen(new ClubMenuScreen()));
             step(6, () -> {});
+            // The card has to be one that CAN answer. Card 0 of Visuals is Zoom, and Zoom lost its on/off
+            // switch in v0.1.3 — a hold module has no off state, the key is the switch — so clicking it flips
+            // nothing and the check would have gone red for a reason unrelated to what it tests. What it
+            // tests is the unit conversion: the menu draws in its own canvas, so a real click arrives in
+            // Minecraft units and has to be converted back. Get that wrong and everything LOOKS right while
+            // nothing is clickable (Stage 60). That conversion is identical for every tile; hard-coding an
+            // index that happened to have a toggle was the weak part, not the check.
             step(2, () -> {
                 if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("menu: open for the click test", false); return; }
-                double[] p = cs.firstCardCentreMc();
+                int i = cs.firstTogglableCard();
+                if (i < 0) { check("menu: a card with a toggle to click", false); return; }
+                double[] p = cs.cardCentreMc(i);
                 if (p == null) { check("menu: a card to click", false); return; }
-                boolean before = cs.firstCardEnabled();
+                boolean before = cs.cardEnabled(i);
                 cs.mouseClicked(p[0], p[1], 0);
                 cs.mouseReleased(p[0], p[1], 0);
                 check("menu: a mouse click lands on the card it points at (gui scale 4)",
-                        cs.firstCardEnabled() != before);
+                        cs.cardEnabled(i) != before);
                 cs.mouseClicked(p[0], p[1], 0);   // put it back
                 cs.mouseReleased(p[0], p[1], 0);
             });

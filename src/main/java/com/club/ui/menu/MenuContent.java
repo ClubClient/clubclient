@@ -118,8 +118,9 @@ public final class MenuContent {
             new Category("Player", IconGlyph.PLAYER, List.of(
                 hands(c),
                 toggleSprint(c),
-                flag("Freelook", "Hold the freelook key to swing the camera freely.", IconGlyph.FREELOOK,
-                        () -> c.freelook.enabled, v -> { c.freelook.enabled = v; save(); }))),
+                // A hold module, so NO on/off toggle — see zoom(c) for the reasoning. The key is the switch.
+                new Module("Freelook", "Hold the freelook key to swing the camera freely.", IconGlyph.FREELOOK,
+                        null, null, () -> {}, List.of()))),
             new Category("Misc", IconGlyph.MISC, List.of(
                 hudEditor(openHudEditor),
                 // [SEAM:cards] New module cards go here, one line each, calling a factory in the module's own
@@ -150,11 +151,23 @@ public final class MenuContent {
                 new SliderSetting("Amplitude", 0.5f, 1.5f, 0.01f, () -> c.animations.amplitude, v -> c.animations.amplitude = v)));
     }
 
+    /**
+     * TWO SWITCHES OWNED ONE PIXEL, AND THEY DID NOT EVEN AGREE ON ITS NAME (owner, v0.1.3 item 12).
+     *
+     * <p>This card carried a row called "Indicator" that wrote {@code hud.sprint} — the SAME boolean the HUD
+     * editor exposes on the Sprint element as "Enabled". One field, two screens, two words for it, and no way
+     * for a player to know they were the same thing. "Разве настройка такого рода не должна быть в HUD?" —
+     * yes. A HUD element's visibility belongs to the HUD editor and nowhere else. The row is gone, and with it
+     * the reset that quietly reached across and rewrote the HUD's own setting.
+     *
+     * <p>The card now has exactly what it is: a master toggle for autosprint, and nothing else. What the chip
+     * on screen does with that is {@link com.club.ui.hud.SprintElement}'s business.
+     */
     private static Module toggleSprint(ClubConfig c) {
         return new Module("Toggle Sprint", "Sprint automatically — no key holding.", IconGlyph.TOGGLE_SPRINT,
             () -> c.toggleSprint.enabled, v -> { c.toggleSprint.enabled = v; save(); },
-            () -> { c.toggleSprint.enabled = true; c.hud.sprint = true; save(); },
-            List.of(new ToggleSetting("Indicator", () -> c.hud.sprint, v -> { c.hud.sprint = v; save(); })));
+            () -> { c.toggleSprint.enabled = true; save(); },
+            List.of());
     }
 
     /** Fullbright is a flag module whose state must ALSO mirror into the module's static (the gamma
@@ -166,10 +179,24 @@ public final class MenuContent {
             () -> c.fullbright, set, () -> set.accept(false), List.of());
     }
 
+    /**
+     * A HOLD MODULE HAS NO ON/OFF SWITCH, AND NEVER SHOULD HAVE HAD ONE (owner, v0.1.3):
+     * "зум и фрилук — это клавиши-функции… когда ты их не юзаешь, они и так выкл. Что за бред."
+     *
+     * <p>He is right, and the switch was worse than redundant — it was a second, invisible way to break the
+     * feature. A zoom that is "off" is a zoom you are not holding. The KEY is the on/off: bound and held, it
+     * zooms; unbound, it does nothing, and unbinding it is how you turn the module off (the Hold key row is
+     * right there, and Reset puts C back).
+     *
+     * <p>So {@code enabledGet}/{@code enabledSet} are null — the card carries no toggle, and
+     * {@link ZoomModule} no longer consults {@code zoom.enabled} at all. The field stays in the config only so
+     * an old file loads; nothing reads it, and nothing writes it. A flag that no code obeys must not sit in a
+     * menu pretending it does.
+     */
     private static Module zoom(ClubConfig c) {
         return new Module("Zoom", "Hold the zoom key to magnify the view.", IconGlyph.ZOOM,
-            () -> c.zoom.enabled, v -> { c.zoom.enabled = v; save(); },
-            () -> { c.zoom.factor = 4f; c.zoom.smoothness = 0.5f; c.zoom.enabled = true; save(); },
+            null, null,
+            () -> { c.zoom.factor = 4f; c.zoom.smoothness = 0.5f; save(); },
             List.of(
                 new SliderSetting("Strength", 2f, 8f, 0.5f, () -> c.zoom.factor, v -> c.zoom.factor = v),
                 new SliderSetting("Smoothness", 0f, 1f, 0.05f, () -> c.zoom.smoothness, v -> c.zoom.smoothness = v)));

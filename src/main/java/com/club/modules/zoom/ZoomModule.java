@@ -36,11 +36,20 @@ public final class ZoomModule {
 
     private static float now() { return (System.nanoTime() - START) / 1_000_000_000f; }
 
-    /** The module is on, the zoom key is physically held, and no screen owns the keyboard. Uses the
-     *  RAW key state (Keys.held) so zoom works even if its key is also bound to something else. */
+    /**
+     * The zoom key is physically held and no screen owns the keyboard. Uses the RAW key state (Keys.held) so
+     * zoom works even if its key is also bound to something else.
+     *
+     * <p><b>There is no {@code enabled} flag in this condition, and that is deliberate</b> (owner, v0.1.3):
+     * "когда ты их не юзаешь, они и так выкл. Что за бред." A hold module has no off state to store — a zoom
+     * you are not holding IS off. The switch was a second, invisible way to break the feature: a config with
+     * {@code zoom.enabled: false} left the key doing nothing, with a card that looked normal.
+     *
+     * <p>Unbinding the key is how you turn it off, and it is honest: {@link com.club.util.Keys#held} is false
+     * for an unbound binding. {@code ClubConfig.Zoom.enabled} still exists so old files load; nothing reads it.
+     */
     public static boolean active() {
-        return ClubConfig.get().zoom.enabled
-                && com.club.util.Keys.held(com.club.ClubClient.zoomKey)
+        return com.club.util.Keys.held(com.club.ClubClient.zoomKey)
                 && MinecraftClient.getInstance().currentScreen == null;
     }
 
