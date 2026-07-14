@@ -168,6 +168,33 @@ public final class ClubMenuScreen extends Screen {
     private final ValueTween popHTween =
             new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
 
+    /**
+     * THE SHEET SLIDES; IT DOES NOT DIE AND RESPAWN (owner, v0.1.3 item 7).
+     *
+     * <p>His report was three symptoms of one omission: "анимация скрытия не проигрывается при нажатии на
+     * другой поповер + в таком раскладе половина анимации входа второго поповера съедается". And the code
+     * agreed with him — right-clicking a DIFFERENT card went straight to {@code openPopover}, which sets
+     * {@code popReveal = null}. The old sheet was not closed. It was ERASED, in the same frame, and a new one
+     * began growing from zero. The eye waits for an exit it never gets, so it reads the entrance as an
+     * offcut.
+     *
+     * <p>The obvious fix — play the close, then the open — costs a full 280ms of nothing on every switch, and
+     * he flagged that himself. The right one is that a switch is not a close followed by an open: the player
+     * did not shut the sheet, he MOVED it. So the sheet stays alive and GLIDES to the new card's column,
+     * easing its position and its height, with the new content inside. Nothing vanishes, so nothing can be
+     * truncated.
+     *
+     * <p>Not a content cross-fade, and the reason is a rule bought with a bug: text does not dim through
+     * {@code pushOpacity} in this stack (Stage 9 — only {@code Color.scaleAlpha} works), and the widgets
+     * inside the sheet paint themselves straight from the tokens. A fade would have silently faded the
+     * grounds and left the labels at full strength. The glide needs no alpha at all.
+     */
+    private final ValueTween popXTween =
+            new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+    private final ValueTween popYTween =
+            new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+    private boolean popSwapping;   // a live sheet is gliding to another card — do NOT restart the reveal
+
     private float winX, winY, winW, winH, bodyY, bodyH, headH, footH;
 
     // Fixed centred window (owner decision 2026-07-02): dragging + grip removed — the menu always
@@ -488,9 +515,15 @@ public final class ClubMenuScreen extends Screen {
     // ---- popover -------------------------------------------------------------
 
     private void openPopover(Module m, float ax, float ay, float aw, float ah) {
+        // A LIVE sheet switching cards is a MOVE, not a close-then-open. Keep the reveal — erasing it here is
+        // exactly what made the second popover's entrance look like an offcut (item 7). The position and
+        // height tweens then carry the sheet to the new card on their own.
+        popSwapping = popModule != null && popModule != m && !popClosing && popReveal != null;
+
         popModule = m; popAX = ax; popAY = ay; popAH = ah; tabIndex = 0; openDrop = null;
         resetArmed = false;                     // a fresh popover never opens pre-armed
-        popClosing = false; popReveal = null;   // render() plays the grow-in on the first frame
+        popClosing = false;
+        if (!popSwapping) popReveal = null;     // a cold open: render() plays the grow-in on the first frame
         segSlide = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         rebuildPopover();
     }
@@ -568,6 +601,15 @@ public final class ClubMenuScreen extends Screen {
         return new double[] { (t.xLeft() + t.width() / 2f) * canvasK, (t.yTop() + t.height() / 2f) * canvasK };
     }
 
+    /** Harness seam: the i-th card's centre in MINECRAFT gui units — where a real mouse would have to click
+     *  it. Null when the index is out of range. Used to right-click one card and then another, which is the
+     *  only way to exercise a popover SWITCH the way a player performs it. */
+    public double[] cardCentreMc(int i) {
+        if (i < 0 || i >= grid.children().size()) return null;
+        var t = (ModuleTile) grid.children().get(i);
+        return new double[] { (t.xLeft() + t.width() / 2f) * canvasK, (t.yTop() + t.height() / 2f) * canvasK };
+    }
+
     /** Harness seam: is the first card's module enabled? */
     public boolean firstCardEnabled() {
         if (grid.children().isEmpty()) return false;
@@ -597,6 +639,20 @@ public final class ClubMenuScreen extends Screen {
      * <p>It is recomputed from the children, not read back from the value {@link #fit} produced — so a
      * regression to the old bare {@code min(want, room)} turns it red instead of agreeing with itself.
      */
+    /**
+     * Harness seam: how far the sheet's reveal has played, 0..1. A LIVE sheet reads 1.
+     *
+     * <p>This exists to make item 7 falsifiable. The bug was one line — {@code openPopover} set
+     * {@code popReveal = null}, so switching cards erased the sheet and grew a new one from zero — and it is
+     * exactly the kind of line a future refactor puts back while "simplifying". Motion cannot be asserted
+     * from a screenshot, but its ABSENCE can: right-click card A, right-click card B, and this must still
+     * read 1. If the sheet died and respawned it reads near 0, and the check goes red.
+     */
+    public float popoverRevealProgress() {
+        if (popModule == null || popReveal == null) return 0f;
+        return popReveal.progress(uiCtx.time());
+    }
+
     public boolean popoverIsMaximalAndWhole() {
         if (popModule == null || popCol == null) return true;
         float viewportH = popH - 2 * POP_PAD;
@@ -1103,14 +1159,37 @@ public final class ClubMenuScreen extends Screen {
             if (popReveal == null) {
                 popReveal = new Reveal(Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate(), now);
                 popHTween.snap(popH, now);
+                // A cold open arrives already at its card — there is nothing to glide FROM, and easing in from
+                // a stale position would make the sheet fly across the well on the first frame.
+                popXTween.snap(popX, now); popYTween.snap(popY, now);
             }
+            popSwapping = false;        // consumed: from here the tweens carry it
             if (popClosing) popReveal.close(now);
             popHTween.set(popH, now);   // eases the popover height on open + on resize (dropdown open/close)
+            popXTween.set(popX, now);   // …and its column, when the player switches cards (item 7)
+            popYTween.set(popY, now);
             if (popClosing && popReveal.gone(now)) {
                 reallyClosePopover();
             } else {
                 float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
                 float pr = Tokens.radius().md();
+
+                // THE SHEET IS DRAWN WHERE THE TWEENS SAY, NOT WHERE THE LAYOUT SAYS. The two agree at rest;
+                // during a card switch the layout is already standing at the destination while the ink is
+                // still on its way there — which is the whole point of item 7.
+                //
+                // The CONTENT has to travel with the ground, or the sheet glides out from under its own rows.
+                // It is re-laid-out only while the glide is actually in flight (they are equal at rest, so the
+                // common case costs one float compare), and always to the FINAL height: the content must not
+                // reflow as the sheet grows — it is CLIPPED to drawnH, which is what makes a resize read as a
+                // reveal instead of a reflow.
+                float popX = popXTween.get(now), popY = popYTween.get(now);
+                if (Math.abs(popX - this.popX) > 0.01f || Math.abs(popY - this.popY) > 0.01f) {
+                    float off = popScroll.scrollOffset();
+                    popScroll.layout(popX + POP_PAD, popY + POP_PAD,
+                            Math.max(1f, popW - 2 * POP_PAD), Math.max(1f, popH - 2 * POP_PAD));
+                    popScroll.scrollOffset(off);
+                }
                 // Stage 25 (owner board, variant A): the popover is a RAISED SHEET, not a hole —
                 // under the Stage-22 depth grammar (darker = recessed) the old bg2 ground + strong
                 // border read as a punched-out box. Card tone one step above the window ground,

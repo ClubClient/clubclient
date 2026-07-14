@@ -926,6 +926,41 @@ public final class ClubHarness {
             step(6, () -> {});
             step(2, () -> shot("popover"));
 
+            // A SWITCH IS A MOVE, NOT A CLOSE AND AN OPEN (owner, item 7). Right-clicking a second card used
+            // to erase the live sheet and grow a new one from zero: no exit played, and the entrance read as
+            // an offcut. The sheet glides now — and this is the check that keeps it that way.
+            //
+            // IT HAS TO BE THE MOUSE. My first version of this check pressed Right-arrow and asserted the
+            // reveal was still 1. It passed — and it passed when I deliberately reinstated the bug, because
+            // Right-arrow only moves grid FOCUS; the open sheet stays on the module it was already showing, so
+            // nothing was ever switched. A check that cannot go red is not a check, and that one was green on
+            // a bug I had planted myself. Two right-clicks, on two different cards, is what a player does.
+            //
+            // Sampled with NO settle: a respawned reveal grows back to 1 in ~280ms, and a settle step would
+            // let it — hiding the exact thing being asked about.
+            step(6, () -> mc.setScreen(new ClubMenuScreen()));
+            step(4, () -> {
+                if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("popover: menu for the switch check", false); return; }
+                double[] a = cs.cardCentreMc(0);
+                if (a == null) { check("popover: a first card to right-click", false); return; }
+                cs.mouseClicked(a[0], a[1], 1);   // right-click card 0 → its popover
+                cs.mouseReleased(a[0], a[1], 1);
+            });
+            step(8, () -> {});                     // let the cold open finish its grow-in
+            step(0, () -> {
+                if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("popover: menu for the switch check", false); return; }
+                double[] b = cs.cardCentreMc(1);
+                if (b == null) { check("popover: a second card to right-click", false); return; }
+                float before = cs.popoverRevealProgress();
+                cs.mouseClicked(b[0], b[1], 1);   // right-click card 1 → a SWITCH, not a new sheet
+                cs.mouseReleased(b[0], b[1], 1);
+                float after = cs.popoverRevealProgress();
+                report.add(String.format("INFO  popover switch: reveal %.2f → %.2f  (stays 1.00 = the sheet "
+                        + "glided; drops to 0.00 = it died and respawned)", before, after));
+                check("popover: switching cards MOVES the sheet — it does not die and respawn",
+                        before > 0.9f && after > 0.9f);
+            });
+
             // Bind capture — deterministic via a FLAG module (Fullbright): its popover control set is
             // exactly [search, Bind, Reset], so Tab×2 always lands on Bind regardless of category state.
             // Reached by searching "full" (Fullbright is in the current Visuals category).
