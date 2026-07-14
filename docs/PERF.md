@@ -171,6 +171,31 @@ CPU-BOUND (слабая машина):  −8.1% времени кадра
 
 ---
 
+### 3.6 Троттлинг в фоне — **ноль FPS в игре, и это не оговорка**
+
+В 1.21.1 троттлинга в фоне **нет вообще** (`getFramerateLimit` возвращает 60 только на титульном экране; в
+мире, свёрнутый в трей, клиент честно жарит 200 кадров в стену). Сорок строк это исправляют.
+
+**Это не прибавка FPS. Это батарея, вентиляторы и второй монитор.** Называть это FPS-фичей — ложь.
+Dynamic FPS делает то же самое полнее — так и написано.
+
+Две ловушки, обе закрыты юнит-тестом, а не надеждой:
+
+- **`Math.min`, а не `set`.** Ванильный слайдер Max Framerate доходит до **10 fps** (`Codec.intRange(10,260)`)
+  — ниже нашего потолка 15. «Ставим 15 при потере фокуса» **подняло бы** лимит игроку, который сознательно
+  выбрал 10. Это единственная строка во всём цикле, которая могла сделать чью-то машину **хуже**.
+- **Гистерезис 500 мс.** `isWindowFocused()` — сырой GLFW-фронт без всякого дебаунса, и alt-tab **сквозь**
+  окна дёргает его туда-сюда.
+
+> **Порог 15 — не тот, что в ТЗ.** ТЗ говорило «не ниже 15, иначе клиент не удержит 20 TPS и поедут
+> кейпэлайвы». Обе половины неверны: `render()` крутит до **десяти** тиков за кадр, значит 2 fps хватает на
+> 20 TPS, а интервал кейпэлайва — 15 секунд. Настоящая причина в строке, которую никто не прочитал:
+> `limitDisplayFPS` просыпается на вводе и **тут же ложится обратно** до дедлайна кадра. Поэтому первый кадр
+> после возврата стоит `1/cap`: 67 мс при 15, **полсекунды** при 2. Порог — про то, как быстро окно тебе
+> отвечает, а не про тики и не про сеть.
+
+---
+
 ## 4. Iris и Sodium
 
 **Iris.** Разведка утверждала, что теневой проход идёт через собственный `ShadowRenderer` и наши хуки теней
@@ -202,3 +227,43 @@ CPU-BOUND (слабая машина):  −8.1% времени кадра
 - `limitDisplayFPS` просыпается на вводе и **тут же ложится обратно** до дедлайна кадра. «alt-tab back is
   instant» — неправда: возврат стоит до одного придушенного кадра.
 - Пересоздание мира на каждом прогоне бенча оставляет сервер грызть чанки **весь замер** — шум взлетал до 63%.
+- **`builtChunks` — только секции с блоками.** Пустой воздух туда не попадает. Отсюда и вырезанный §2.4.
+- **Самопроверка с неверным порогом — это предохранитель, а не защита.** Проверка «пустой набор секций →
+  выключиться» срабатывала на **первом** пустом кадре, а с него начинается любой мир: культинг убивал себя на
+  загрузочном экране. Защита, которая не отличает «ещё не» от «никогда», бесполезна.
+
+---
+
+## 6. Проверено в бою
+
+| Конфигурация | Результат |
+|---|---|
+| Ваниль | харнесс **67/67** |
+| `-PclubCompat` (Sodium 0.6.13) | **67/67**, конфликтов миксинов нет; BE-культинг работает (Sodium заменяет обход block-entity, но зовёт тот же диспетчер и сам по фрустуму их не режет) |
+| `-PclubCompat -PclubIris` | **67/67**, и главное — в логе: `[club.perf] Iris detected — shadow-pass guard ARMED (net.irisshaders.iris.shadows.ShadowRenderingState)` |
+
+Последняя строка — суть. «Защита есть» и «защита вооружена» — **разные** утверждения. Без шейдерпака теневой
+проход не запускается, и без этого лога мы могли бы честно заявить только первое.
+
+---
+
+## 7. Что можно печатать на странице мода
+
+Только это, и только с оговорками:
+
+> **Particles.** Minecraft tessellates every live particle every frame — including the ones behind your head.
+> It culls them not at all. Club skips those. Nothing you can see changes: no distance limit, no particle cap,
+> we do not trade pixels for frames.
+>
+> **Block entities.** A chest in a visible chunk section but off your screen is drawn in full, every frame.
+> Not any more.
+>
+> **Together, measured** in our benchmark arena (fixed seed, 60 campfires, 80 chests, 150 mobs; interleaved
+> A/B in one session, every pair agreeing on the sign): **−5.3%** frame time on a GPU-bound machine, **−8.1%**
+> when the CPU is the bottleneck — which is exactly when you need it.
+>
+> **What we deliberately do NOT do:** cull entities. We built it, measured −22%, and deleted it, because our
+> data source cannot tell "empty air in front of you" from "behind a wall" and it would erase a phantom you
+> are looking straight at. **Install Sodium** — and **EntityCulling** on top of it.
+>
+> The benchmark ships in the repo (`CLUB_BENCH=1`). Run it on your own machine.
