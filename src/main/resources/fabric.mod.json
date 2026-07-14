@@ -3,8 +3,13 @@
   "id": "club",
   "version": "${version}",
   "name": "Club",
-  "description": "A clean, flat first-person utility client for Fabric: zoom, fullbright, freelook, toggle-sprint, custom hands and attack animations, screen stretch, a movable HUD, and per-module hotkeys.",
+  "description": "A clean, flat first-person utility client for Fabric: zoom, fullbright, freelook, item scrolling, toggle-sprint, custom hands and attack animations, screen stretch, a movable HUD that GUI Scale does not touch, and per-module hotkeys. Not a cheat client.",
   "authors": ["Club Dev"],
+  "contact": {
+    "homepage": "https://modrinth.com/mod/clubclient",
+    "sources": "https://github.com/ClubClient/clubclient",
+    "issues": "https://github.com/ClubClient/clubclient/issues"
+  },
   "license": "MIT",
   "environment": "client",
   "icon": "assets/club/icon.png",
