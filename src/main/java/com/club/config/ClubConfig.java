@@ -50,9 +50,10 @@ public class ClubConfig {
          *  16x16x16 section but never the chest inside it. Renderers that asked for anything unusual (a
          *  beacon's 256 blocks, a piston drawing outside its own block) are never touched. */
         public boolean cullBlockEntities = true;
-        /** Skip entities in chunk sections the occlusion graph dropped. OFF whenever Sodium is installed —
-         *  Sodium already does this, better integrated, and it nulls the very list we would read. */
-        public boolean cullEntities = true;
+        // There is deliberately NO entity cull here. It was built, measured at -22% frame time, and CUT:
+        // vanilla's visible-section list holds only sections that CONTAIN BLOCKS, so a phantom in open air
+        // belongs to no visible section and would be deleted while the player is looking straight at it.
+        // Sodium does not have that problem because it owns the occlusion graph. See docs/PERF.md.
     }
 
     public Hud hud = new Hud();

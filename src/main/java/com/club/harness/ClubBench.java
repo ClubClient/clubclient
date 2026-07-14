@@ -246,12 +246,14 @@ public final class ClubBench {
          *  long OFF followed by one long ON, which measures the GPU warming up rather than the mod. */
         private void block(boolean cullOn) {
             step(2, () -> {
-                // The other culls stay ON in BOTH halves. The subject under test is the ENTITY cull, and a
-                // delta is only that feature's if nothing else moves with it.
-                com.club.modules.perf.ParticleCull.forceOff = false;
-                com.club.modules.perf.BlockEntityCull.forceOff = false;
-                com.club.modules.perf.EntityCull.forceOff = !cullOn;
-                com.club.modules.perf.EntityCull.resetCounters();
+                // THE SUBJECT IS NOW EVERYTHING CLUB ACTUALLY SHIPS, TOGETHER. The entity cull was cut (it
+                // could delete a phantom in open air — see docs/PERF.md), so what is left is the particle cull
+                // and the block-entity cull, and the honest question for a mod page is what THEY give a player
+                // in total. Per-feature skip counts are reported underneath, so neither can hide behind the other.
+                com.club.modules.perf.ParticleCull.forceOff = !cullOn;
+                com.club.modules.perf.BlockEntityCull.forceOff = !cullOn;
+                com.club.modules.perf.ParticleCull.resetCounters();
+                com.club.modules.perf.BlockEntityCull.resetCounters();
                 HudProfiler.arm(true);
             });
             step(BLOCK_TICKS, () -> {});
@@ -260,8 +262,10 @@ public final class ClubBench {
                 (cullOn ? on : off).add(HudProfiler.snapshot());
                 (cullOn ? onEntities : offEntities).add(entitiesRendered());
                 (cullOn ? onSkipped : offSkipped).add(new long[] {
-                        com.club.modules.perf.EntityCull.considered(),
-                        com.club.modules.perf.EntityCull.culled() });
+                        com.club.modules.perf.ParticleCull.considered() + com.club.modules.perf.BlockEntityCull.considered(),
+                        com.club.modules.perf.ParticleCull.skipped() + com.club.modules.perf.BlockEntityCull.skipped(),
+                        com.club.modules.perf.ParticleCull.skipped(),
+                        com.club.modules.perf.BlockEntityCull.skipped() });
             });
         }
         private final List<long[]> offSkipped = new ArrayList<>(), onSkipped = new ArrayList<>();
@@ -404,8 +408,7 @@ public final class ClubBench {
             else if (ents < 40) invalidate("the scene renders only " + ents + " entities — there is nothing "
                     + "here to cull, so a zero would mean nothing. Point the camera at the arena.");
 
-            report.add("INFO  entity cull: " + com.club.modules.perf.EntityCull.debug());
-            report.add(String.format("INFO  scene: %d entities rendered, %d spawned (%d of them walled off), "
+                        report.add(String.format("INFO  scene: %d entities rendered, %d spawned (%d of them walled off), "
                     + "%d chests behind the camera + %d in front, %d campfires behind and %d in front",
                     ents, MOBS_VISIBLE + MOBS_HIDDEN, MOBS_HIDDEN, CHESTS_BEHIND, CHESTS_FRONT, FIRES_BEHIND, FIRES_FRONT));
         }
@@ -503,11 +506,12 @@ public final class ClubBench {
             double cost = fOff <= 0 ? 0 : (fOn - fOff) / fOff;
 
             report.add("");
-            report.add("== the entity cull (section visibility) ==");
+            report.add("== what Club skips, together ==");
             report.add(String.format("frame time: %.2f ms without it → %.2f ms with it (%+.1f%%). "
-                    + "Entities culled: %d of %d considered (%.0f%%).",
+                    + "Skipped: %d of %d things considered (%.0f%%) — %d particles + %d block entities.",
                     fOff, fOn, cost * 100, skippedOn, consideredOn,
-                    consideredOn == 0 ? 0 : skippedOn * 100.0 / consideredOn));
+                    consideredOn == 0 ? 0 : skippedOn * 100.0 / consideredOn,
+                    onSkipped.get(onSkipped.size() - 1)[2], onSkipped.get(onSkipped.size() - 1)[3]));
             // THE NOISE FLOOR, MEASURED, NOT ASSUMED. The identical OFF blocks are the same code in the same
             // scene; how far they disagree with each other is the smallest delta this run can see at all.
             double lo = Double.MAX_VALUE, hi = 0;
@@ -556,20 +560,15 @@ public final class ClubBench {
 
             // 2. The cull must actually cull — in a scene built so that it CAN. This is the assert that
             //    proves the feature works, and there is no noise in it at all.
-            double ratio = skippedOn * 1.0 / consideredOn;
-            check(String.format("bench: the cull removes the mobs the wall hides (%d of %d, %.0f%%)",
-                            skippedOn, consideredOn, ratio * 100),
-                    ratio >= 0.25);   // 75 of the 150 mobs stand behind a solid stone wall
-            // …AND SPARES THE ONES IN THE OPEN. A cull that removed more than the wall hides would be eating
-            // mobs the player can see, and "it went faster" would be the least of it. The visible half of the
-            // arena exists to make over-culling FAIL, not to make the number look good.
-            check(String.format("bench: the mobs in the open are never culled (%.0f%% culled; 50%% is every mob "
-                            + "behind the wall and not one more)", ratio * 100),
-                    ratio <= 0.55);
-            // And the vanilla counter — the one instrument with no statistics in it — must SEE it move.
+            long beSkipped = onSkipped.get(onSkipped.size() - 1)[3];
+            long partSkipped = onSkipped.get(onSkipped.size() - 1)[2];
+            check("bench: the particle cull skips what is behind the camera (" + partSkipped + ")", partSkipped > 0);
+            check("bench: the block-entity cull skips what is off-screen (" + beSkipped + ")", beSkipped > 0);
+            // THE ENTITY COUNTER MUST NOT MOVE. We no longer cull entities — and if this number ever changes,
+            // something is culling them anyway, which is the bug that got the entity cull deleted.
             int entOff = offEntities.get(offEntities.size() - 1), entOn = onEntities.get(onEntities.size() - 1);
-            check(String.format("bench: vanilla's own entity counter moved (%d rendered → %d)", entOff, entOn),
-                    entOn <= entOff * 0.65);
+            check(String.format("bench: no entity is culled — the vanilla counter is unmoved (%d vs %d)",
+                    entOff, entOn), Math.abs(entOff - entOn) <= 2);
 
             // 3. The entity counter must not move: only particles were toggled. If the worlds differ, every
             //    frame-time number above is about two different scenes.
