@@ -100,25 +100,53 @@ public class ClubClient implements ClientModInitializer {
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ClubConfig.close());
 
-        // Dev-only self-driving verification harness (inert unless CLUB_HARNESS env var is set).
-        if (com.club.harness.ClubHarness.enabled()) {
-            ClubMod.LOGGER.info("[Club] verification harness ARMED");
-            com.club.harness.ClubHarness.start();
+        // ---- dev instruments: harness / promo director / benchmark ------------------------------------
+        // Each block TESTS THE ENV VAR FIRST and only then names a com.club.harness class. That order is
+        // load-bearing, not style. The release jar does not ship those classes (see the `jar` task in
+        // build.gradle: they hold changeGameMode/teleport/setBlockState, and a mod that says "not a cheat
+        // client, read the source" should not make a decompiler find those calls in its artifact). The JVM
+        // resolves a class the first time it executes an instruction referencing it — so with no
+        // CLUB_HARNESS/CLUB_PROMO/CLUB_BENCH set, which is every real player, these branches never run and
+        // the classes are never looked up. The previous shape, `if (ClubHarness.enabled())`, resolved the
+        // class on EVERY startup: with the classes stripped it would have killed a released client outright.
+        //
+        // The env names below duplicate the harness classes' own enabled() checks on purpose — reading them
+        // from there would mean loading the very class we are avoiding. Keep them in sync by hand.
+        //
+        // Only LinkageError is swallowed (the "this build has no instrument" case). A harness that throws a
+        // real exception in dev must still blow up loudly — that is what it is for.
+
+        // Self-driving verification harness: drives the client, asserts, screenshots, quits.
+        if (System.getenv("CLUB_HARNESS") != null) {
+            try {
+                com.club.harness.ClubHarness.start();
+                ClubMod.LOGGER.info("[Club] verification harness ARMED");
+            } catch (LinkageError e) { noSuchInstrument("CLUB_HARNESS"); }
         }
 
-        // Dev-only promo director (CLUB_PROMO): stages the scenes the Modrinth gallery is shot from.
-        if (com.club.harness.ClubPromo.enabled()) {
-            ClubMod.LOGGER.info("[Club] promo director ARMED");
-            com.club.harness.ClubPromo.start();
+        // Promo director (CLUB_PROMO): stages the scenes the Modrinth gallery is shot from.
+        if (System.getenv("CLUB_PROMO") != null) {
+            try {
+                com.club.harness.ClubPromo.start();
+                ClubMod.LOGGER.info("[Club] promo director ARMED");
+            } catch (LinkageError e) { noSuchInstrument("CLUB_PROMO"); }
         }
 
-        // Dev-only benchmark (CLUB_BENCH): a fixed-seed arena, pinned settings, interleaved A/B — and an
-        // INVALID verdict rather than a number, whenever the run would be measuring something other than us.
-        if (com.club.harness.ClubBench.enabled()) {
-            ClubMod.LOGGER.info("[Club] benchmark ARMED");
-            com.club.harness.ClubBench.start();
+        // Benchmark (CLUB_BENCH): a fixed-seed arena, pinned settings, interleaved A/B — and an INVALID
+        // verdict rather than a number, whenever the run would be measuring something other than us.
+        if (System.getenv("CLUB_BENCH") != null) {
+            try {
+                com.club.harness.ClubBench.start();
+                ClubMod.LOGGER.info("[Club] benchmark ARMED");
+            } catch (LinkageError e) { noSuchInstrument("CLUB_BENCH"); }
         }
 
         ClubMod.LOGGER.info("[Club] client initialized");
+    }
+
+    /** Someone set a dev-instrument env var on a RELEASE jar, where those classes do not exist. Say so
+     *  plainly and keep booting — poking at an env var must not cost the player their client. */
+    private static void noSuchInstrument(String envVar) {
+        ClubMod.LOGGER.warn("[Club] {} is set, but this build ships no dev instruments (release jar) — ignoring", envVar);
     }
 }

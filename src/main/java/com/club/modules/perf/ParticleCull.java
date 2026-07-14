@@ -16,7 +16,21 @@ import net.minecraft.util.math.Vec3d;
  * not cull them either (it optimises the quad path; it does not skip anything), and Iris's shadow pass does
  * not render particles at all — which is why this is the one cull in the plan with no shadow risk.
  *
- * <p>THE THREE RULES, EACH ONE PAID FOR:
+ * <p>WHAT THIS CLASS ACTUALLY DOES — ONE HALF-SPACE TEST, AND NOTHING ELSE. Take the particle's
+ * bounding-box centre, subtract the eye, dot it with the camera's look vector. If the particle sits behind
+ * the eye plane by more than its own size plus {@code MARGIN} blocks of slack, skip {@code buildGeometry}.
+ * That is the entire cull. There is NO frustum, no distance limit, no per-frame cap, and no
+ * staleness-or-fallback path: the test reads only the {@link Camera} it is handed and the particle itself,
+ * so it holds no cached state that could go stale between frames. Anything this header says beyond that,
+ * it should not say.
+ *
+ * <p>WHY THERE IS NO FRUSTUM: there was one, and it was thrown out. It culls strictly more (the side planes,
+ * not just the eye plane) and it would have been just as invisible — but the test cost about what the
+ * {@code buildGeometry} it was avoiding cost, and every particle it decided to KEEP paid that price for
+ * nothing. It made the frame slower, and the benchmark said so. The measurement, and the numbers, are in
+ * the comment inside {@link #skip} where they can be checked against the code they describe.
+ *
+ * <p>THE RULES, EACH ONE PAID FOR:
  *
  * <ul>
  *   <li><b>Only {@link BillboardParticle}.</b> Two vanilla particles are drawn nowhere near their own
@@ -24,13 +38,16 @@ import net.minecraft.util.math.Vec3d;
  *       offset (the jumpscare), and {@code ItemPickupParticle} lerps between the item and the player. A test
  *       on "where is this particle" culls them at random. Everything off the billboard sheet passes through
  *       untouched — not as a mitigation, as a rule.</li>
- *   <li><b>The frustum must be THIS frame's.</b> It is captured at {@code WorldRenderer.setupFrustum}, whose
- *       first argument is the camera position — so freshness is checkable, and it is checked. A frustum from
- *       a frame ago is a cull that eats particles at the screen edge as you turn. If it is stale, or was
- *       never captured, we fall back to the half-space test, which needs nothing but the camera.</li>
- *   <li><b>Behind the camera is invisible BY CONSTRUCTION.</b> The frustum test culls strictly more (the
- *       side planes too) and is equally invisible; the distance limit and the per-frame cap are NOT, and
- *       are not built here at all. Nothing in this class changes what the player can see.</li>
+ *   <li><b>Behind the eye plane is invisible BY CONSTRUCTION.</b> The quad is built around the particle's
+ *       centre, so a centre that is behind the eye by more than the particle's own size cannot put a pixel
+ *       on the screen — and {@code MARGIN} buys another two blocks of slack on top. That is why this cull
+ *       needs no visual budget: it removes work, never pixels. A distance limit and a per-frame cap would
+ *       NOT be invisible, which is exactly why neither is built here. Nothing in this class changes what the
+ *       player can see.</li>
+ *   <li><b>Never during a shadow pass.</b> Iris draws no particles there today, so the guard at the top of
+ *       {@link #skip} cannot fire; it is asked anyway, because a future Iris that DID draw particles into
+ *       the shadow map would otherwise have them culled by where the PLAYER is looking, not by where the
+ *       light is.</li>
  * </ul>
  */
 public final class ParticleCull {

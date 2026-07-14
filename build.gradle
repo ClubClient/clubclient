@@ -85,6 +85,37 @@ jar {
 	from("tools/fonts/OFL.txt") {
 		rename { "OFL_${project.base.archivesName.get()}" }
 	}
+
+	// ---- the dev instruments do not ship ---------------------------------------------------------
+	// com.club.harness.{ClubHarness,ClubBench,ClubPromo} and the Item Scroll side of the harness are
+	// dev-only, and already inert in production (every entry point sits behind an env var and a
+	// mc.getServer() == null check). But INERT IS NOT ABSENT: they still contain changeGameMode(CREATIVE),
+	// teleport(), setBlockState() and addStatusEffect(). Club's public claim is "not a cheat client — the
+	// source is open, check it yourself", and the first person who checks will decompile the jar, not the
+	// repo. They will find those calls long before they find the env gate that keeps them dead. So the
+	// classes are STRIPPED FROM THE ARTIFACT, not merely disabled inside it.
+	//
+	// THIS LOOKS LIKE A NoClassDefFoundError WAITING TO HAPPEN. IT IS NOT — three independent reasons:
+	//
+	//   1. LAZY RESOLUTION. ClubClient tests the ENV VAR before it names a harness class (see the
+	//      dev-instrument block at the end of onInitializeClient). The JVM resolves a class on the first
+	//      execution of an instruction that references it, so with no CLUB_HARNESS/CLUB_PROMO/CLUB_BENCH in
+	//      the environment — every real player — those branches never execute and the classes are never
+	//      looked up. Set the var on a release jar anyway and ClubClient catches the LinkageError and boots.
+	//      If anyone ever rewrites that block to call ClubHarness.enabled() as the condition, the class is
+	//      resolved on every startup and THIS EXCLUDE KILLS THE CLIENT. The two edits belong together.
+	//
+	//   2. NOTHING ELSE REFERS TO THEM. Not a mixin (club.mixins.json declares none), not an entrypoint
+	//      (fabric.mod.json names only ClubMod and ClubClient), and no production class. The dependency runs
+	//      one way only: the harness calls into the mod's seams, never the reverse. The seams it calls
+	//      (HudManager, PixelIcons, ClubMenuScreen, DrawBoxes, …) are ordinary production code and stay.
+	//
+	//   3. DEVELOPMENT IS UNAFFECTED. Loom's runClient puts the compiled CLASSES on the classpath, not this
+	//      jar, and `jar` is not even in its task graph — so the harness, the bench and the promo director
+	//      keep working exactly as before. This shapes the packaged artifact only (and remapJar, which takes
+	//      its input from this task — the same route the LICENSE above rides into the shipped jar).
+	exclude "com/club/harness/**"
+	exclude "com/club/modules/itemscroll/ItemScrollHarness*.class"   // ItemScrollHarness$… nested too
 }
 
 test {

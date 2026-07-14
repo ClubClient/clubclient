@@ -51,11 +51,19 @@ public final class IconBatch {
 
     private static final Supplier<ShaderProgram> SHADER = () -> UiShaders.ICON;
 
+    // Fail-safe barrier — mirrors ModernText.broken / ModernBackend.broken. A driver that refuses this
+    // draw would refuse it again next frame: latch it, so the batch is demoted once instead of throwing
+    // (and logging) sixty times a second. Unlike those two, this one does NOT demote the UI to LEGACY —
+    // the caller (PixelIcons) falls back to its per-sprite path, which draws the same icons in more draw
+    // calls. A dead batch costs frames, never pixels.
+    private static boolean broken;
+
     /** GL draws this batch has issued since the counter was last read. One per flush, not one per icon. */
     public static int DRAWS;
 
-    /** True when the batch can be used at all; a missing shader falls the caller back to the old path. */
-    public static boolean ready() { return UiShaders.iconReady(); }
+    /** True when the batch can be used at all; a missing shader — or a draw the driver refused — falls the
+     *  caller back to the old per-sprite path. */
+    public static boolean ready() { return !broken && UiShaders.iconReady(); }
 
     /**
      * Queue one icon. Corners are in the caller's local space and are pre-transformed by {@code mat} here,
@@ -85,33 +93,37 @@ public final class IconBatch {
 
     /** Submit every queued icon in one draw. Safe any time; a no-op when nothing is queued. */
     public static void flush() {
-        if (n == 0 || atlas == null) { n = 0; return; }
+        if (n == 0 || atlas == null || broken) { n = 0; atlas = null; return; }
         int count = n;
         n = 0;
         Identifier tex = atlas;
         atlas = null;
+        try {
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.disableCull();
+            RenderSystem.setShader(SHADER);
+            RenderSystem.setShaderTexture(0, tex);
 
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableCull();
-        RenderSystem.setShader(SHADER);
-        RenderSystem.setShaderTexture(0, tex);
-
-        BufferBuilder bb = Tessellator.getInstance().begin(
-                VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
-        for (int i = 0; i < count; i++) {
-            int o = i * 8;
-            float x0 = q[o], y0 = q[o + 1], x1 = q[o + 2], y1 = q[o + 3];
-            float u0 = q[o + 4], v0 = q[o + 5], u1 = q[o + 6], v1 = q[o + 7];
-            int c = col[i];
-            int r = (c >>> 16) & 0xFF, g = (c >>> 8) & 0xFF, b = c & 0xFF, a = (c >>> 24) & 0xFF;
-            bb.vertex(x0, y0, 0f).texture(u0, v0).color(r, g, b, a);
-            bb.vertex(x0, y1, 0f).texture(u0, v1).color(r, g, b, a);
-            bb.vertex(x1, y1, 0f).texture(u1, v1).color(r, g, b, a);
-            bb.vertex(x1, y0, 0f).texture(u1, v0).color(r, g, b, a);
+            BufferBuilder bb = Tessellator.getInstance().begin(
+                    VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE_COLOR);
+            for (int i = 0; i < count; i++) {
+                int o = i * 8;
+                float x0 = q[o], y0 = q[o + 1], x1 = q[o + 2], y1 = q[o + 3];
+                float u0 = q[o + 4], v0 = q[o + 5], u1 = q[o + 6], v1 = q[o + 7];
+                int c = col[i];
+                int r = (c >>> 16) & 0xFF, g = (c >>> 8) & 0xFF, b = c & 0xFF, a = (c >>> 24) & 0xFF;
+                bb.vertex(x0, y0, 0f).texture(u0, v0).color(r, g, b, a);
+                bb.vertex(x0, y1, 0f).texture(u0, v1).color(r, g, b, a);
+                bb.vertex(x1, y1, 0f).texture(u1, v1).color(r, g, b, a);
+                bb.vertex(x1, y0, 0f).texture(u1, v0).color(r, g, b, a);
+            }
+            BufferRenderer.drawWithGlobalProgram(bb.end());
+            RenderSystem.enableCull();
+            DRAWS++;
+        } catch (Exception e) {
+            broken = true;
+            System.err.println("[club.ui] batched icons unavailable -> per-sprite icons: " + e);
         }
-        BufferRenderer.drawWithGlobalProgram(bb.end());
-        RenderSystem.enableCull();
-        DRAWS++;
     }
 }

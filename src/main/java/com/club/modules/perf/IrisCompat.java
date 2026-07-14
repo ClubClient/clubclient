@@ -1,5 +1,6 @@
 package com.club.modules.perf;
 
+import com.club.ClubMod;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.lang.invoke.MethodHandle;
@@ -39,14 +40,20 @@ public final class IrisCompat {
             Class<?> c = Class.forName("net.irisshaders.iris.shadows.ShadowRenderingState");
             inShadowPass = MethodHandles.lookup()
                     .findStatic(c, "areShadowsCurrentlyBeingRendered", MethodType.methodType(boolean.class));
-            // Say it out loud. "The guard exists" and "the guard is armed" are different claims, and only a
-            // shaderpack actually running would exercise the second one — so the log is how we know the
-            // reflection found what it went looking for, on a machine where nobody is watching shadows.
-            System.out.println("[club.perf] Iris detected — shadow-pass guard ARMED (" + c.getName() + ")");
+            // DEBUG on purpose. This fires for EVERY player who has Iris installed — the frustum mixin asks
+            // inShadowPass() unconditionally, so resolve() runs even when every perf module is switched off.
+            // "The reflection found what it went looking for" is a non-event the player cannot act on, and
+            // it is not worth a line in a stranger's console; anyone actually debugging whether the guard is
+            // armed can turn DEBUG on. The failure below IS worth interrupting them for.
+            ClubMod.LOGGER.debug("[Club] Iris detected — shadow-pass guard armed ({})", c.getName());
         } catch (Throwable t) {
             // A version of Iris that moved the class is not a crash — it is a mod that gets no cull.
-            System.err.println("[club.perf] Iris is present but its shadow-pass flag was not found ("
-                    + t + "). Culls that could corrupt shadows will stay OFF.");
+            // WARN: the perf modules go silently inert for this player (inShadowPass fails CLOSED, so every
+            // cull stops firing), and the only person who can act on it is whoever reads the report — which
+            // is why the Iris version and the throwable have to reach the log.
+            ClubMod.LOGGER.warn("[Club] Iris is present but its shadow-pass flag was not found — entity and "
+                    + "particle culls will stay OFF for this session (culling here would delete Iris shadows). "
+                    + "Please report this together with your Iris version.", t);
             inShadowPass = null;
             irisPresentButOpaque = FabricLoader.getInstance().isModLoaded("iris");
         }
@@ -66,5 +73,20 @@ public final class IrisCompat {
         if (inShadowPass == null) return irisPresentButOpaque;
         try { return (boolean) inShadowPass.invokeExact(); }
         catch (Throwable t) { return true; }
+    }
+
+    /**
+     * Did the reflective lookup actually find Iris's shadow-pass flag? {@code false} when Iris is absent, and
+     * also when Iris is present but has moved the class we look for.
+     *
+     * <p>This exists because the ONLY evidence that the guard was armed used to be a line a human read in a
+     * log — and a human reading a log is not an instrument. The line is DEBUG now (it fires for every player
+     * who installs Iris, and they can do nothing with it), so the harness has to ask instead. Under
+     * {@code -PclubIris} it asserts this is true: "the guard exists" and "the guard is armed" are different
+     * claims, and only the second one saves a shadow.
+     */
+    public static boolean armed() {
+        if (!resolved) resolve();
+        return inShadowPass != null;
     }
 }

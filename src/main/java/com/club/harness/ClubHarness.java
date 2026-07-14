@@ -532,6 +532,22 @@ public final class ClubHarness {
 
             // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
 
+            // ===== IRIS — the guard that stops us deleting shadows, ASKED rather than read =====
+            // The shadow pass draws the world from the sun. Any cull keyed to the MAIN camera's frustum,
+            // firing during it, erases the shadows of everything off-screen. IrisCompat is what stops that,
+            // and until now the only evidence it was ARMED was a line in the log that a human had to read.
+            // A human reading a log is not an instrument: this run passed 94/0 whether the guard armed or
+            // not. Now zero can mean broken. Run it with -PclubCompat -PclubIris.
+            step(2, () -> {
+                report.add("== iris ==");
+                if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("iris")) {
+                    report.add("SKIP  iris: not loaded — run with -PclubCompat -PclubIris to arm this check");
+                    return;
+                }
+                check("iris: shadow-pass guard is ARMED (not merely present)",
+                        com.club.modules.perf.IrisCompat.armed());
+            });
+
             // ===== ITEM SCROLL — a real chest, real packets, a real cursor =====
             // The unit tests prove the PLAN. Only the game can prove that the plan empties a chest and
             // hands the cursor back empty, because only the game has a handler, a server and a round-trip.

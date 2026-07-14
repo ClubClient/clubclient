@@ -1,5 +1,6 @@
 package com.club.ui.backend;
 
+import com.club.ClubMod;
 import com.club.ui.Color;
 import com.club.ui.UiText;
 import com.club.ui.text.Align;
@@ -59,6 +60,23 @@ public final class ModernText implements UiText {
     /** Returns false if this instance has encountered an unrecoverable error. */
     public boolean healthy() { return !broken; }
 
+    /**
+     * Records an unrecoverable text failure: raises the fail-safe flag and says WHY, exactly once.
+     *
+     * <p>ERROR is the honest level — {@code broken} demotes the WHOLE UI to the LEGACY backend for the rest
+     * of the session ({@code Ui.backend()} reads {@link #healthy()}). {@code LegacyNotice} tells the player
+     * THAT the UI is degraded; this line is the only thing that can tell whoever reads the log WHY, so the
+     * throwable goes with it. Every public entry point returns early once {@code broken} is set, so this can
+     * only speak once — the guard here makes that structural rather than a coincidence of call order.</p>
+     */
+    private void fail(String where, Exception e) {
+        if (!broken) {
+            ClubMod.LOGGER.error("[Club] MODERN text failed in " + where
+                    + " — UI falls back to LEGACY text for the rest of the session", e);
+        }
+        broken = true;
+    }
+
     // -------------------------------------------------------------------------
     // Lifecycle
     // -------------------------------------------------------------------------
@@ -85,8 +103,7 @@ public final class ModernText implements UiText {
         try {
             return layout.width(text, weight, size);
         } catch (Exception e) {
-            broken = true;
-            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            fail("width()", e);
             return 0f;
         }
     }
@@ -97,8 +114,7 @@ public final class ModernText implements UiText {
         try {
             return registry.metrics(weight).ascent(size);
         } catch (Exception e) {
-            broken = true;
-            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            fail("ascent()", e);
             return 0f;
         }
     }
@@ -109,8 +125,7 @@ public final class ModernText implements UiText {
         try {
             return registry.metrics(weight).descent(size);
         } catch (Exception e) {
-            broken = true;
-            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            fail("descent()", e);
             return 0f;
         }
     }
@@ -121,8 +136,7 @@ public final class ModernText implements UiText {
         try {
             return registry.metrics(weight).lineHeight(size);
         } catch (Exception e) {
-            broken = true;
-            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            fail("lineHeight()", e);
             return size;
         }
     }
@@ -133,8 +147,7 @@ public final class ModernText implements UiText {
         try {
             return layout.wrap(text, weight, size, maxWidth);
         } catch (Exception e) {
-            broken = true;
-            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            fail("wrap()", e);
             return List.of();
         }
     }
@@ -194,8 +207,7 @@ public final class ModernText implements UiText {
                     style.weight, style.size, style.align,
                     style.color, outlineW, outlineC, glowR, glowC, weightBias);
         } catch (Exception e) {
-            broken = true;
-            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            fail("draw()", e);
             return x;
         }
     }
@@ -215,8 +227,7 @@ public final class ModernText implements UiText {
                 cy += lh;
             }
         } catch (Exception e) {
-            broken = true;
-            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            fail("drawWrapped()", e);
         }
     }
 
@@ -377,8 +388,7 @@ public final class ModernText implements UiText {
             RenderSystem.enableCull();
             ModernBackend.DRAWS++; ModernBackend.TEXT_DRAWS++;
         } catch (Exception e) {
-            broken = true;
-            System.err.println("[club.ui] modern text unavailable -> LEGACY: " + e);
+            fail("flush()", e);
         }
     }
 

@@ -1,5 +1,6 @@
 package com.club.ui.backend;
 
+import com.club.ClubMod;
 import com.club.ui.Axis;
 import com.club.ui.Color;
 import com.club.ui.Radii;
@@ -252,7 +253,10 @@ public final class ModernBackend implements UiRenderer {
             opacityStack[opacityTop++] = current * clamped;
         } else if (!opacityOverflowWarned) {
             opacityOverflowWarned = true;
-            System.err.println("[club.ui] pushOpacity overflow (depth=" + MAX_STACK + ") — push dropped, draw will use full opacity");
+            // WARN, not ERROR: nothing is broken, but something IS drawn wrong (this subtree keeps the outer
+            // opacity instead of fading), and only an unbalanced push/pop in our own UI code can cause it.
+            ClubMod.LOGGER.warn("[Club] UI opacity stack overflow at depth {} — push dropped, this draw uses the "
+                    + "outer opacity. A pushOpacity is missing its popOpacity.", MAX_STACK);
         }
     }
 
@@ -418,7 +422,11 @@ public final class ModernBackend implements UiRenderer {
             DRAWS++; SHAPE_DRAWS++;
         } catch (Exception e) {
             broken = true;
-            System.err.println("[club.ui] batched shapes unavailable -> LEGACY: " + e);
+            // ERROR: this demotes the WHOLE UI to the LEGACY backend for the rest of the session (Ui.backend()
+            // reads healthy()). LegacyNotice reports THAT the UI is degraded; only this line can say WHY, so
+            // the throwable belongs here. Fires at most once — `broken` short-circuits every later draw.
+            ClubMod.LOGGER.error("[Club] MODERN batched shapes failed — UI falls back to LEGACY for the rest of "
+                    + "the session", e);
         }
     }
 
@@ -526,7 +534,10 @@ public final class ModernBackend implements UiRenderer {
             RenderSystem.enableCull();
         } catch (Exception e) {
             broken = true;
-            System.err.println("[club.ui] modern shapes unavailable -> LEGACY: " + e);
+            // ERROR, same reason as the batch path above: the UI is on LEGACY from here on, and this is the
+            // only place that knows what actually failed.
+            ClubMod.LOGGER.error("[Club] MODERN shape draw failed — UI falls back to LEGACY for the rest of "
+                    + "the session", e);
         }
     }
 
@@ -545,7 +556,12 @@ public final class ModernBackend implements UiRenderer {
         if (clipTop >= MAX_STACK) {
             if (!clipOverflowWarned) {
                 clipOverflowWarned = true;
-                System.err.println("[club.ui] pushClip overflow (depth=" + MAX_STACK + ") — push dropped, draw will be unclipped");
+                // WARN: the scissor is left where it was, so the draw is clipped by the OUTER rectangle
+                // rather than the narrower one it asked for — wrong pixels, but nothing is destroyed.
+                // (The caller's matching popClip will still pop, so the stack also drifts by one from here
+                // on. Not repaired: at 64 levels of nesting the UI has a worse problem than this line.)
+                ClubMod.LOGGER.warn("[Club] UI clip stack overflow at depth {} — push dropped, this draw stays "
+                        + "clipped to the outer rectangle. A pushClip is missing its popClip.", MAX_STACK);
             }
             return;
         }
