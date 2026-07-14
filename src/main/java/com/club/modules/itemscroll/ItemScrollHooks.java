@@ -147,13 +147,24 @@ public final class ItemScrollHooks {
         List<Click> plan = SlotPlan.plan(action, slots, slots.get(hovered.id), out);
         if (plan.isEmpty()) return;
 
-        int syncId = handler.syncId;
         MixinHandledScreenAccessor accessor = (MixinHandledScreenAccessor) screen;
         for (Click click : plan) {
-            // The world can change under a plan: a server resync, a hopper, another player. Anything that
-            // moves the goalposts aborts the rest — a click aimed at a slot that is no longer what we
-            // planned for is how a cursor ends up holding a stack nobody asked for.
-            if (mc.currentScreen != screen || handler.syncId != syncId) break;
+            // The world can change under a plan: the server rejects a click and resyncs, the chest is broken,
+            // something forces another screen open. Each of those hands the PLAYER a NEW ScreenHandler, and
+            // `handler` is the one the plan was built against — so once the live handler is no longer it,
+            // every remaining click is aimed at a container that no longer exists, and that is how a cursor
+            // ends up holding a stack nobody asked for.
+            //
+            // Ask the player's CURRENT handler, not our own: this guard used to read `handler.syncId != syncId`
+            // against a syncId captured from that same object, and ScreenHandler.syncId is public FINAL — the
+            // field could not differ from itself, so the check was a promise, never a check.
+            //
+            // Identity rather than syncId, because syncId is a small wrapping counter the server reuses,
+            // while the object cannot lie. This is also exactly the mismatch vanilla itself refuses on:
+            // ClientPlayerInteractionManager.clickSlot drops any click whose syncId is not
+            // player.currentScreenHandler's — so a click this guard stops is a click the server was going to
+            // throw away anyway, only without us having emptied a slot on the client first.
+            if (mc.currentScreen != screen || mc.player.currentScreenHandler != handler) break;
             Slot target = handler.slots.get(click.slotId());
             accessor.club$onMouseClick(target, click.slotId(), click.button(), type(click.act()));
         }

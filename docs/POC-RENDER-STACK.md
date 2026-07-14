@@ -54,10 +54,22 @@ assets/club/poc/
 - **MSDF-текст** (`club_msdf_text`): атлас-текстура, `median(r,g,b)`, AA через `fwidth`, `pxRange`
   из atlas.distanceRange. Все глифы строки — в одном буфере. Soft-shadow HUD = второй проход с
   тем же визуальным результатом (бледная подложка +1px), без изменения смысла тени.
-- Атлас MSDF генерится офлайн официальным **msdf-atlas-gen v1.4** (тру-MSDF), параметры
-  `-type msdf -size 48 -pxrange 6`, charset = printable ASCII + `…`. Рантайм-нативов нет —
-  грузим только PNG + JSON (Gson). Воспроизводимо Gradle-задачей `genMsdfAtlas` (скачивает
-  пинованный бинарник в `build/tools/`).
+- Атлас MSDF генерится офлайн официальным **msdf-atlas-gen v1.4** (тру-MSDF). Рантайм-нативов нет —
+  грузим только PNG + JSON (Gson). Задача `genMsdfAtlas` скачивает пинованный бинарник в
+  `build/tools/` и рендерит три веса.
+
+  > **Значения PoC-эпохи (`-size 48`, charset = printable ASCII + `…`) устарели.** Боевой атлас,
+  > который лежит в `assets/club/ui/font/msdf/`, собран с `-type msdf -size 40 -pxrange 6` и полным
+  > charset (Latin + Latin-1 + Cyrillic + пунктуация/символы); это то, что реально записано в
+  > `inter_*.json` (`atlas.size = 40`, `distanceRange = 6`). Числа выше — исторические, не сверяйте
+  > по ним.
+
+  > **Воспроизводимость — с оговоркой.** Задача `genMsdfAtlas` брала шрифты из
+  > `src/main/resources/assets/club/font/`, откуда они уехали в `tools/fonts/` ещё в `70a44f0`; путь
+  > не обновили, и запуск падал с «Failed to load specified font file». Путь **починен**, но
+  > **прогон с момента переезда шрифтов не выполнялся**, поэтому байт-в-байт совпадение с
+  > закоммиченным атласом сейчас — ожидание, а не измерение. Задача **только для Windows** (тянет
+  > win64-сборку msdf-atlas-gen). Подробности — `docs/UI-V2-RISKS.md`, R3.
 
 ## 5. Экран сравнения
 

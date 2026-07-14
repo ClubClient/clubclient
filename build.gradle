@@ -170,11 +170,22 @@ tasks.register("genPromoIcon") {
 	}
 }
 
-// Offline MSDF atlas generation. Downloads a pinned msdf-atlas-gen and renders
-// Inter weights to assets/club/ui/font/msdf/. Run manually: ./gradlew genMsdfAtlas
+// Offline MSDF atlas generation. Downloads a pinned msdf-atlas-gen and renders the three font
+// weights to assets/club/ui/font/msdf/. Run manually: ./gradlew genMsdfAtlas
+//
+// WINDOWS ONLY: this downloads the win64 build of msdf-atlas-gen and runs the .exe directly, so it
+// will fail on Linux/macOS. It is not part of `build` — the generated atlases are committed, so a
+// clone on any OS builds and runs fine; you only need this task when the fonts or the charset change.
+// To regenerate elsewhere, build msdf-atlas-gen from source and point `exe` at it — keep the flags
+// (-size 40 -pxrange 6 -type msdf) and the charset identical or the committed atlas will not
+// reproduce byte-for-byte.
+//
+// Source fonts live in tools/fonts/ (NOT in the resources tree — they must not ship inside the jar;
+// only the rendered atlases do). Despite the file names they contain the Onest typeface, SIL OFL 1.1
+// — see THIRD-PARTY-NOTICES.md and tools/fonts/OFL.txt.
 tasks.register("genMsdfAtlas") {
 	group = "club"
-	description = "Generate MSDF atlases for Inter (Latin+Cyrillic+Punct+Symbols)."
+	description = "Generate MSDF atlases for the UI font (Latin+Cyrillic+Punct+Symbols). Windows-only."
 	doLast {
 		def toolDir = file("build/tools")
 		def exe = file("build/tools/msdf-atlas-gen-1.4/msdf-atlas-gen/msdf-atlas-gen.exe")
@@ -216,10 +227,14 @@ tasks.register("genMsdfAtlas") {
 		charset.text = "[0x20, 0x7E], [0xA0, 0xFF], [0x0400, 0x04FF], 0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2026, 0x2192, 0x221E"
 		def out = file("src/main/resources/assets/club/ui/font/msdf"); out.mkdirs()
 		["regular", "medium", "semibold"].each { w ->
+			// Fonts moved to tools/fonts/ in 70a44f0; this path still pointed at the (now empty)
+			// resources dir, so the task died with "Failed to load specified font file".
+			def font = file("tools/fonts/inter_${w}.ttf")
+			if (!font.exists()) throw new GradleException("Source font not found: ${font}")
 			// Use ProcessBuilder (Gradle 9-compatible — no exec{} on DefaultTask)
 			def cmd = [
 				exe.absolutePath,
-				"-font", file("src/main/resources/assets/club/font/inter_${w}.ttf").absolutePath,
+				"-font", font.absolutePath,
 				"-charset", charset.absolutePath,
 				"-type", "msdf", "-format", "png", "-size", "40", "-pxrange", "6",
 				"-imageout", new File(out, "inter_${w}.png").absolutePath,

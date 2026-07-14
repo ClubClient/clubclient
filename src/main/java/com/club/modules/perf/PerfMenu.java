@@ -20,6 +20,11 @@ import java.util.List;
  * moment we ship one we stop being able to say the sentence that makes this whole feature worth having:
  * nothing here changes what you see.
  *
+ * <p>THAT SENTENCE IS A PROMISE ANOTHER FILE KEEPS. The card's subtitle says "Nothing here changes the
+ * picture", and it is only true because {@link BlockEntityCull} culls vanilla block entity types and nothing
+ * else — a modded renderer that draws beyond its own block cannot be erased by us. Loosen that rule and this
+ * string becomes a lie, on by default, in the one module whose entire claim is that it is invisible.
+ *
  * <p>The background throttle sits here too, and its row says what it is. It gives ZERO in-game FPS. It is a
  * battery feature.
  */

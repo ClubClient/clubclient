@@ -287,6 +287,15 @@ public class ClubConfig {
         if (freelook == null) freelook = new Freelook();
         if (moduleBinds == null) moduleBinds = new java.util.HashMap<>();
         if (screenStretch == null) screenStretch = new ScreenStretch();
+        // The two sections added after this guard was written. Both are dereferenced with no null check of
+        // their own on paths that run constantly: itemScroll on every click and every scroll inside any
+        // container, perf when the menu builds its card. A hand-edited "itemScroll": null — or a write cut
+        // short by a power cut — would be an NPE in the hot path, not a wrong default.
+        if (itemScroll == null) itemScroll = new com.club.modules.itemscroll.ItemScrollConfig();
+        // The gesture map is the section's own sub-object, and ItemScrollBinds hands it straight to Gestures:
+        // guarding only the section that CONTAINS it would leave the same crash one line deeper.
+        if (itemScroll.gestures == null) itemScroll.gestures = new java.util.HashMap<>();
+        if (perf == null) perf = new Perf();
         if (hud == null) hud = new Hud();
         // Canonicalize armorLayout ONCE here (Stage 29) instead of clamping at every read site: an
         // old/hand-edited value (e.g. the retired 2, or junk) self-heals to 0/1 on load.
