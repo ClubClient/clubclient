@@ -16,7 +16,8 @@
     "WorldRendererAccessor",
     "MixinWorldRendererFrustum",
     "MixinParticleManager",
-    "MixinBlockEntityRenderDispatcher"
+    "MixinBlockEntityRenderDispatcher",
+    "MixinMinecraftClientFps"
   ],
   "injectors": {
     "defaultRequire": 1

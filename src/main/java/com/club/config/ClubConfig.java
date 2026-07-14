@@ -50,6 +50,13 @@ public class ClubConfig {
          *  16x16x16 section but never the chest inside it. Renderers that asked for anything unusual (a
          *  beacon's 256 blocks, a piston drawing outside its own block) are never touched. */
         public boolean cullBlockEntities = true;
+        /** Cap the frame rate while the window is in the BACKGROUND. This gives ZERO in-game FPS: it is a
+         *  battery / fan-noise / second-monitor feature, and calling it an FPS boost would be a lie. */
+        public boolean throttleWhenUnfocused = true;
+        /** Frames per second while alt-tabbed. Clamped to at least 15: below that the first frame after you
+         *  come back costs 1/cap, and the window feels broken. Never RAISES a lower limit you chose. */
+        public int backgroundFps = 15;
+
         // There is deliberately NO entity cull here. It was built, measured at -22% frame time, and CUT:
         // vanilla's visible-section list holds only sections that CONTAIN BLOCKS, so a phantom in open air
         // belongs to no visible section and would be deleted while the player is looking straight at it.
