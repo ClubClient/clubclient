@@ -1,0 +1,83 @@
+name: Bug report
+description: Something in Club is broken — a crash, a visual glitch, a feature that does nothing.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **The way Club breaks for real people is a conflict with the mods they already run.** So the mod list
+        and the log below are not bureaucracy — they are usually the whole answer. Please don't skip them.
+
+  - type: input
+    id: club-version
+    attributes:
+      label: Club version
+      description: The exact version, from the mod list in-game or the jar's filename.
+      placeholder: "0.1.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happens
+    attributes:
+      label: What happens, and what you expected instead
+      description: If you can, say what you did right before it — the step that reproduces it is worth more than a paragraph.
+    validations:
+      required: true
+
+  - type: textarea
+    id: mod-list
+    attributes:
+      label: Your full mod list
+      description: >
+        Every mod, not just the ones you suspect. Paste the list, or drop a screenshot of the mods screen.
+        A conflict is usually with the mod you would never have mentioned.
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: "`latest.log`, or the crash report"
+      description: >
+        Drag the file into this box, or paste it into a [gist](https://gist.github.com) and link it.
+        **Please don't screenshot the log** — we cannot search a picture, and the line that matters is
+        almost never the one on screen. `latest.log` lives in `.minecraft/logs/`; a crash report in
+        `.minecraft/crash-reports/`.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: alone
+    attributes:
+      label: Does it still happen with ONLY Club and Fabric API installed?
+      description: >
+        This one question decides whether the bug is ours or a conflict, and it saves days. If you cannot
+        test it, say so — that is a fine answer, just not a silent one.
+      options:
+        - "Yes — Club and Fabric API alone, still broken"
+        - "No — it works fine with just Club, so it's a conflict with another mod"
+        - "I haven't tested that"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: renderers
+    attributes:
+      label: Which of these are you running?
+      description: They rewrite the same rendering the mod hooks into, so they matter more than the rest of your list.
+      options:
+        - label: Sodium
+        - label: Iris
+        - label: A shaderpack, enabled
+        - label: Freecam
+        - label: None of these
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver
+      description: >
+        Only needed if the bug is visual — a menu that doesn't draw, text that renders as blank boxes.
+        Club draws its interface with its own shaders, so this is the first thing we look at.
+      placeholder: "NVIDIA GTX 1650, driver 560.x"

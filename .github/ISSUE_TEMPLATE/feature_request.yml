@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest something Club should do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things are closed subjects, so that nobody spends an evening writing a proposal that was never
+        going to land:
+
+        - **Club is not a cheat client.** No killaura, no ESP, no reach, no autoclicker, no X-ray, no combat
+          automation. This is the whole positioning of the mod, not a temporary stance. Requests for these are
+          closed without discussion.
+        - **The visual design and the menu are frozen.** Flat, no glass, no glow, no gradient on text. The card
+          layout and the popovers stay as they are. See `docs/DESIGN.md`.
+
+        Everything else is fair game.
+
+  - type: checkboxes
+    id: not-a-cheat
+    attributes:
+      label: Confirm
+      options:
+        - label: What I'm asking for gives no advantage the server can see — it's about my own view of the game or my own convenience at the keyboard.
+          required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What should Club do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: What are you doing today instead?
+      description: >
+        The workaround you currently use tells us more than the feature description does — it shows what the
+        thing is actually for.
+    validations:
+      required: true
+
+  - type: input
+    id: prior-art
+    attributes:
+      label: Does another mod already do this well?
+      description: >
+        An honest answer here is a point in your favour, not against you. Club deliberately does not duplicate
+        Sodium or EntityCulling — but knowing what exists is how we decide.

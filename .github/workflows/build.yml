@@ -6,6 +6,14 @@
 name: build
 on: [pull_request, push]
 
+permissions:
+  contents: read
+
+# A force-push should not leave two builds racing for the same cache.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -21,6 +29,9 @@ jobs:
           # template's JDK 25 wasn't what local builds run on.
           java-version: '21'
           distribution: 'microsoft'
+      # Without this every run re-downloads Minecraft, the mappings and the whole Loom cache.
+      - name: cache gradle
+        uses: gradle/actions/setup-gradle@v6
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
       - name: build

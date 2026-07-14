@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord — help getting it set up
+    url: https://discord.gg/kq2DYuTQnW
+    about: >
+      "How do I bind this", "where is the HUD editor", "does it work with X" — ask in #support, it's faster.
+      A BUG, though, belongs in an issue here: Discord has no history worth searching, and a bug reported in
+      chat is a bug that gets lost.
+  - name: Download Club
+    url: https://modrinth.com/mod/clubclient
+    about: The only official build. Modrinth.

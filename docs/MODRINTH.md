@@ -149,4 +149,13 @@ and roll some of it back. Nothing else in Club talks to the server at all.
 
 ---
 
-MIT licensed. Source on GitHub shortly.
+## 💬 Where to find us
+
+- **Source:** [github.com/ClubClient/clubclient](https://github.com/ClubClient/clubclient) — MIT. Every claim on
+  this page can be checked against it, including the benchmark that produced the numbers above.
+- **Bugs:** [GitHub Issues](https://github.com/ClubClient/clubclient/issues). Bring your mod list and
+  `latest.log` — a conflict with the mods you already run is the usual answer.
+- **Discord:** [discord.gg/kq2DYuTQnW](https://discord.gg/kq2DYuTQnW) — for getting it set up.
+
+MIT licensed. The interface is set in [Onest](https://github.com/simpals/onest), used under the SIL Open Font
+License 1.1.

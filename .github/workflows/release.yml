@@ -1,0 +1,64 @@
+# Tag -> build -> GitHub Release with the jar attached.
+#
+# Modrinth is deliberately NOT automated. The owner holds releases back on purpose (v0.1.3 sat built and
+# unpublished for weeks), and a workflow that publishes to Modrinth the moment a tag lands takes that
+# decision away from him. Upload the jar this workflow builds, by hand, when the page is ready.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # needed to create the release; nothing else
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'          # the toolchain build.gradle pins; MC 1.21.1 + LWJGL 3.3.3
+          distribution: 'microsoft'
+
+      - name: cache gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: build
+        run: ./gradlew build
+
+      # The tag is the source of truth for the version; if gradle.properties disagrees, the jar we are about
+      # to publish is not the one the tag names. Fail loudly rather than ship a mislabelled artifact.
+      - name: version matches the tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          MOD=$(grep '^mod_version=' gradle.properties | cut -d= -f2)
+          echo "tag=$TAG  gradle.properties=$MOD"
+          [ "$TAG" = "$MOD" ] || { echo "::error::tag $GITHUB_REF_NAME does not match mod_version=$MOD"; exit 1; }
+
+      # Pull this version's section out of CHANGELOG.md — from its "## vX.Y.Z" heading to the next "## ".
+      - name: extract changelog
+        run: |
+          awk -v v="## ${GITHUB_REF_NAME}" '
+            $0 == v {found=1; next}
+            found && /^## / {exit}
+            found {print}
+          ' CHANGELOG.md > RELEASE_BODY.md
+          echo "--- release body ---"; cat RELEASE_BODY.md
+          [ -s RELEASE_BODY.md ] || { echo "::error::no ${GITHUB_REF_NAME} section in CHANGELOG.md"; exit 1; }
+
+      - name: publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Club ${{ github.ref_name }}
+          body_path: RELEASE_BODY.md
+          files: build/libs/club-*.jar
+          fail_on_unmatched_files: true
