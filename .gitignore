@@ -45,3 +45,8 @@ replay_*.log
 # claude / superpowers tooling
 .superpowers/
 .claude/settings.local.json
+
+# one-off promo compositors: they hardcode local paths, their input (run/screenshots) is ignored,
+# and they still print the GL/frame-cost numbers this mod retracted. Kept on disk, out of the repo.
+tools/gallery.ps1
+tools/promo.ps1

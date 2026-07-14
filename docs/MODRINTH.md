@@ -1,7 +1,7 @@
 # Club — Modrinth listing copy
 
 > Paste the body into the Modrinth project **Description** (Markdown). The summary line goes in the
-> **Summary** field. The six images in `docs/gallery/` go in the **Gallery**; `01-hero.png` is the featured
+> **Summary** field. The seven images in `docs/gallery/` go in the **Gallery**; `01-hero.png` is the featured
 > one. The changelog for the version upload is `CHANGELOG.md`.
 
 ---
@@ -61,35 +61,27 @@ element for its own settings. The HUD is the size you set it — Minecraft's GUI
 
 ---
 
-## ✨ New in v0.1.2
+## ✨ New in v0.1.3
 
-**Club and Minecraft no longer fight over your keys.** Minecraft hands a key press to exactly one binding, so a
-Club key that landed on a key the game already used didn't share it — one of the two actions silently stopped
-working, and which one lost depended on your mod list. Club now reads the game's own bindings and *names* the
-conflict in the popover, the way vanilla's Controls screen paints duplicates red. Rebind Zoom or Freelook in
-the Club menu and it changes in **Options → Controls → Club**, and the other way round. It's one binding, not
-two settings that drift apart.
+**Item Scrolling.** Move items with the mouse instead of clicking them one at a time — scroll a slot for one
+item, Shift for the stack, Ctrl for every stack of that type, Shift+drag across slots to move each one you
+cross. Every gesture is rebindable, two actions can never share one, and if a gesture overrides something
+vanilla already does with it, the row says so instead of quietly eating the click. (See the section above.)
 
-**The menu can no longer be locked away from you.** Vanilla's Controls screen could take the menu's own key,
-leaving the bind fixable only from the menu that would no longer open.
+**Club stops drawing what you cannot see.** Particles behind the camera are no longer tessellated; block
+entities that sit off-screen inside a section the frustum kept are no longer rendered. Measured, interleaved in
+one session: **−5.3%** frame time on a normal machine, **−8.1%** on a CPU-bound one. Where your GPU is the
+bottleneck, our own benchmark refuses to claim a win — and says so.
 
-**The HUD is the size you set it.** It used to be laid out in Minecraft's GUI-scale units, so a video setting
-resized every element — on top of that element's own Size slider. It has its own canvas now: the same physical
-size at GUI Scale 1, 2, 3 and 4.
+**Background throttle.** Cap the frame rate while the window is behind something else. This gives **zero
+in-game FPS** — it is a battery and fan-noise feature, and calling it an FPS boost would be a lie.
 
-| GUI Scale | 1 | 2 | 3 | 4 |
-|---|---|---|---|---|
-| Measured size | 90px | 90px | 90px | 90px |
+**The HUD's icons batch now**, instead of each going out through vanilla's immediate path.
 
-It used to be 1:2:3:4. Saved positions are migrated, not reinterpreted, so you don't have to lay the HUD out
-again.
-
-**The menu stopped lying.** A module that's switched on but standing down — Screen Stretch on Auto, Toggle
-Sprint while vanilla's own sprint toggle is on — now says so, instead of sitting there lit as though it were
-doing something.
-
-**Toggle Sprint** could latch the sprint key down forever if you turned on vanilla's "Sprint: Toggle" while it
-was running. Fixed. And turning off Club's Effects HUD no longer leaves you with no effect display at all.
+*Previously, in v0.1.2:* Club and Minecraft stopped fighting over your keys (conflicts are now *named* in the
+popover, and one bind is one bind — the Club menu and **Options → Controls** are the same setting); the menu
+can no longer be locked away from you; the HUD got its own canvas, so GUI Scale no longer resizes it; and a
+module that is switched on but standing down now says so instead of sitting there lit.
 
 ## ⚡ It stops drawing what you cannot see
 
@@ -108,9 +100,9 @@ Measured, interleaved in one session, on a fixed-seed scene:
 Where the **GPU** is your bottleneck, our own benchmark refuses to claim a win — and prints that it refuses.
 We publish what we measured, in the scene we measured it.
 
-And the mod pays its own way: its HUD draws in **12 GL calls a frame**, down from 15 once the icons stopped
-going out one at a time. That number is counted in-game on every build and asserted, so the mod fails its own
-test if it creeps back up.
+And the mod pays its own way: the HUD's icons used to go out through vanilla's immediate path, one GL call per
+sprite. They batch now. Our harness asserts that the batched path issues **fewer** draws than the unbatched one
+on every build — a property, not a number, because the number is a fact about the scene it was measured in.
 
 **What we did not build:** an entity culler. It existed, it measured −22%, and it was deleted — vanilla's
 visible-section list only holds sections that contain blocks, so a phantom in open sky belongs to none of them
@@ -146,11 +138,14 @@ All rebindable, along with a hotkey for every module.
 ## 🛡️ Club is a clean client
 
 Club is not a cheat client. No combat automation, no killaura, no player ESP, no reach, no autoclicker, no
-X-ray. Nothing in it touches what the server sees.
+X-ray. Nothing in it gives you information the game does not, or reach the game does not.
 
 Everything Club does is about *your* view of the game and *your* convenience at the keyboard.
 
-So use it on servers that ban hacks. There is nothing in it to ban.
+One honest footnote, because the source is public and you can check it: **Item Scrolling moves items by
+clicking slots** — the same packets your own hand sends, just faster. That is all it can do; the protocol has
+no batch move. A strict anti-cheat may rate-limit a large transfer the way it would rate-limit fast clicking,
+and roll some of it back. Nothing else in Club talks to the server at all.
 
 ---
 

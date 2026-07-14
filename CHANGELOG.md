@@ -23,9 +23,10 @@
   **−8.1%** on a CPU-bound one. Where your GPU is the bottleneck, our own benchmark refuses to claim a win —
   and says so.
 
-**The HUD got cheaper to draw.** Its icons were 4 of the 15 GL calls a frame and a third of its cost, each one
-going out through vanilla's immediate path. They batch now: **15 → 12 calls**, the icon phase from 0.13 ms to
-0.003 ms. Not a pixel of it looks different, and the harness asserts that by geometry, not by eye.
+**The HUD got cheaper to draw.** Its icons each went out through vanilla's immediate path — one GL call per
+sprite, and a third of the HUD's cost. They batch now. How many calls that saves is a fact about the scene, so
+we do not print one: the harness asserts the batched path issues *fewer* draws than the unbatched one, on every
+build. Not a pixel of it looks different, and the harness asserts that by geometry, not by eye.
 
 **Background throttle.** Cap the frame rate while the window is behind something else. This gives **zero
 in-game FPS** — it is a battery, fan-noise and second-monitor feature, and calling it an FPS boost would be a

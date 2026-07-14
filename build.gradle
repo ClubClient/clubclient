@@ -66,7 +66,6 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 java {
-	// No sources jar — Club is All-Rights-Reserved, closed-source; only the compiled jar ships.
 	// Pin the runtime/compile toolchain to JDK 21 (the version MC 1.21.1 + LWJGL 3.3.3 support).
 	// Without this, the build/runClient use whatever JDK runs Gradle (e.g. 25) — an unsupported
 	// combo that LWJGL flags as "Unsupported JNI version" and can cause situational GL instability.
@@ -80,6 +79,11 @@ java {
 jar {
 	from("LICENSE") {
 		rename { "${it}_${project.base.archivesName.get()}"}
+	}
+	// The UI atlases are rendered from Onest (SIL OFL 1.1), so the jar redistributes a derivative of it.
+	// OFL §2 wants the copyright notice and licence to travel with any such distribution.
+	from("tools/fonts/OFL.txt") {
+		rename { "OFL_${project.base.archivesName.get()}" }
 	}
 }
 

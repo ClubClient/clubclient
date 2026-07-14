@@ -76,6 +76,9 @@ Java 21 and an internet connection (for the first dependency fetch) are required
 
 ## License
 
-**All Rights Reserved** — see [LICENSE](LICENSE). You may download and use the official build for your
-own gameplay. Copying, re-uploading, mirroring, or redistributing it anywhere is not permitted. The only
-official download is the author's Modrinth page.
+**MIT** — see [LICENSE](LICENSE).
+
+The UI is set in [Onest](https://github.com/simpals/onest) by Dmitri Voloshin and Andrey Kudryavtsev,
+used under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL) — see
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The font files live in `tools/fonts/`; the jar carries
+a pre-rendered MSDF atlas of them.
