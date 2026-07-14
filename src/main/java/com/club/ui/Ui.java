@@ -34,7 +34,26 @@ public final class Ui {
      * 61): they sit in a buffer until something forces them out, and the end of the pass is the last
      * such point — miss it and the frame's final shapes are simply never drawn. Cheap and idempotent.
      */
-    public static void endFrame() { Backends.MODERN_R.flush(); Backends.MODERN_T.flush(); }
+    public static void endFrame() {
+        Backends.MODERN_R.flush();
+        Backends.MODERN_T.flush();
+        com.club.ui.backend.IconBatch.flush();
+    }
+
+    /**
+     * Submit the pending icons NOW (Stage 67). The icon batch is what turns four GL draws into one, and it
+     * does that by outliving the text and shapes interleaved with it — but only INSIDE one HUD element.
+     *
+     * <p>It may not outlive the element, and the harness is why we know: the order proof went green three
+     * runs and then caught a real violation on the fourth. A mob had wandered into the crosshair, the Target
+     * chip appeared — and the Target chip is drawn AFTER the Effects chip, so its panel landed on top of an
+     * Effects icon. Batching across that boundary would have popped the icon out through the panel. Two HUD
+     * elements CAN overlap: the player can drag them onto each other in the editor.
+     *
+     * <p>So {@code HudCanvas} calls this between elements. Inside an element the reorder is proved harmless;
+     * across elements the order is not reordered at all.
+     */
+    public static void flushIcons() { com.club.ui.backend.IconBatch.flush(); }
 
     public static boolean modernAvailable() { return UiShaders.ready() && Backends.MODERN_T.healthy() && Backends.MODERN_R.healthy(); }
     public static Backend backend() {

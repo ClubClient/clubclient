@@ -158,6 +158,18 @@ public final class ModernText implements UiText {
     @Override
     public float draw(String text, float x, float y, TextStyle style) {
         if (broken) return x;
+        // Profiler seam (Stage 65): shaping a string into glyph quads is the suspected bulk of BUILD.
+        // Measured here rather than argued about. Free when no measurement window is open.
+        boolean prof = com.club.modules.perf.HudProfiler.armed();
+        long t0 = prof ? System.nanoTime() : 0L;
+        try {
+            return draw0(text, x, y, style);
+        } finally {
+            if (prof) com.club.modules.perf.HudProfiler.addTextNs(System.nanoTime() - t0);
+        }
+    }
+
+    private float draw0(String text, float x, float y, TextStyle style) {
         try {
             float outlineW = 0f;
             int   outlineC = 0;
@@ -321,6 +333,10 @@ public final class ModernText implements UiText {
             tq[o + 4] = d[i + 4]; tq[o + 5] = d[i + 5];
             tq[o + 6] = d[i + 6]; tq[o + 7] = d[i + 7];
             tc[tn] = argb;
+            // Order proof (Stage 67): a glyph drawn AFTER an icon that overlaps it would be stolen by the
+            // icon batch. Recorded per glyph, in the same pose space as the icon quads.
+            com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.TEXT,
+                    tq[o], tq[o + 1], tq[o + 2], tq[o + 3]);
             tn++;
         }
     }

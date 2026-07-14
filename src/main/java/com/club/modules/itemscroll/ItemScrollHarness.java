@@ -163,12 +163,34 @@ public final class ItemScrollHarness {
     }
 
     /** Put the real mouse pointer over the centre of a slot. */
+    /**
+     * Put the cursor over a slot — and make the CLIENT believe it.
+     *
+     * <p>{@code glfwSetCursorPos} moves the pointer but fires no cursor callback (the repo learned this once
+     * already, in HudEditorScreen). So Minecraft's own tracked mouse position never moved, the drag never saw
+     * the cursor cross the second and third slots, and the test dragged across three slots and moved exactly
+     * one — while reporting "press consumed, release consumed", because both of those really did happen.</p>
+     *
+     * <p>It passed on the branch and failed the moment it ran anywhere else, which is the signature of a test
+     * that depends on a platform behaviour rather than on the product. The harness now updates what the client
+     * reads (the tracked position) and drives the drag event the client would have driven — so the thing under
+     * test is Club's drag, not GLFW's callback policy.</p>
+     */
     public static void moveCursor(MinecraftClient mc, int slotId) {
         HandledScreen<?> screen = screen(mc);
         if (screen == null) return;
         double[] p = slotCentre(mc, screen, slotId);
         double factor = mc.getWindow().getScaleFactor();
-        GLFW.glfwSetCursorPos(mc.getWindow().getHandle(), p[0] * factor, p[1] * factor);
+        double px = p[0] * factor, py = p[1] * factor;
+        GLFW.glfwSetCursorPos(mc.getWindow().getHandle(), px, py);
+
+        var mouse = (com.club.mixin.MouseAccessor) mc.mouse;
+        double fromX = mc.mouse.getX(), fromY = mc.mouse.getY();
+        mouse.club$setX(px);
+        mouse.club$setY(py);
+        // …and the event itself: the real client turns a cursor move with a button held into mouseDragged.
+        screen.mouseDragged(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT,
+                p[0] - fromX / factor, p[1] - fromY / factor);
     }
 
     /** @return "consumed" when Club took the press (so vanilla never saw it), or what vanilla then did */

@@ -13,7 +13,12 @@
     "MixinMouse",
     "MixinSimpleOption",
     "MouseAccessor",
-    "MixinHandledScreenAccessor"
+    "MixinHandledScreenAccessor",
+    "WorldRendererAccessor",
+    "MixinWorldRendererFrustum",
+    "MixinParticleManager",
+    "MixinBlockEntityRenderDispatcher",
+    "MixinMinecraftClientFps"
   ],
   "injectors": {
     "defaultRequire": 1

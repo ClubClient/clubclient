@@ -9,7 +9,7 @@ import net.minecraft.util.Identifier;
 
 public final class UiShaders {
     private UiShaders() {}
-    public static ShaderProgram SDF, SDF_BATCH, TEXT;
+    public static ShaderProgram SDF, SDF_BATCH, TEXT, ICON;
 
     /**
      * Vertex format of the BATCHED shape shader: the per-shape parameters that used to be uniforms
@@ -32,7 +32,11 @@ public final class UiShaders {
             ctx.register(Identifier.of("club", "ui_sdf_shape"), VertexFormats.POSITION_TEXTURE_COLOR, p -> SDF = p);
             ctx.register(Identifier.of("club", "ui_sdf_batch"), SHAPE_FORMAT, p -> SDF_BATCH = p);
             ctx.register(Identifier.of("club", "ui_msdf_text"), VertexFormats.POSITION_TEXTURE_COLOR, p -> TEXT = p);
+            ctx.register(Identifier.of("club", "ui_icon"), VertexFormats.POSITION_TEXTURE_COLOR, p -> ICON = p);
         });
     }
     public static boolean ready() { return SDF != null && SDF_BATCH != null && TEXT != null; }
+    /** The batched duotone-icon program (Stage 67). Separate from {@link #ready()}: a missing icon shader
+     *  must fall back to the old per-sprite DrawContext path, not take the whole UI down to LEGACY. */
+    public static boolean iconReady() { return ICON != null; }
 }

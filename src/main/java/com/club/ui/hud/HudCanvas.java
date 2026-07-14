@@ -187,7 +187,14 @@ public final class HudCanvas extends Container {
             int cx = HudSnap.clampAxis((int) e.xLeft(), (int) e.width(), screenW);
             int cy = HudSnap.clampAxis((int) e.yTop(),  (int) e.height(), screenH);
             if (cx != (int) e.xLeft() || cy != (int) e.yTop()) e.layout(cx, cy, e.width(), e.height());
+            com.club.modules.perf.DrawBoxes.current = e.getClass().getSimpleName();   // name the offender, if any
             e.render(ctx);
+            // The icon batch does NOT cross an element boundary (Stage 67). Two elements can overlap — the
+            // player can drag one onto another in the editor — and the harness caught exactly that: a mob
+            // walked into the crosshair, the Target chip appeared, and its panel landed on an Effects icon.
+            // Batching across that boundary would have popped the icon out through the panel. Inside an
+            // element the reorder is proved harmless; between elements nothing is reordered at all.
+            com.club.ui.Ui.flushIcons();
         }
         if (!editor) return;
 

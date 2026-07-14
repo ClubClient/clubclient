@@ -95,6 +95,7 @@ public class ClubClient implements ClientModInitializer {
 
         // [SEAM:init] Module registration. One line per workstream, logic lives in the module's own package.
         com.club.modules.itemscroll.ItemScrollModule.init();
+        com.club.modules.perf.PerfMenu.init();
 
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ClubConfig.close());
@@ -109,6 +110,13 @@ public class ClubClient implements ClientModInitializer {
         if (com.club.harness.ClubPromo.enabled()) {
             ClubMod.LOGGER.info("[Club] promo director ARMED");
             com.club.harness.ClubPromo.start();
+        }
+
+        // Dev-only benchmark (CLUB_BENCH): a fixed-seed arena, pinned settings, interleaved A/B — and an
+        // INVALID verdict rather than a number, whenever the run would be measuring something other than us.
+        if (com.club.harness.ClubBench.enabled()) {
+            ClubMod.LOGGER.info("[Club] benchmark ARMED");
+            com.club.harness.ClubBench.start();
         }
 
         ClubMod.LOGGER.info("[Club] client initialized");
