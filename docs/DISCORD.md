@@ -212,6 +212,28 @@ Discord, и работа автомодерации.
 
 ## 6. Тексты
 
+### Два правила, купленные вживую
+
+**1. Ссылки — ВСЕГДА в угловых скобках `<...>`.**
+
+Голая ссылка заставляет Discord развернуть карточку-превью. Три ссылки в шапке правил = три карточки на
+пол-экрана каждая, и текст правил тонет под ними. Правила перестают читаться ровно в том канале, где
+их обязаны прочесть.
+
+```
+https://github.com/ClubClient/clubclient      ← карточка во весь экран
+<https://github.com/ClubClient/clubclient>    ← просто кликабельная ссылка
+```
+
+**2. Подпись и аватар.** Discord показывает ГЛОБАЛЬНОЕ имя аккаунта — то есть настоящее имя владельца,
+а не студию. Лечится псевдонимом на сервере: правый клик по себе → **Изменить псевдоним** → `Club Dev`,
+плюс выдать себе роль `Club Dev` (тогда ник станет акцентно-синим).
+
+Аватар на отдельном сервере — **платный** (Nitro). Бесплатно меняется только глобальный. Студия с
+личным фото автора в шапке правил выглядит слабее, чем с фирменным знаком, — но это решение владельца.
+
+### Длина
+
 **Каждый язык — ОТДЕЛЬНЫМ сообщением.** Лимит Discord — 2000 знаков на сообщение, и два языка в одно
 не влезают (проверено: перелимит на 215 знаков). Покупать Nitro ради этого не надо — это подписка ради
 того, чтобы не нажать Enter дважды.
@@ -225,9 +247,9 @@ Discord, и работа автомодерации.
 **Club** — a first-person utility client for Minecraft 1.21.1 (Fabric).
 Zoom, fullbright, freelook, item scrolling, a movable HUD. Open source, MIT.
 
-📥  **Download** — https://modrinth.com/mod/clubclient
-💻  **Source** — https://github.com/ClubClient/clubclient
-🐛  **Bugs** — https://github.com/ClubClient/clubclient/issues
+📥  **Download** — <https://modrinth.com/mod/clubclient>
+💻  **Source** — <https://github.com/ClubClient/clubclient>
+🐛  **Bugs** — <https://github.com/ClubClient/clubclient/issues>
 
 **Rules**
 
@@ -252,9 +274,9 @@ That is the whole of it.
 **Club** — клиентский мод для Minecraft 1.21.1 (Fabric).
 Зум, фулбрайт, фрилук, перенос предметов колесом, перетаскиваемый HUD. Открытые исходники, MIT.
 
-📥  **Скачать** — https://modrinth.com/mod/clubclient
-💻  **Исходники** — https://github.com/ClubClient/clubclient
-🐛  **Баги** — https://github.com/ClubClient/clubclient/issues
+📥  **Скачать** — <https://modrinth.com/mod/clubclient>
+💻  **Исходники** — <https://github.com/ClubClient/clubclient>
+🐛  **Баги** — <https://github.com/ClubClient/clubclient/issues>
 
 **Правила**
 
@@ -312,6 +334,11 @@ rendering Club hooks into, so they matter more than the rest of your list.
 ### 6.3. Шаблон поста в `📢│announcements`
 
 Заполняется на релизе. Тон — как у `CHANGELOG.md`: говорим, что изменилось и почему, не рекламируем.
+Опять же — **два сообщения**, английское и русское.
+
+Здесь ссылка на Modrinth оставлена **голой намеренно**: это единственное место, где карточка-превью
+работает на тебя. В релизном посте она и есть кнопка «скачать». Ссылку на changelog — в скобки, вторая
+карточка уже мусор.
 
 ```
 ## Club vX.Y.Z
@@ -320,14 +347,9 @@ rendering Club hooks into, so they matter more than the rest of your list.
 
 <2–4 пункта: что изменилось. Числа — только те, что воспроизводит бенч.>
 
+📄 Full changelog: <https://github.com/ClubClient/clubclient/releases>
+
 📥 https://modrinth.com/mod/clubclient
-📄 Full changelog: https://github.com/ClubClient/clubclient/releases
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-## Club vX.Y.Z
-
-<то же по-русски>
 ```
 
 ---
