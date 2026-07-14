@@ -17,6 +17,16 @@ import java.util.Arrays;
  *
  * <p>Samples are nanoseconds. The window is a ring: once full, the oldest sample is overwritten, so a long
  * run measures its last {@code capacity} frames rather than growing without bound.
+ *
+ * <p><b>THIS IS AN INSTRUMENT, NOT AN FPS SOURCE. IT MUST NEVER REACH THE HUD.</b> It is fed only by
+ * {@link HudProfiler}, which only the harness and the bench ever arm. There is deliberately no
+ * {@code fps()} method here, and adding one would be a mistake: a frame rate derived from these samples
+ * (as {@code HudProfiler.Snapshot.fps()} does, {@code 1000/median frame ms}) is a DIFFERENT QUANTITY from
+ * the game's counter. The median throws away the slow frames; a frames-per-wall-second counter is forced
+ * to include them. So it reads systematically HIGH, and by exactly the sort of margin — a few percent —
+ * that produces two numbers on one screen calling each other liars. The player-facing chip
+ * ({@code com.club.ui.hud.InfoElement}) reads {@code MinecraftClient.getCurrentFps()} and nothing else, on
+ * purpose. Anything measured here is a number about the MOD, for a report, with its definition attached.
  */
 public final class FrameStats {
     private final long[] ring;

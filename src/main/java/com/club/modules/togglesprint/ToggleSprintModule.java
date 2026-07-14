@@ -16,10 +16,28 @@ public final class ToggleSprintModule {
 
     private static boolean wasForcing;
 
-    /** Whether the module is holding sprint this tick (also feeds the HUD chip's live state). */
+    /**
+     * Whether autosprint is DOING ITS JOB: the module is on and it is not standing down.
+     *
+     * <p>This is the module's one honest state, and two surfaces read it: the tick below and the HUD
+     * chip ({@code ui.hud.SprintElement}). It is deliberately NOT "the player is sprinting" — vanilla
+     * decides that from forward motion, hunger and collisions, and a player sprinting by hand while
+     * this module stands down is still not autosprint.</p>
+     *
+     * <p>A third surface asks the same question a third way: {@code MenuContent.notice("Toggle Sprint")}
+     * re-derives {@code enabled && vanillaSprintToggled} inline instead of calling this. Two copies of
+     * one truth is one copy too many — they can drift — but that file is frozen; see the handoff note.</p>
+     *
+     * <p>Null-safe on purpose: the HUD calls this from the render path every frame, and
+     * {@code mc.options} is null for part of startup (the menu's notice() guards the same field). No
+     * options means we cannot know whether vanilla's toggle has taken over — and "I don't know" must
+     * answer NOT ACTIVE, never a cheerful yes. It is also the truth: we are forcing nothing yet.</p>
+     */
     public static boolean active(MinecraftClient mc) {
         return ClubConfig.get().toggleSprint.enabled
+                && mc != null
                 && mc.player != null
+                && mc.options != null
                 && !mc.options.getSprintToggled().getValue();
     }
 

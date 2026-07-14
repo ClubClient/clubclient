@@ -7,18 +7,24 @@ import net.minecraft.client.MinecraftClient;
 
 /**
  * Hold-to-zoom (v0.1 kit, Stage 39): while the zoom key is held, the WORLD FOV divides by an eased
- * factor — 0.18s decelerate, the same motion language as the UI; instant when Smooth is off. The
- * scroll wheel adjusts the factor mid-zoom (consumed, so the hotbar never switches under a zoom);
- * a scroll-adjusted factor persists ONCE on release, not per notch. Data/state only: the FOV hook
- * lives in {@code MixinGameRenderer} (world pass only — the hand keeps its FOV), the wheel seam in
- * {@code MixinMouse}.
+ * factor — decelerate, the same motion language as the UI; instant when Smooth is off. The ease
+ * duration is {@code smoothness * MAX_SMOOTH} seconds — 0 → instant, 1 → 0.45s — so the Smooth
+ * slider IS the duration. The scroll wheel adjusts the factor mid-zoom (consumed, so the
+ * hotbar never switches under a zoom); a scroll-adjusted factor persists ONCE on release, not per
+ * notch. Data/state only: the FOV hook lives in {@code MixinGameRenderer} (world pass only — the
+ * hand keeps its FOV), the wheel seam in {@code MixinMouse}.
  */
 public final class ZoomModule {
     private ZoomModule() {}
 
     public static final float MIN_FACTOR = 2f, MAX_FACTOR = 8f;
     private static final float STEP = 0.5f;      // one wheel notch
-    private static final float MAX_SMOOTH = 0.45f;   // ease duration (s) at smoothness = 1
+    // Ease duration (s) at smoothness = 1. Kept at 0.45 across the log-curve fix, deliberately: under the
+    // old curve the FOV was visually done in the first ~third of the duration and crawled after, so 0.45s
+    // never read as 0.45s of motion. Now the whole duration is visible motion — the same number will FEEL
+    // longer. It is the ceiling of a slider the user sets (default smoothness 0.5 → 0.225s), and "1 = very
+    // smooth" should mean genuinely slow, so the ceiling stays. Revisit only if the owner says max is sluggish.
+    private static final float MAX_SMOOTH = 0.45f;
 
     private static final long START = System.nanoTime();
     // Ease is recreated when the smoothness setting changes (Transition duration is fixed at construction).
@@ -54,8 +60,30 @@ public final class ZoomModule {
         return lastDivisor;
     }
 
-    /** Pure FOV divisor for a factor and eased amount {@code v} in [0,1] (1 = full zoom). */
-    public static float divisorFor(float factor, float v) { return 1f + (factor - 1f) * v; }
+    /**
+     * Pure FOV divisor for a factor and eased amount {@code v} in [0,1] (1 = full zoom).
+     *
+     * <p>The ease is applied in LOG space — {@code factor^v}, not {@code 1 + (factor-1)*v}. This is not
+     * a taste choice, it is what made the zoom lurch (owner: "плавность работает не на всю силу").
+     * The eye does not see the divisor, it sees the FOV, and FOV = base/divisor is a HYPERBOLA in the
+     * divisor: easing the divisor linearly dumps most of the visible motion into the first few frames
+     * and crawls through the rest. At factor 8 / base 70°, the old curve put the FOV at 41° by v=0.10
+     * — 47% of the whole FOV travel, and DECELERATE reaches v=0.10 inside the first ~5% of the duration
+     * — and then spent the entire back half (v=0.6→1) moving the FOV just 4.7°. Worse, the violence of
+     * that opening scaled with the factor: at the SAME smoothness, 2× was almost linear and 8× was a
+     * jump, because the opening rate goes as (factor-1). One slider, two behaviours.</p>
+     *
+     * <p>{@code factor^v} makes every equal slice of time multiply the magnification by an equal RATIO,
+     * which is what a perceptually even zoom is, and it behaves identically at 2× and at 8×. Endpoints
+     * are unchanged and exact — Math.pow returns the base for exponent 1 and 1.0 for exponent 0 — so
+     * v=0 still means no zoom and v=1 still divides the FOV by exactly the factor.</p>
+     */
+    public static float divisorFor(float factor, float v) {
+        // Exact endpoints, and no pow() on the idle path — fovDivisor() runs every frame, zoomed or not.
+        if (v <= 0f) return 1f;
+        if (v >= 1f) return factor;
+        return (float) Math.pow(factor, v);
+    }
 
     /**
      * Look-sensitivity multiplier for this frame (1 = untouched). Zoomed in, the mouse must turn the

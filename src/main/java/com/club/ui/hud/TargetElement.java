@@ -15,8 +15,11 @@ import net.minecraft.client.MinecraftClient;
  * the HP bar. <b>HP-first hierarchy</b> — the health number (18 SemiBold since Stage 19, bright) leads, the name
  * follows quieter (13 Medium, muted, truncated with "…" at a FIXED width so the chip never
  * stretches for long names). In PvP the eye catches the number and the live edge; the name is
- * secondary. The edge fill hue-ramps as HP drains — cold steel-blue → purple → orange → red
- * (smooth lerp, never a hard switch). Digits are never coloured (state = the edge).
+ * secondary. The bottom edge is a 6px GAUGE (item 11) whose fill ramps GREEN → YELLOW → RED as HP drains
+ * (smooth lerp, never a hard switch) — the universal health language, spoken in the palette's OWN state
+ * tokens, so the bar informs instead of merely backing the type. Digits are never coloured (state = the
+ * edge); that law is also what keeps the chip safe for red-green colour blindness — the NUMBER carries the
+ * value, the hue is only an additive cue.
  */
 public final class TargetElement extends HudElement {
     // Stage 19 (owner: the Target got quiet next to the pixel-icon elements — "чуть улучшить"):
@@ -24,20 +27,32 @@ public final class TargetElement extends HudElement {
     private static final float HP_SIZE = 18f, UNIT_SIZE = 12f, NAME_SIZE = 13f;
     private static final int   GAP = 10;            // HP-group ↔ name gap (unscaled)
     private static final float PAD_X = 10f, PAD_TOP = 6f;   // hero keeps a touch more air than the 8px rows
-    private static final float BAR_H = 4f;          // live edge height
-    private static final int   CONTENT_H = 34;      // full chip height (text band + edge zone)
+    // Item 11 (owner: the bar must read as a MEANS OF INFORMATION, not as a backing plate). 4 → 6px: the
+    // next step on the HUD's own 2px bar grid (Armor/Effects row lines are 2px; this edge was 4). 8px — the
+    // doubling, spacing.sm — was rejected: at 8 the bar stops being an edge and becomes a second surface
+    // competing with the capsule, and the owner asked for "чуть" (slightly) wider. At 6 the Target still owns
+    // the loudest bar in the HUD (3× a row line), which is the hero rank HUD-LANGUAGE §1/§2 grants it.
+    private static final float BAR_H = 6f;          // live edge height — the HP gauge
+    // ...and the chip absorbs exactly what the bar took, DOWNWARD, so no type moves:
+    //     bar top = CONTENT_H - BAR_H - EDGE_BOT   →   old: 34-4-2 = 28    new: 36-6-2 = 28   (identical)
+    // So the text band is untouched and the HP number keeps its exact position, size and air — the gauge grew
+    // into the chip's own bottom margin, never into the type. 36 also lands the chip on the 4px spacing grid
+    // for the first time (34 is not divisible by 4) and makes the height an exact 4 × CHIP_RAD.
+    private static final int   CONTENT_H = 36;      // full chip height (text band + edge zone)
     private static final float NAME_MAX_W = 80f;    // FIXED name field — longer names ellipsize here
     private static final float MIN_W = 92f;
     private static final String UNIT = " HP";
 
     // HP tone C: number a touch brighter than the name-support tone, the "HP" unit dimmer — a micro-hierarchy
-    // inside the value so it reads dearer without a third text colour on the name.
+    // inside the value so it reads dearer without a third text colour on the name. These are NEVER ramped:
+    // the digits stay neutral at every HP (state lives on the edge), and that law is precisely what makes a
+    // green/red gauge safe for the ~8% of men with red-green colour blindness — the number carries the value.
     private static final int HP_NUM  = 0xFFEAEDF2;
     private static final int HP_UNIT = 0xFF7E8696;
-    // #4 accent for the bar: a cold, de-saturated steel-blue (the old #7CABFF read "cheat-client toy" on the bar).
-    private static final int STEEL   = 0xFF86A6CC;
-    private static final int PURPLE  = 0xFF9B7FCB;
-    private static final int ORANGE  = 0xFFE0A24E;
+    // The steel-blue → purple → orange ramp (Stage 13, HUD-LANGUAGE §8) is RETIRED by item 11 — the owner
+    // wants the universal health language. Its colours were local one-offs; the replacement introduces no new
+    // hex at all: it uses the palette's own state family, the same three ArmorElement.stateColor() already
+    // ramps durability through, so the HUD keeps ONE green, ONE yellow, ONE red. See hpColor().
 
     // HP-bar fraction easing: a short tween so the bar glides on damage/heal but never trails real HP by more
     // than the fast duration; snaps when the target changes so it re-bases.
@@ -135,14 +150,39 @@ public final class TargetElement extends HudElement {
                 TextStyle.of(Weight.MEDIUM, NAME_SIZE * s, nameC).effect(HudPaint.textShadow(alpha)));
     }
 
-    /** #5 HP-bar colour ramp as health drains: steel-blue (high) → purple → orange → red (low), smoothly lerped
-     *  — a hard switch at one threshold looks cheap; the ramp makes the drain feel expensive. */
+    /** Item 11 — the gauge's colour: the universal health language, GREEN (healthy) → YELLOW → RED (dying).
+     *
+     *  <p><b>Hues.</b> The palette's state family, verbatim: stateGood #2ECC71, stateWarn #E3C66A, stateLow
+     *  #E06B6B. No new colour is introduced. ArmorElement.stateColor() already ramps durability through these
+     *  same three, so a green Target bar is not a foreign import — it is the Target finally speaking the
+     *  green/yellow/red its sibling element already spoke, and the HUD still holds exactly one green.
+     *
+     *  <p><b>Anchors.</b> Green while f ≥ 0.60; pure yellow at 0.30; pure red at 0 (halving: 30 = 60/2).
+     *
+     *  <p>The 30% figure is NOT invented here and it is NOT preserved from the code either — the code and its
+     *  own source of truth disagreed, and this aligns them. docs/HUD-LANGUAGE.md has said "&lt;30% → the bar
+     *  lerps to stateLow" since Stage 19; the shipped {@code hpColor} lerped from <b>20%</b>. Nobody noticed
+     *  because the old ramp bottomed out in a red nobody read as red anyway (it arrived via ORANGE, from
+     *  PURPLE, from STEEL). The doc wins: it is the etalon, and a HUD whose code quietly contradicts its own
+     *  specification is how a design language rots.
+     *
+     *  <p>The green plateau earns its keep: with a lerp straight from 1.0 the bar would tint on the first
+     *  scratch, and colour that moves when nothing important happened is noise. The first hue movement should
+     *  MEAN something.
+     *
+     *  <p><b>Interpolated, not stepped</b> — and deliberately unlike Armor, which plateaus. The bar's LENGTH
+     *  already glides (the hpFrac tween); a hue that snapped while the length glided would read as a glitch,
+     *  not as a threshold. Armor is a glance-and-zone indicator, so steps suit it; Target is the combat focus
+     *  and the player tracks the drain in real time, so it stays continuous — role over uniformity
+     *  (HUD-LANGUAGE §0). The discrete, glanceable channel here is the NUMBER ("20 HP"), not the hue; that is
+     *  also the channel a red-green colour-blind player reads, which is why the ramp may be smooth at all. */
     private static int hpColor(float f) {
-        int red = Tokens.palette().stateLow();
-        if (f >= 0.55f) return STEEL;
-        if (f >= 0.38f) return Color.lerp(PURPLE, STEEL,  (f - 0.38f) / 0.17f);
-        if (f >= 0.20f) return Color.lerp(ORANGE, PURPLE, (f - 0.20f) / 0.18f);
-        return Color.lerp(red, ORANGE, Math.max(0f, f) / 0.20f);
+        int green  = Tokens.palette().stateGood();
+        int yellow = Tokens.palette().stateWarn();
+        int red    = Tokens.palette().stateLow();
+        if (f >= 0.60f) return green;
+        if (f >= 0.30f) return Color.lerp(yellow, green,  (f - 0.30f) / 0.30f);
+        return Color.lerp(red, yellow, Math.max(0f, f) / 0.30f);
     }
 
     /** Unscaled chip width — hug (pad + HP group + gap + name), the name capped at its FIXED field. */

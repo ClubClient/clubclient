@@ -17,7 +17,7 @@ public final class ItemScrollMenu {
 
     public static MenuContent.Module card() {
         ClubConfig c = ClubConfig.get();
-        return new MenuContent.Module("Item Scroll", "Move items by scrolling and dragging over slots.",
+        return new MenuContent.Module("Item Scroll", "Move items by scrolling instead of clicking them.",
                 IconGlyph.ITEM_SCROLL,
                 () -> c.itemScroll.enabled,
                 v -> { c.itemScroll.enabled = v; ClubConfig.save(); },
@@ -42,10 +42,16 @@ public final class ItemScrollMenu {
      * same gestures means we are deliberately inert (a lit card doing nothing is how a mod earns a
      * "broken" review), and creative is not handled at all — its screen keeps fake slots behind a
      * different click path, and a half-working creative is worse than an honest gap.
+     *
+     * <p>Both lines are written for a PLAYER, not for us. "Creative inventory: not handled" was the old
+     * second line: "handled" is a word about our code, and it left the player to guess whether that meant
+     * broken, unsupported, or dangerous. It means the scroll does nothing there — so it says that. Likewise
+     * "X is installed" told the player a fact they already knew (they installed it); what they did not know
+     * is why OUR card has gone quiet, which is that X already does this.</p>
      */
     public static String notice() {
         String sibling = ItemScrollModule.sibling();
-        if (sibling != null) return "Idle — " + sibling + " is installed";
-        return ClubConfig.get().itemScroll.enabled ? "Creative inventory: not handled" : null;
+        if (sibling != null) return "Idle — " + sibling + " does this";
+        return ClubConfig.get().itemScroll.enabled ? "Doesn't work in the creative inventory" : null;
     }
 }

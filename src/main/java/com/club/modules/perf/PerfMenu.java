@@ -39,9 +39,12 @@ public final class PerfMenu {
             if (!p.cullParticles && !p.cullBlockEntities && !p.throttleWhenUnfocused)
                 return "Idle — every option is off";
             // The one thing a player deserves to be told without asking: the biggest win in this space is
-            // not ours, and it is one mod away.
+            // not ours, and it is one mod away. Kept SHORT — the notice is a single-line 12px caption in a
+            // 220px sheet (Label is single-line, it does not wrap), and the old 61-character version of this
+            // sentence could not have fit. Why we don't cull entities ourselves is a paragraph, and it lives
+            // where a paragraph fits: CHANGELOG.md.
             if (!FabricLoader.getInstance().isModLoaded("sodium"))
-                return "Install Sodium for the entity culling we deliberately don't do";
+                return "Install Sodium for entity culling";
             return null;
         });
     }
@@ -59,11 +62,25 @@ public final class PerfMenu {
                 () -> { p.cullParticles = true; p.cullBlockEntities = true;
                         p.throttleWhenUnfocused = true; p.backgroundFps = 15; save(); },
                 List.of(
-                        new MenuContent.ToggleSetting("Cull particles",
+                        // "Cull" and "throttle" are OUR words for these — a player has never typed either.
+                        // Each row now names the thing it skips and where it is. That is also the only honest
+                        // phrasing available: both toggles skip work whose result cannot be seen, so a label
+                        // like "Hide particles" would promise a visible change this module exists never to
+                        // make. The rows are the card's subtitle, itemised: skip / drawing / what you cannot
+                        // see.
+                        //
+                        // "Unseen", not "off-screen", and not "hidden". "Off-screen" is the precise word and
+                        // it was the first draft — but a toggle row is a 40px switch inside a 220px sheet, so
+                        // the label has ~175px, and "Skip off-screen block entities" measures past that and
+                        // runs over the switch (the collision the SLIDER rows already had to fix with a fixed
+                        // label column, below). "Hidden" would have been the wrong retreat: it implies an
+                        // occlusion pass, and we never cull anything that a wall merely stands in front of.
+                        // "Unseen" describes the object, claims no method, and keeps the card's promise.
+                        new MenuContent.ToggleSetting("Skip particles behind you",
                                 () -> p.cullParticles, v -> { p.cullParticles = v; save(); }),
-                        new MenuContent.ToggleSetting("Cull block entities",
+                        new MenuContent.ToggleSetting("Skip unseen block entities",
                                 () -> p.cullBlockEntities, v -> { p.cullBlockEntities = v; save(); }),
-                        new MenuContent.ToggleSetting("Throttle in background",
+                        new MenuContent.ToggleSetting("Cap FPS in the background",
                                 () -> p.throttleWhenUnfocused, v -> { p.throttleWhenUnfocused = v; save(); }),
                         // Floor 15: below that the first frame after you alt-tab back costs 1/cap and the
                         // window feels broken. It is not a number we are being timid about — it is measured.

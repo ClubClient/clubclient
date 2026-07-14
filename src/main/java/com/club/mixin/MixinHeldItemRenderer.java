@@ -88,9 +88,31 @@ public class MixinHeldItemRenderer {
 
         // Custom attack pose — only on the hand that actually swung (vanilla gates the swing it
         // hands out by player.preferredHand; the captured progress belongs to that hand alone),
-        // and not while using an item.
+        // and not while VANILLA IS ALREADY DRAWING ITS OWN item-use pose for THIS hand.
+        //
+        // That last clause used to read `!player.isUsingItem()`, and it is not the complement of vanilla's
+        // condition — the gap is a hole, not a rounding error. Vanilla takes its use-pose branch only when
+        // ALL THREE hold (renderFirstPersonItem, 1.21.1 bytecode @643-662, and @199-218 for the crossbow):
+        //     isUsingItem() && getItemUseTimeLeft() > 0 && getActiveHand() == hand
+        // Two consequences of the old, broader gate, both of which SILENCE the animation entirely:
+        //
+        //  • Off-hand use. Shield up, food or a bow in the OFF hand: isUsingItem() is true, but
+        //    getActiveHand() != MAIN_HAND, so vanilla renders the MAIN hand through its ORDINARY branch —
+        //    with the swing club$captureSwing already zeroed. Vanilla therefore draws the rest pose, and
+        //    the old gate refused to draw ours on top. The sword swung with NO animation at all.
+        //  • Latency. isUsingItem() is not a local fact: it reads the LIVING_FLAGS DataTracker bit, and
+        //    setCurrentHand only writes that bit when !world.isClient (LivingEntity @36-42). For the LOCAL
+        //    player it is server-authoritative and lags by a round trip in BOTH directions, so for ~1 RTT
+        //    after releasing right-click the gate still said "using" and ate the first swing after a block.
+        //
+        // Zeroing the swing is unconditional on overridesVanillaSwing(); the pose must be too, minus exactly
+        // the frames vanilla is posing the hand itself. Anything wider is a frame with no animation from
+        // either side — and "zero must be able to mean broken".
         Hand swingHand = player.preferredHand != null ? player.preferredHand : Hand.MAIN_HAND;
-        if (hand == swingHand && !player.isUsingItem() && AnimationModule.overridesVanillaSwing()) {
+        boolean vanillaUsePose = player.isUsingItem()
+                && player.getItemUseTimeLeft() > 0
+                && player.getActiveHand() == hand;
+        if (hand == swingHand && !vanillaUsePose && AnimationModule.overridesVanillaSwing()) {
             int arm = rightSide ? 1 : -1;
             Pose pose = AnimationModule.pose(club$pose, club$swing, arm);
             if (pose != null && !pose.isIdentity()) {
