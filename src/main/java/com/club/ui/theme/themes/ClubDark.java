@@ -16,8 +16,28 @@ public final class ClubDark {
             0xFF2ECC71, 0xFFE3C66A, 0xFFE06B6B,
             0xFFFFFFFF);
 
-        // wells: exact owner-approved tones (Stage-22 composition board) — deep #111927, shallow #131A28
-        Surface surface = new Surface(p.ink0(), p.ink2(), p.ink4(), p.ink5(), p.ink6(), 0xFF111927, 0xFF131A28);
+        // THE LADDER (owner, v0.1.3 item 4: "подложка вроде есть, а вроде нету — выглядит как однотонная
+        // заливка"). He was not being fussy; the ladder was BROKEN, and the arithmetic says so:
+        //
+        //   window   surface     #131B2A
+        //   rail     wellShallow #131A28   <- Δ 0 / 1 / 2 from the window. Not "low contrast". IDENTICAL.
+        //   well     well        #111927   <- Δ 2 / 2 / 3 from the window
+        //   card     surfaceHi   #18212F
+        //
+        // Two of the four surfaces were the same colour, and a third was three units away. The separation
+        // existed in the code and did not exist for the eye. Rebuilt as a monotone ladder, every step ≥ 4
+        // units on every channel, using tones that ALREADY live in the ink ramp — nothing invented:
+        //
+        //   window   #131B2A  ink5   the frame
+        //   rail     #0F1624  ink4   a tray recessed into it          (Δ 4 / 7 / 6)
+        //   well     #0B111A  ink2   the deepest recess               (Δ 4 / 5 / 10)
+        //   card     #18212F  ink6   floats above the well            (Δ 13 / 16 / 21)
+        //
+        // The well stops at ink2, not ink1/ink0: the owner rejected a deeper one as "жестокая линия чёрного
+        // квадрата", and he was right — a near-black rectangle inside a dark panel reads as a hole, not as
+        // depth. Depth is a LADDER, not a pit. Cards also take a 1px hairline (see ClubMenuScreen), because
+        // tone alone drowns on a cheap panel and the hairline is what survives there.
+        Surface surface = new Surface(p.ink0(), p.ink2(), p.ink4(), p.ink5(), p.ink6(), 0xFF0B111A, 0xFF0F1624);
         Accent accent   = new Accent(p.accent(), 0xFF93BBFF, p.accent(), p.accent2(), p.ink0(), 0xFF5F83C2);
         Border border   = new Border(Color.withAlpha(p.white(), 0x0F), 0xFF1D2536, 0xFF2A3550, 1f);
         Radius radius   = new Radius(4f, 6f, 10f, 14f, 20f);

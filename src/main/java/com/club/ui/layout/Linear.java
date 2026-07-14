@@ -55,6 +55,40 @@ abstract class Linear extends Container {
         return horizontal ? new Size(mainTotal, crossTotal) : new Size(crossTotal, mainTotal);
     }
 
+    /**
+     * The largest extent ≤ {@code budget} that ends in a GAP BETWEEN children, never inside one.
+     *
+     * <p>Why this exists: a scrolling container capped at an arbitrary pixel height cuts whatever child
+     * happens to straddle that pixel — and the popover was doing exactly that, slicing "Reset to Default"
+     * through the middle of its letters (owner, v0.1.3 item 10: "что с надписью у нижнего края? почему это
+     * так убого смотрится"). It is not a taste problem and it is not a clipping bug in the renderer: it is a
+     * height chosen without asking the content where its seams are.
+     *
+     * <p>A half-drawn row is the worst of both worlds — it is neither shown nor hidden, so the eye reads it
+     * as damage rather than as "there is more below". Snapping the viewport to a child boundary makes that
+     * state UNREACHABLE, not merely unlikely: the scrollbar still says there is more, and everything the
+     * player can see is whole.
+     *
+     * <p>Returns {@code budget} unchanged when not even the first child fits — a sliver of one row is ugly,
+     * but zero rows is unusable, and there is nothing better to do with the space.
+     */
+    public float snapToChild(float availW, float availH, float budget) {
+        float innerW = availW - padding.horizontal(), innerH = availH - padding.vertical();
+        float pad = horizontal ? padding.horizontal() : padding.vertical();
+        float acc = 0f, best = 0f;
+        int n = children.size();
+        for (int i = 0; i < n; i++) {
+            Component c = children.get(i);
+            float len;
+            if (c instanceof Spacer sp && sp.sizing() instanceof Sizing.Fixed) len = sp.length();
+            else { Size s = c.measure(innerW, innerH); len = mainOf(s.w(), s.h()); }
+            if (i > 0) acc += gap;
+            acc += len;
+            if (acc + pad <= budget) best = acc + pad; else break;
+        }
+        return best > 0f ? best : budget;
+    }
+
     @Override public void layout(float x, float y, float w, float h) {
         super.layout(x, y, w, h);
         int n = children.size();

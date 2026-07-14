@@ -159,6 +159,7 @@ public final class ClubMenuScreen extends Screen {
     private Transition segSlide;    // segmented-tab pill position — outer, so it survives popover rebuilds
     private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
     private float popX, popY, popW, popH, popAX, popAY, popAH, popContentH, popInnerW;
+    private float popRoom;   // vertical room the sheet was allowed — the denominator of "maximal" (harness seam)
     private int pressOwner;
     // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
     // (dropdown expand, tab switch). Content is clipped to the eased height so any resize reveals smoothly.
@@ -530,14 +531,32 @@ public final class ClubMenuScreen extends Screen {
         float below = wellBottom - (gridBottom + 8);          // room from under the cards to the well bottom
         if (below >= Math.min(want, POP_H_MIN)) {             // normal: a tidy panel under the cards
             popY = gridBottom + 8;
-            popH = Math.min(want, below);
+            popRoom = below;
+            popH = fit(want, below);
         } else {                                              // no usable room — take the well, overlap the cards
-            popH = Math.max(1f, Math.min(want, wellBottom - gridTop));
+            popRoom = wellBottom - gridTop;
+            popH = Math.max(1f, fit(want, popRoom));
             popY = Math.max(gridTop, wellBottom - popH);
         }
         popX = clamp(popAX, wellX + 12, wellX + wellW - 12 - popW);
         popScroll.layout(popX + POP_PAD, popY + POP_PAD,
                 Math.max(1f, popW - 2 * POP_PAD), Math.max(1f, popH - 2 * POP_PAD));
+    }
+
+    /**
+     * The sheet's height: what the content WANTS, capped by the room available — and when the cap bites, it
+     * lands in a gap BETWEEN rows instead of through the middle of one.
+     *
+     * <p>This used to be a bare {@code min(want, room)}. When the content was taller than the room, the cap
+     * was an arbitrary pixel, and whichever row straddled it got sliced through its letters — the owner's
+     * item 10, and he was right to call it ugly rather than to call it a scroll: a half-drawn row is neither
+     * shown nor hidden, so the eye reads damage. The scrollbar still says there is more; now everything above
+     * it is whole.
+     */
+    private float fit(float want, float room) {
+        if (want <= room) return want;                        // it all fits — nothing to snap
+        float snapped = popCol.snapToChild(popInnerW, 99999f, room - 2 * POP_PAD);
+        return Math.min(want, snapped + 2 * POP_PAD);
     }
 
     /** Harness seam: the first card's box in MINECRAFT gui units — i.e. where a real mouse would have to
@@ -561,6 +580,29 @@ public final class ClubMenuScreen extends Screen {
     public float[] popoverGeometry() {
         if (popModule == null) return new float[] {0, 0, 0, 0};
         return new float[] {popContentH, popH, popY, (wellY + wellH - 8) - popY};
+    }
+
+    /**
+     * Harness seam: is the sheet as tall as it CAN be without cutting a row through the middle?
+     *
+     * <p>Two claims in one, and both have to hold or the answer is false:
+     * <ul>
+     *   <li><b>Whole</b> — the bottom edge lands in a gap between rows, never inside one. This is the bug the
+     *       owner reported (item 10): a "Reset to Default" sliced through its letters.</li>
+     *   <li><b>Maximal</b> — and it did not buy that by throwing away room. The height must be the LARGEST
+     *       row-boundary that fits, not merely A row-boundary. Without this half of the check, a sheet that
+     *       snapped down to a single visible row would pass.</li>
+     * </ul>
+     *
+     * <p>It is recomputed from the children, not read back from the value {@link #fit} produced — so a
+     * regression to the old bare {@code min(want, room)} turns it red instead of agreeing with itself.
+     */
+    public boolean popoverIsMaximalAndWhole() {
+        if (popModule == null || popCol == null) return true;
+        float viewportH = popH - 2 * POP_PAD;
+        if (popContentH <= viewportH + 0.5f) return true;          // it all fits — nothing to cut
+        float roomInner = popRoom - 2 * POP_PAD;
+        return Math.abs(popCol.snapToChild(popInnerW, 99999f, roomInner) - viewportH) < 0.5f;
     }
 
     /** Deferred close: begins the shrink-out; render() calls {@link #reallyClosePopover} once it has fully collapsed. */
@@ -696,11 +738,19 @@ public final class ClubMenuScreen extends Screen {
             String cur = hold ? com.club.modules.binds.HoldKeys.label(m.name())
                               : com.club.modules.binds.ModuleBinds.label(m.name());
             boolean listening = bindListening && bindModule == m;
-            Button bind = new Button(listening ? "Press any key…" : (cur != null ? cur : "Not set"))
-                    .variant(Button.Variant.GHOST).armed(listening).accent(accent).compact();
-            // Pinned to the widest state so arming can't resize the sheet — but never so wide that it
-            // squeezes its own label off the row on a narrow popover (Stage 58 review, GUI scale 4).
-            bind.minWidth(Math.min(new Button("Press any key…").compact().measure(10_000f, 22f).w(),
+            // While listening the field shows an ellipsis, not a sentence: the sentence is in the caption
+            // below, and a field that grows to hold an instruction is a field that resizes the sheet.
+            Button bind = new Button(listening ? "…" : (cur != null ? cur : "Not set"))
+                    .variant(Button.Variant.VALUE).armed(listening).accent(accent).compact().hug();
+            // A KEY IS A VALUE, NOT AN ACTION (owner, v0.1.3). It used to be pinned to the width of its
+            // widest possible label — "Press any key…" — which, with Button's 96px alignment floor under it,
+            // made an unbound key a 96×24 slab: the heaviest object in the sheet, for the control the player
+            // touches least. It hugs now, and sits in the same right-hand column as a slider's number.
+            //
+            // The sheet still must not resize when the button arms, so the floor is the width of the widest
+            // RESTING label ("Not set") — and the listening state no longer needs a wide one, because the
+            // instruction moved to the caption below, which is where an instruction belongs anyway.
+            bind.minWidth(Math.min(new Button("Not set").compact().hug().measure(10_000f, 22f).w(),
                                    popInnerW * 0.55f));
             bind.onClick(() -> {
                 boolean was = bindListening && bindModule == m;
@@ -719,7 +769,7 @@ public final class ClubMenuScreen extends Screen {
             // that outgrows it just gets clipped mid-word (Stage 58 — caught in the harness shot).
             if (listening)
                 col.add(new Label(bindReserved ? "That key opens the menu"
-                                               : "Esc to cancel · Delete to remove", Tokens.type().caption())
+                                               : "Press a key · Esc cancels · Delete clears", Tokens.type().caption())
                         .color(bindReserved ? Tokens.palette().stateWarn() : Tokens.palette().textFaint()));
             else {
                 // …and when NOT listening, the row admits what the key will actually do (Stage 62). All
@@ -738,11 +788,22 @@ public final class ClubMenuScreen extends Screen {
             // here would orphan an in-flight slider drag (losing its save-on-release) and wipe keyboard
             // focus. Only the CONFIRM rebuilds (controls must re-seed to the reset values); keyboard
             // focus is handed to the fresh button so Enter-Enter works end to end.
-            // Full-width Reset (Stage 56): a right-aligned button of its own width sat staggered next
-            // to the Hotkey field (ragged left edges). Spanning the popover reads deliberate and the
-            // armed "Confirm reset?" can't shift the box either.
-            Button reset = new Button(resetArmed ? "Confirm reset?" : "Reset to Default")
-                    .variant(Button.Variant.GHOST).armed(resetArmed).accent(accent);
+            // WEIGHT SHOULD MATCH FREQUENCY (owner, v0.1.3 item 3.1). This was a full-width 36px bordered
+            // button on the popover's darkest ground — the largest, heaviest object in the sheet, for the one
+            // control a player presses least and only after they have already decided. It taught the eye the
+            // wrong hierarchy: the sliders they actually drag looked lighter than the button they never touch.
+            //
+            // It is a TEXT button now: no ground, no edge, resting in textFaint, and it turns RED under the
+            // cursor because its accent is the palette's own stateLow. Destructive, quiet, unmistakable —
+            // and no bigger than the caption it sits under.
+            //
+            // The ARMED state keeps its full voice ("Confirm reset?" in the category accent): a confirmation
+            // that whispers is a confirmation nobody reads. The width floor pins the box to the WIDER of the
+            // two labels so arming cannot shift the row under the cursor mid-click.
+            Button reset = new Button(resetArmed ? "Confirm reset?" : "Reset to default")
+                    .variant(Button.Variant.TEXT).armed(resetArmed).compact().hug()
+                    .accent(resetArmed ? accent : Tokens.palette().stateLow());
+            reset.minWidth(new Button("Confirm reset?").compact().hug().measure(10_000f, 22f).w());
             reset.onClick(() -> {
                 if (resetArmed) {
                     boolean kb = popResetBtn != null && popResetBtn.isFocusVisible();
@@ -759,11 +820,19 @@ public final class ClubMenuScreen extends Screen {
                     if (kb && popResetBtn != null) focus.focusKeyboard(popResetBtn);
                 } else {
                     resetArmed = true; resetArmAt = uiCtx.time();
-                    if (popResetBtn != null) popResetBtn.label("Confirm reset?").armed(true);
+                    // The accent swaps WITH the label: quiet red at rest, the category's own accent once
+                    // armed. Both are set in place — a rebuild here would orphan an in-flight slider drag.
+                    if (popResetBtn != null) popResetBtn.label("Confirm reset?").armed(true).accent(accent);
                 }
             });
             popResetBtn = reset;
-            Row rr = new Row(); rr.add(reset, Sizing.fill());
+            // Separated by AIR, not by a line. This screen's rule since Stage 22 is that zones separate by
+            // panel edges and depth — "every hairline divider is gone" (see the class header), and the owner
+            // approved that board. A footer that needed a rule to be legible would be a footer that had not
+            // been made quiet enough; making it quiet was the whole point. One extra step of the spacing scale
+            // is all it takes now that the button no longer wears a border.
+            col.add(Spacer.fixed(Tokens.spacing().sm()));
+            Row rr = new Row(); rr.add(reset);
             col.add(rr); focus.register(reset);
         } else popResetBtn = null;
         return col;
@@ -1025,7 +1094,8 @@ public final class ClubMenuScreen extends Screen {
         // (freezing it and skipping its save-on-release) and silently clear keyboard focus.
         if (resetArmed && now - resetArmAt > RESET_ARM_HOLD) {
             resetArmed = false;
-            if (popResetBtn != null) popResetBtn.label("Reset to Default").armed(false);
+            if (popResetBtn != null)
+                popResetBtn.label("Reset to default").armed(false).accent(Tokens.palette().stateLow());
         }
 
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)

@@ -193,6 +193,31 @@ public final class ClubHarness {
             report.add((cond ? "PASS  " : "FAIL  ") + name);
             if (cond) passed++; else failed++;
         }
+        /**
+         * Wipes the screenshot directory before the first frame is captured.
+         *
+         * <p>A STALE SCREENSHOT IS A LIE THAT LOOKS LIKE EVIDENCE, and this one caught me. The shots are
+         * numbered in capture order, so adding or removing a single {@code shot()} call renumbers everything
+         * after it — and the previous run's files, under their OLD numbers, stay in the directory. I opened
+         * {@code club-03-menu.png} to judge a colour change I had just made, drew a conclusion from it, and
+         * reported it. The file was from the day before: {@code club-03} was an item-scroll frame now, and the
+         * menu had moved to {@code club-11}. The image was real, the filename was real, and the conclusion was
+         * worthless.
+         *
+         * <p>Everything else this harness produces is asserted; the screenshots are the one output judged by
+         * eye, which makes them the one output where a stale artefact cannot be caught by the instrument. So
+         * the directory is emptied at the start of the run: what is in it afterwards is what THIS run drew,
+         * and nothing else can be mistaken for it.
+         */
+        private void clearShots() {
+            java.io.File dir = new java.io.File(mc.runDirectory, "screenshots");
+            java.io.File[] old = dir.listFiles((d, n) -> n.startsWith("club-") && n.endsWith(".png"));
+            if (old == null) return;
+            int gone = 0;
+            for (java.io.File f : old) if (f.delete()) gone++;
+            if (gone > 0) report.add("INFO  cleared " + gone + " screenshot(s) from a previous run");
+        }
+
         private void shot(String name) {
             String file = String.format("club-%02d-%s.png", shotNo++, name);
             ScreenshotRecorder.saveScreenshot(mc.runDirectory, file, mc.getFramebuffer(), t -> {});
@@ -219,6 +244,7 @@ public final class ClubHarness {
 
         private void build() {
             if (built) return; built = true;
+            clearShots();   // a previous run's frames, under numbers this run will not reuse, are a trap
             ClubConfig cfg = ClubConfig.get();
 
             // THE BACKGROUND THROTTLE MUST NOT MEASURE US (found by the merge, invisible to either branch).
@@ -1025,15 +1051,27 @@ public final class ClubHarness {
             step(2, () -> key(GLFW_KEY_SPACE));                  // open Hands popover
             step(10, () -> {});                                  // a step's settle is the delay AFTER it —
             step(2, () -> shot("hands-popover"));                //   so the grow-in needs its own wait step
-            // The tallest popover in the mod: it must use every pixel of room under the cards before it
-            // starts scrolling (owner: "размер аккуратный … если там много всего пусть будет скролл").
+            // The tallest popover in the mod. It must use the room under the cards before it starts
+            // scrolling (owner: "размер аккуратный … если там много всего пусть будет скролл") — but NOT by
+            // slicing a row in half to get there.
+            //
+            // THIS CHECK USED TO ASSERT THE BUG. It demanded |h - room| < 1.5, i.e. that the sheet fill the
+            // room EXACTLY — which is only possible if the cap lands wherever it lands, straight through
+            // whatever row happens to be there. That is item 10, the one the owner called "убого": a
+            // "Reset to Default" cut through its own letters. The instrument was not silent about it; it was
+            // DEMANDING it. A green test can be worse than no test.
+            //
+            // The contract now: as tall as it can be WITHOUT cutting a row. Both halves matter — "whole"
+            // alone would pass a sheet that snapped down to one visible row, and "maximal" alone is what we
+            // had. popoverIsMaximalAndWhole() recomputes both from the children rather than reading back the
+            // number the layout produced, so a regression to min(want, room) turns it red.
             step(2, () -> {
                 if (mc.currentScreen instanceof ClubMenuScreen cs) {
                     float[] g = cs.popoverGeometry();
-                    report.add(String.format("INFO  hands popover: contentH=%.0f h=%.0f y=%.0f room=%.0f",
-                            g[0], g[1], g[2], g[3]));
-                    check("popover: fills the room under the cards when the content overflows",
-                            g[0] + 16 <= g[3] + 1 || Math.abs(g[1] - g[3]) < 1.5f);
+                    report.add(String.format("INFO  hands popover: contentH=%.0f h=%.0f y=%.0f room=%.0f waste=%.0f",
+                            g[0], g[1], g[2], g[3], g[3] - g[1]));
+                    check("popover: as tall as the room allows, and never cut through a row",
+                            g[1] <= g[3] + 1f && cs.popoverIsMaximalAndWhole());
                 } else check("popover: menu still open for the geometry check", false);
             });
 
