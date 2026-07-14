@@ -168,7 +168,32 @@ public final class ItemScrollHarness {
         if (screen == null) return;
         double[] p = slotCentre(mc, screen, slotId);
         double factor = mc.getWindow().getScaleFactor();
+        // Write the position the CLIENT tracks, not the one the OS owns.
+        //
+        // This used to call glfwSetCursorPos, which merely ASKS the OS to move the pointer; the client only
+        // learns about it if the window is focused and the OS delivers the callback. On one machine it did,
+        // on another it did not — so the drag test was really testing the window manager, and it failed on a
+        // clean tree with one slot moved out of three. Mouse.x/y is the very field a real cursor event
+        // writes, and MinecraftClient feeds it straight into the screen's mouseX/mouseY every frame, which
+        // is the seam the drag samples. Same path, no OS in it. (MouseAccessor already exists — the menu
+        // re-centres the cursor with it.)
+        com.club.mixin.MouseAccessor mouse = (com.club.mixin.MouseAccessor) mc.mouse;
+        mouse.club$setX(p[0] * factor);
+        mouse.club$setY(p[1] * factor);
+        // …and ask the OS to put the real pointer in the same place. NOT as the mechanism — as agreement:
+        // if the window is focused and a cursor callback does arrive, it now carries the coordinates we
+        // already wrote instead of dragging the tracked position back to wherever the physical mouse sits.
         GLFW.glfwSetCursorPos(mc.getWindow().getHandle(), p[0] * factor, p[1] * factor);
+    }
+
+    /** The slot the module would see under the cursor right now — the mechanism the drag depends on. */
+    public static int hoveredSlotId(MinecraftClient mc) {
+        HandledScreen<?> screen = screen(mc);
+        if (screen == null) return -1;
+        double factor = mc.getWindow().getScaleFactor();
+        Slot slot = ((MixinHandledScreenAccessor) screen)
+                .club$slotAt(mc.mouse.getX() / factor, mc.mouse.getY() / factor);
+        return slot == null ? -1 : slot.id;
     }
 
     /** @return "consumed" when Club took the press (so vanilla never saw it), or what vanilla then did */

@@ -500,14 +500,35 @@ public final class ClubHarness {
             step(5, () -> report.add("INFO  item scroll: drag press — "
                     + com.club.modules.itemscroll.ItemScrollHarness.dragPress(
                             mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_A)));
-            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
-                    mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_B));
-            step(5, () -> com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
-                    mc, com.club.modules.itemscroll.ItemScrollHarness.DIRT));
+            // Each hop asserts that the CURSOR ARRIVED before asking what the drag did with it. The first
+            // version of this test moved the pointer with glfwSetCursorPos — which only asks the OS, and the
+            // client hears about it solely if the window is focused and the callback is delivered. On one
+            // machine it was, on another it was not, and the drag check went red for a reason that had
+            // nothing to do with the drag. A test that can fail for a reason it does not name is a test that
+            // costs more than it earns; now the mechanism is checked separately and by name.
+            // The assert sits in the SAME tick as the move, deliberately: not one frame passes between
+            // writing the position and reading it back, so no late OS callback can rescue a mechanism that
+            // does not work. It either landed, or it says so.
+            step(5, () -> {
+                com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
+                        mc, com.club.modules.itemscroll.ItemScrollHarness.STONE_B);
+                check("item scroll: the harness can put the cursor ON a slot (drag hop 2)",
+                        com.club.modules.itemscroll.ItemScrollHarness.hoveredSlotId(mc)
+                                == com.club.modules.itemscroll.ItemScrollHarness.STONE_B);
+            });
+            step(5, () -> {
+                com.club.modules.itemscroll.ItemScrollHarness.moveCursor(
+                        mc, com.club.modules.itemscroll.ItemScrollHarness.DIRT);
+                check("item scroll: …and on the next one (drag hop 3)",
+                        com.club.modules.itemscroll.ItemScrollHarness.hoveredSlotId(mc)
+                                == com.club.modules.itemscroll.ItemScrollHarness.DIRT);
+            });
             step(5, () -> report.add("INFO  item scroll: drag release — "
                     + com.club.modules.itemscroll.ItemScrollHarness.dragRelease(mc)));
             step(5, () -> {
-                check("item scroll: a drag across three slots moves all three",
+                check("item scroll: a drag across three slots moves all three ("
+                                + com.club.modules.itemscroll.ItemScrollHarness.containerStacks(mc)
+                                + " left in the chest)",
                         com.club.modules.itemscroll.ItemScrollHarness.containerStacks(mc) == 0);
                 check("item scroll: …and VANILLA'S QUICK-CRAFT NEVER ARMED (no drag, no slots, no shift-move)",
                         com.club.modules.itemscroll.ItemScrollHarness.vanillaDragIdle(mc));
