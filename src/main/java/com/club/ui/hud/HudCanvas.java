@@ -103,9 +103,18 @@ public final class HudCanvas extends Container {
         }
         nx = HudSnap.clampAxis(nx, w, screenW);
         ny = HudSnap.clampAxis(ny, h, screenH);
+        // No overlap (owner, v0.1.3): a nudge that would drive onto a neighbour is refused; one that lands
+        // clear commits. A push off a snap line drops that line's guide.
+        int desiredX = nx, desiredY = ny;
+        int[][] others = otherBoxes(e);
+        int[] res = HudSnap.avoidOverlap(nx, ny, w, h, others);
+        nx = HudSnap.clampAxis(res[0], w, screenW);
+        ny = HudSnap.clampAxis(res[1], h, screenH);
+        if (HudSnap.overlapsAny(nx, ny, w, h, others) || (nx == ox && ny == oy)) return new int[]{0, 0};
+        if (nx != desiredX) gx = HudSnap.NO_GUIDE;
+        if (ny != desiredY) gy = HudSnap.NO_GUIDE;
         guideX = gx; guideY = gy;
         guideHold = (gx != HudSnap.NO_GUIDE || gy != HudSnap.NO_GUIDE) ? now + GUIDE_HOLD : 0f;
-        if (nx == ox && ny == oy) return new int[]{0, 0};
         e.cfgX(nx); e.cfgY(ny);
         e.layout(nx, ny, w, h);
         return new int[]{nx - ox, ny - oy};
@@ -140,9 +149,31 @@ public final class HudCanvas extends Container {
         ny = sy.guide() != HudSnap.NO_GUIDE ? sy.pos() : (gridSnap ? HudSnap.snapToGrid(ny, GRID_STEP) : ny);
         nx = HudSnap.clampAxis(nx, w, screenW);
         ny = HudSnap.clampAxis(ny, h, screenH);
+
+        // No overlap (owner, v0.1.3: "чтобы худы не могли заехать друг на друга"): slide out of any neighbour,
+        // then re-clamp. If the push corners it against a screen edge and it still overlaps, hold the last
+        // good spot rather than force an overlap. A push off a snap line drops that line's guide.
+        int desiredX = nx, desiredY = ny;
+        int[][] others = otherBoxes(pressed);
+        int[] res = HudSnap.avoidOverlap(nx, ny, w, h, others);
+        nx = HudSnap.clampAxis(res[0], w, screenW);
+        ny = HudSnap.clampAxis(res[1], h, screenH);
+        if (HudSnap.overlapsAny(nx, ny, w, h, others)) { guideX = guideY = HudSnap.NO_GUIDE; return true; }
+        if (nx != desiredX) guideX = HudSnap.NO_GUIDE;
+        if (ny != desiredY) guideY = HudSnap.NO_GUIDE;
+
         pressed.cfgX(nx); pressed.cfgY(ny);
         pressed.layout(nx, ny, w, h);            // keep bounds in sync for continued hit-test
         return true;
+    }
+
+    /** Boxes {x,y,w,h} of every element EXCEPT {@code self} — the no-overlap exclusion set. Editor shows a
+     *  placeholder for all elements (enabled or not), so all of them are obstacles. */
+    private int[][] otherBoxes(HudElement self) {
+        java.util.List<int[]> out = new java.util.ArrayList<>();
+        for (HudElement e : elements)
+            if (e != self) out.add(new int[]{(int) e.xLeft(), (int) e.yTop(), (int) e.width(), (int) e.height()});
+        return out.toArray(new int[0][]);
     }
 
     @Override public boolean mouseReleased(double mx, double my, int button) {

@@ -99,6 +99,9 @@ public final class HudEditorScreen extends Screen {
     // A tight overlay so the whole screen underneath stays usable for positioning HUD elements.
     private static final float TB_TOGGLE_W = 40, TB_TOGGLE_H = 22, TB_BTN_W = 92, TB_BTN_H = 26,
                               TB_GAP = 12, TB_PAD = 14, TB_LABEL_W = 66;
+    private static final float TB_RISE = 10f;   // toolbar slide-in distance on the entrance curve (owner #6)
+    private Toggle tbGrid;
+    private Button tbDone;
 
     // The editor is a dark utility overlay — full-brand fills scream on it (owner: Done/Enabled
     // "бросаются в глаза"). Controls take the muted-brand TOKEN (Stage 25); GHOST for buttons.
@@ -126,10 +129,7 @@ public final class HudEditorScreen extends Screen {
         tbW = TB_PAD + TB_LABEL_W + 8 + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP + TB_BTN_W + TB_PAD;
         tbX = (canvasW - tbW) / 2f;
         tbY = 8;
-        float toggleX = tbX + TB_PAD + TB_LABEL_W + 8;
-        float btnY = tbY + (tbH - TB_BTN_H) / 2f;
-        Toggle grid = new Toggle(canvas.gridSnap()).accent(QUIET_ACC).onChange(canvas::setGridSnap);
-        grid.layout(toggleX, tbY + (tbH - TB_TOGGLE_H) / 2f, TB_TOGGLE_W, TB_TOGGLE_H);
+        tbGrid = new Toggle(canvas.gridSnap()).accent(QUIET_ACC).onChange(canvas::setGridSnap);
         // Stage 35: Reset wipes EVERY element's position — it asks first. Click 1 arms it to the
         // soft-accent "Confirm?" (Stage 50); click 2 within the hold executes; the arm decays back in
         // render(). Label swaps in place (fixed TB_BTN_W bounds), no toolbar rebuild.
@@ -138,10 +138,20 @@ public final class HudEditorScreen extends Screen {
                     if (tbResetArmed) { disarmReset(); resetPositions(); }
                     else { tbResetArmed = true; tbResetArmAt = uiCtx.time(); tbReset.label("Confirm?").armed(true); }
                 });
+        tbDone = new Button("Done").variant(Button.Variant.GHOST).onClick(this::close);
+        layoutToolbar(0f);
+        toolbar.add(tbGrid); toolbar.add(tbReset); toolbar.add(tbDone);
+    }
+
+    /** Position the three toolbar widgets. {@code yOff} slides the whole bar for the entrance rise — the
+     *  widgets' hit-boxes ride the offset too, so a click during the ~0.28s slide still lands true. */
+    private void layoutToolbar(float yOff) {
+        float toggleX = tbX + TB_PAD + TB_LABEL_W + 8;
+        float ty = tbY + yOff;
+        float btnY = ty + (tbH - TB_BTN_H) / 2f;
+        tbGrid.layout(toggleX, ty + (tbH - TB_TOGGLE_H) / 2f, TB_TOGGLE_W, TB_TOGGLE_H);
         tbReset.layout(toggleX + TB_TOGGLE_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
-        Button done = new Button("Done").variant(Button.Variant.GHOST).onClick(this::close);
-        done.layout(toggleX + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
-        toolbar.add(grid); toolbar.add(tbReset); toolbar.add(done);
+        tbDone.layout(toggleX + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
     }
 
     private static final int POP_HEAD = 28, POP_ROW = 26, POP_PAD_B = 8;
@@ -283,10 +293,15 @@ public final class HudEditorScreen extends Screen {
         canvas.mouseMoved(mx, my);
         canvas.render(uiCtx);
 
-        // compact floating toolbar — a top-centre overlay so the whole canvas underneath stays usable
+        // compact floating toolbar — slides DOWN into place on the same entrance curve the ground fades on,
+        // so the editor ASSEMBLES rather than snapping whole (owner #6). At ep=0 it sits TB_RISE above its
+        // resting line; at ep=1 the offset is zero and it is exactly where it always was.
+        float tbYOff = -(1f - ep) * TB_RISE;
+        layoutToolbar(tbYOff);
+        float tby = tbY + tbYOff;
         float tbR = Tokens.radius().md();
-        sheet(r, tbX, tbY, tbW, tbH, tbR);
-        uiCtx.text().draw("Grid snap", tbX + TB_PAD, tbY + (tbH - ty.label().lineHeight()) / 2f, stToolLabel);
+        sheet(r, tbX, tby, tbW, tbH, tbR);
+        uiCtx.text().draw("Grid snap", tbX + TB_PAD, tby + (tbH - ty.label().lineHeight()) / 2f, stToolLabel);
         toolbar.mouseMoved(mx, my); toolbar.render(uiCtx);
 
         // hint, tucked at the very bottom (out of the way of element positioning)
