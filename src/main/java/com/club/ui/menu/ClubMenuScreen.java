@@ -159,6 +159,8 @@ public final class ClubMenuScreen extends Screen {
     private Transition segSlide;    // segmented-tab pill position — outer, so it survives popover rebuilds
     private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
     private float popX, popY, popW, popH, popAX, popAY, popAW, popAH, popContentH, popInnerW;
+    private float popBaseH;   // the sheet's height with dropdowns CLOSED — the accordion push is sized to THIS,
+                              // so expanding a dropdown grows the sheet over the cards without shoving them (owner, pack 4 #5)
     private float popRoom;   // vertical room the sheet was allowed — the denominator of "maximal" (harness seam)
     private int pressOwner;
     // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
@@ -507,6 +509,13 @@ public final class ClubMenuScreen extends Screen {
         return -1;
     }
 
+    /** The grid column a module sits in — the sheet is card-wide, so only this column's lower cards move. */
+    private int colOf(Module m) {
+        var ch = grid.children();
+        for (int i = 0; i < ch.size(); i++) if (((ModuleTile) ch.get(i)).m == m) return i % gridCols;
+        return -1;
+    }
+
     /** Enter activates the first result — toggles it or runs its action. */
     private void submitSearch() {
         java.util.List<Module> mods = gridModules();
@@ -621,6 +630,9 @@ public final class ClubMenuScreen extends Screen {
         popRoom = wellH - 24;
         float want = popContentH + 2 * POP_PAD;
         popH = Math.max(1f, fit(want, popRoom));      // cap to the viewport; overflow scrolls inside the sheet
+        // The push (accordion band) is sized to the CLOSED sheet: with a dropdown shut, base == popH; with one
+        // open, popH grows for the options but popBaseH holds, so the sheet grows OVER the cards, not INTO them.
+        if (openDrop == null) popBaseH = popH;
         popY = t.yTop() + t.height() + POP_GAP;        // directly under the card, following it through scroll
         popScroll.layout(popX + POP_PAD, popY + POP_PAD,
                 Math.max(1f, popW - 2 * POP_PAD), Math.max(1f, popH - 2 * POP_PAD));
@@ -848,7 +860,9 @@ public final class ClubMenuScreen extends Screen {
                 int cur = clampIdx(d);
                 Row row = new Row().crossAlign(CrossAlign.CENTER).gap(Tokens.spacing().sm());
                 row.add(new Label(d.label(), Tokens.type().label()).color(Tokens.palette().textMuted()).ellipsize(true), Sizing.fill());
-                Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST).accent(accent).compact()
+                // hug() so the field hugs its value ("4:3") instead of the 96px alignment slab — that slab ate
+                // the row and squeezed the name down to "P…" (owner, pack 4 #1: "зачем строке 4:3 такой большой бокс").
+                Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST).accent(accent).compact().hug()
                         .onClick(() -> { openDrop = (openDrop == d) ? null : d; rebuildPopover(); });
                 row.add(field);
                 col.add(new LaneRow(row)); focus.register(field);
@@ -1078,12 +1092,14 @@ public final class ClubMenuScreen extends Screen {
         // persisted reveal/height tweens render() advances, so it is at most one frame behind the ink.
         float bandNow = uiCtx.time();
         int splitRow = (popModule != null) ? rowOf(popModule) : -1;
+        int splitCol = (popModule != null) ? colOf(popModule) : -1;
         float band = 0f;
-        if (splitRow >= 0 && popReveal != null) {
-            float dh = popHTween.get(bandNow) * popReveal.progress(bandNow);
-            if (dh > 0.5f) band = dh + 2 * POP_GAP;
-        }
-        grid.split(splitRow, band);
+        // A CONTINUOUS ramp (was `dh > 0.5 ? dh + gap : 0`, which JUMPED ~12px at the start and read as the
+        // push "playing after" the sheet — owner pack 4 #3). progress·(closed height + gaps): starts at 0,
+        // ends at the sheet's footprint, and uses popBaseH so a dropdown expanding never changes the push (#5).
+        if (splitRow >= 0 && popReveal != null)
+            band = popReveal.progress(bandNow) * (popBaseH + 2 * POP_GAP);
+        grid.split(splitCol, splitRow, band);
 
         if (gridScroll != null) gridScroll.layout(wellX + 12, wellY + 12, gridW, wellH - 24);
 
@@ -1973,7 +1989,7 @@ public final class ClubMenuScreen extends Screen {
         }
     }
 
-    private static final float OPT_H = 24f;
+    private static final float OPT_H = 21f;   // compact — the expanded list should sit inside the sheet, not bloat it (owner, pack 4 #5)
 
     /** Compact dropdown option row: subtle category-accent tint + accent text for the selected value,
      *  hover wash for the rest — no heavy button chrome, so the list stays neat inside the popover. */

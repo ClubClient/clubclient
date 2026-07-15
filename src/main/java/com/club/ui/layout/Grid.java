@@ -11,9 +11,11 @@ import com.club.ui.component.Container;
 public final class Grid extends Container {
     private int cols;
     private float gap;
-    // Accordion band (menu settings sheet): extra vertical space inserted AFTER row {@code splitAfterRow},
-    // so the rows below it slide down to make room for the popover that drops out of the clicked card.
-    private int splitAfterRow = -1;
+    // Accordion band (menu settings sheet): the settings popover drops out of the clicked card, which is
+    // ONE column wide. So only the cards in THAT column, below the clicked row, slide down (owner, pack 4:
+    // "зачем отъезжают строки которые поповером не закрывают ничего"). Other columns stay put; the measured
+    // height still grows by the band so a ScrollArea can reveal a sheet taller than the grid.
+    private int splitCol = -1, splitAfterRow = -1;
     private float splitGap;
 
     public Grid(int cols, float gap) { this.cols = Math.max(1, cols); this.gap = gap; }
@@ -23,12 +25,17 @@ public final class Grid extends Container {
     public Grid add(Component c) { addChild(c); return this; }
     public void clear() { children.clear(); }
 
-    /** Insert {@code gap} vertical px after row {@code row}: every row below it shifts down by that much, and
-     *  the measured height grows to match so a ScrollArea can reveal the band. {@code row < 0} clears it. */
-    public Grid split(int row, float gap) { this.splitAfterRow = row; this.splitGap = Math.max(0f, gap); return this; }
+    /** Push the cards in column {@code col} that sit below row {@code afterRow} down by {@code gap} — the room
+     *  the settings sheet drops into. The measured height grows by {@code gap} so a ScrollArea can reveal it.
+     *  {@code afterRow < 0} clears the split; {@code col < 0} would push every column (unused now). */
+    public Grid split(int col, int afterRow, float gap) {
+        this.splitCol = col; this.splitAfterRow = afterRow; this.splitGap = Math.max(0f, gap); return this;
+    }
 
-    private float bandAt(int row) { return (splitAfterRow >= 0 && row > splitAfterRow) ? splitGap : 0f; }
-    private float bandTotal(int rows) { return (splitAfterRow >= 0 && rows > 0) ? splitGap : 0f; }
+    private float bandAt(int row, int col) {
+        return (splitAfterRow >= 0 && row > splitAfterRow && (splitCol < 0 || col == splitCol)) ? splitGap : 0f;
+    }
+    private float bandTotal() { return splitAfterRow >= 0 ? splitGap : 0f; }
 
     private float cellW(float w) { return (w - gap * (cols - 1)) / cols; }
 
@@ -43,7 +50,7 @@ public final class Grid extends Container {
         float cw = cellW(availW);
         int rows = (children.size() + cols - 1) / cols;
         float rh = rowHeight(cw);
-        return new Size(availW, rows * rh + gap * (rows - 1) + bandTotal(rows));
+        return new Size(availW, rows * rh + gap * (rows - 1) + bandTotal());
     }
 
     @Override public void layout(float x, float y, float w, float h) {
@@ -53,7 +60,7 @@ public final class Grid extends Container {
         for (int i = 0; i < children.size(); i++) {
             int col = i % cols, row = i / cols;
             float cx = x + col * (cw + gap);
-            float cy = y + row * (rh + gap) + bandAt(row);   // rows below the split slide down by the band
+            float cy = y + row * (rh + gap) + bandAt(row, col);   // only the split column's lower cards slide down
             children.get(i).layout(cx, cy, cw, rh);
         }
     }
