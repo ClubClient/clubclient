@@ -2,20 +2,26 @@
 
 ## v0.1.3
 
-**Item Scrolling.** Move items with the mouse instead of clicking them one at a time.
+**Item Scrolling (beta).** Move items with the mouse instead of clicking them one slot at a time.
 
-- **Scroll** over a slot to move one item · **Shift** for the whole stack · **Ctrl** for every stack of that
-  type · **Ctrl+Shift** for everything in the inventory · **Shift+drag** across slots to move each one you cross.
-- Every gesture is **rebindable** — pick the modifier and the button for each action on its own screen. Two
-  actions can never share a gesture: assigning one takes it from the other, and the row says so.
-- If a gesture overrides something vanilla already does with it (Shift+click is vanilla's own quick-move), the
-  row tells you, instead of quietly eating the click.
+- **Scroll** a slot to move one item · **Shift** the whole stack · **Ctrl** every stack of that type ·
+  **Ctrl+Shift** the whole inventory · **Shift+drag** across slots to move each one you cross.
+- Every control is **rebindable** — choose the modifier and the button for each action on its own screen. No
+  two actions can share one: assign it to a second and it leaves the first, and the row tells you.
+- When a control would override something vanilla already does with it (Shift+click is the game's own
+  quick-move), the row says so, instead of quietly swallowing the click.
+- It ships as **beta** while it settles: it doesn't reach the creative inventory yet, and the card admits that
+  rather than pretending to work.
+
+**Settings that belong to their card.** Right-click a module and its settings unfold directly under that card,
+sliding the cards below it down to make room — the sheet never covers the grid. It is the width of its card,
+its controls squeeze to fit, and a name too long to fit is shortened rather than spilled. A module with nothing
+to configure no longer opens an empty panel — it flashes a small crossed-out gear and leaves the card in place.
 
 **Club stops drawing what you cannot see.**
 
 - **Particles behind the camera** are no longer tessellated. Minecraft culls particles not at all — it builds
-  the geometry for every live one, every frame, including the ones behind your head. Nothing you can see
-  changes: 81% of the particle work simply does not happen in a campfire-heavy scene.
+  the geometry for every live one, every frame, including the ones behind your head. Nothing you can see changes.
 - **Block entities off-screen inside a visible section.** Vanilla frustum-culls the 16×16×16 section but never
   the chest inside it. Anything that asked for unusual treatment — a beacon's beam, an end gateway, a moving
   piston — is never touched.
@@ -23,10 +29,12 @@
   **−8.1%** on a CPU-bound one. Where your GPU is the bottleneck, our own benchmark refuses to claim a win —
   and says so.
 
-**The HUD got cheaper to draw.** Its icons each went out through vanilla's immediate path — one GL call per
-sprite, and a third of the HUD's cost. They batch now. How many calls that saves is a fact about the scene, so
-we do not print one: the harness asserts the batched path issues *fewer* draws than the unbatched one, on every
-build. Not a pixel of it looks different, and the harness asserts that by geometry, not by eye.
+**A cheaper, tidier HUD.** The HUD's icons each went out through vanilla's immediate path — one GL call per
+sprite, and a third of the HUD's cost. They batch now, and every build proves *fewer* draws than the unbatched
+path by geometry, not by eye — not a pixel looks different. In the editor, elements refuse to overlap: drag one
+onto another and it slides along the edge instead of stacking, so nothing hides under a neighbour or under the
+toolbar. The target chip's reach is fixed one step past vanilla's — a dial for it would name an opponent before
+you could touch them, and that is a soft cheat we won't ship.
 
 **Background throttle.** Cap the frame rate while the window is behind something else. This gives **zero
 in-game FPS** — it is a battery, fan-noise and second-monitor feature, and calling it an FPS boost would be a
