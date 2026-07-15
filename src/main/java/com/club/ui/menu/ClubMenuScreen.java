@@ -500,6 +500,13 @@ public final class ClubMenuScreen extends Screen {
         return null;
     }
 
+    /** The grid row a module sits in (for the accordion band), or -1 if it isn't shown. */
+    private int rowOf(Module m) {
+        var ch = grid.children();
+        for (int i = 0; i < ch.size(); i++) if (((ModuleTile) ch.get(i)).m == m) return i / gridCols;
+        return -1;
+    }
+
     /** Enter activates the first result — toggles it or runs its action. */
     private void submitSearch() {
         java.util.List<Module> mods = gridModules();
@@ -587,22 +594,12 @@ public final class ClubMenuScreen extends Screen {
         float prevOffset = (popScroll != null) ? popScroll.scrollOffset() : 0f;   // survive dropdown-expand / tab-switch rebuild
         focus.clear();
         focus.register(search);
-        // Width FIRST — the rows size their label column against it. It is the WIDTH OF THE CARD that spawned
-        // it now (owner, v0.1.3 #11: "почему каждый поповер в два-три раза больше и длиннее самой иконки?"):
-        // a sheet as wide as its card reads as that card's settings, not as a second panel.
-        //
-        // The floor is POP_W_MIN, RAISED to fit a notice when there is one. A notice is a single non-wrapping
-        // caption ("Install Sodium for entity culling"), and card-width clipped it mid-word — a Performance
-        // card's popover is notice-only, so the width tightening left nothing BUT the clipped sentence. So the
-        // sheet is card-width, unless its own message needs more, in which case it grows to hold the message
-        // and no further. Capped at POP_W and the well width so a wide card can't spill on a small window.
-        float widthFloor = POP_W_MIN;
-        String notice0 = MenuContent.notice(popModule.name());
-        if (notice0 != null) {
-            var cap = Tokens.type().caption();
-            widthFloor = Math.max(widthFloor, Ui.text().width(notice0, cap.weight(), cap.size()) + 2 * POP_PAD + 4f);
-        }
-        popW = Math.max(widthFloor, Math.min(Math.max(popAW, widthFloor), Math.min(POP_W, wellW - 24f)));
+        // Width FIRST — the rows size their label column against it. The sheet is EXACTLY its card's width
+        // (owner, v0.1.3 #11 + pack 3: "ужми слайдеры… видел как у hands, там всё влезло"). A row that does
+        // not fit that width squeezes (the slider track gives ground) or ellipsizes (a long label gets "…"),
+        // and the sheet NEVER widens past the card it belongs to — that is the whole point of it dropping out
+        // of the card. The POP_W_MIN floor only guards a pathologically squeezed window from collapsing it.
+        popW = Math.max(POP_W_MIN, popAW);
         float innerW = popW - 2 * POP_PAD;
         popInnerW = innerW;
         popCol = buildSettings(popModule);
@@ -612,33 +609,19 @@ public final class ClubMenuScreen extends Screen {
         popScroll.scrollOffset(prevOffset);                  // restore scroll after layout has set the clamp bounds
     }
 
-    /** The popover opens as a tidy panel BELOW the card grid — it never covers the cards (owner). Its
-     *  height fits the content, capped to the room between the grid and the well's bottom; anything
-     *  taller scrolls inside (ScrollArea draws the side scrollbar). X follows the clicked card's
-     *  column so it reads as "this card's settings", clamped to stay in the well.
-     *
-     *  <p>Escape hatch (Stage 58): on a SMALL window there may be no usable room under the cards at
-     *  all — at GUI scale 4 (the stock auto scale on 1080p) the whole menu shrinks to 432×222 and two
-     *  card rows leave a NEGATIVE strip below. Rather than render a 1px sliver with an unreachable
-     *  settings list, the sheet then takes the well and overlaps the cards: covering them is bad, but
-     *  being unusable is worse.</p> */
+    /** The sheet drops out of its OWN card (owner, v0.1.3 #4): anchored to the clicked tile's LIVE position,
+     *  so it follows the card as the grid scrolls, and it inherits the card's X so it reads as that card's
+     *  settings. Height is what the content wants, capped to the well — a taller sheet scrolls inside itself
+     *  (ScrollArea draws the side bar). The rows below the card slide down by this height (the accordion band
+     *  set in layoutAll), so nothing is ever covered. The whole sheet is clipped to the well when it draws. */
     private void positionPopover() {
-        float gridTop = wellY + 12;
-        int rows = Math.max(1, (grid.children().size() + gridCols - 1) / gridCols);
-        float gridBottom = gridTop + rows * TILE_H + (rows - 1) * Tokens.spacing().sm();
-        float wellBottom = wellY + wellH - 8;
+        ModuleTile t = tileOf(popModule);
+        if (t == null) return;                       // card filtered out of the grid — #7 is closing the sheet
+        popX = t.xLeft();
+        popRoom = wellH - 24;
         float want = popContentH + 2 * POP_PAD;
-        float below = wellBottom - (gridBottom + 8);          // room from under the cards to the well bottom
-        if (below >= Math.min(want, POP_H_MIN)) {             // normal: a tidy panel under the cards
-            popY = gridBottom + 8;
-            popRoom = below;
-            popH = fit(want, below);
-        } else {                                              // no usable room — take the well, overlap the cards
-            popRoom = wellBottom - gridTop;
-            popH = Math.max(1f, fit(want, popRoom));
-            popY = Math.max(gridTop, wellBottom - popH);
-        }
-        popX = clamp(popAX, wellX + 12, wellX + wellW - 12 - popW);
+        popH = Math.max(1f, fit(want, popRoom));      // cap to the viewport; overflow scrolls inside the sheet
+        popY = t.yTop() + t.height() + POP_GAP;        // directly under the card, following it through scroll
         popScroll.layout(popX + POP_PAD, popY + POP_PAD,
                 Math.max(1f, popW - 2 * POP_PAD), Math.max(1f, popH - 2 * POP_PAD));
     }
@@ -835,14 +818,17 @@ public final class ClubMenuScreen extends Screen {
         var lblRole = Tokens.type().label();
         for (Setting s : settings0)
             if (s instanceof SliderSetting) lw = Math.max(lw, Ui.text().width(s.label(), lblRole.weight(), lblRole.size()));
-        final float labelW = Math.min(Math.max(lw + 8f, 40f), Math.max(48f, popInnerW * 0.42f));
+        // The label column takes up to HALF the sheet now (was 0.42): at card width the slider gives ground so
+        // the name stays readable (owner, pack 3: "ужми слайдеры… как у hands"), and anything still too long
+        // ellipsizes rather than clip mid-glyph.
+        final float labelW = Math.min(Math.max(lw + 8f, 40f), Math.max(48f, popInnerW * 0.5f));
 
         // A module that is ON but standing down says so, at the top, before the controls it isn't applying
         // (Stage 62 — see MenuContent.notice). Hidden behind an expanded dropdown like every other row.
         if (openDrop == null) {
             String notice = MenuContent.notice(m.name());
             if (notice != null)
-                col.add(new Label(notice, Tokens.type().caption()).color(Tokens.palette().stateWarn()));
+                col.add(new Label(notice, Tokens.type().caption()).color(Tokens.palette().stateWarn()).ellipsize(true));
         }
 
         List<Setting> settings;
@@ -860,8 +846,8 @@ public final class ClubMenuScreen extends Screen {
             if (openDrop != null && s != openDrop) continue;
             if (s instanceof DropdownSetting d) {
                 int cur = clampIdx(d);
-                Row row = new Row().crossAlign(CrossAlign.CENTER);
-                row.add(new Label(d.label(), Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
+                Row row = new Row().crossAlign(CrossAlign.CENTER).gap(Tokens.spacing().sm());
+                row.add(new Label(d.label(), Tokens.type().label()).color(Tokens.palette().textMuted()).ellipsize(true), Sizing.fill());
                 Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST).accent(accent).compact()
                         .onClick(() -> { openDrop = (openDrop == d) ? null : d; rebuildPopover(); });
                 row.add(field);
@@ -879,13 +865,13 @@ public final class ClubMenuScreen extends Screen {
             } else if (s instanceof SliderSetting) {
                 Component ctrl = buildControl(s, accent);
                 Row rr = new Row().crossAlign(CrossAlign.CENTER);
-                rr.add(new FixedW(new Label(s.label(), lblRole).color(Tokens.palette().textMuted()), labelW));
+                rr.add(new FixedW(new Label(s.label(), lblRole).color(Tokens.palette().textMuted()).ellipsize(true), labelW));
                 rr.add(ctrl, Sizing.fill());
                 col.add(new LaneRow(rr)); focus.register(ctrl);
             } else {
                 Component ctrl = buildControl(s, accent);
-                Row rr = new Row().crossAlign(CrossAlign.CENTER);
-                rr.add(new Label(s.label(), Tokens.type().label()).color(Tokens.palette().textMuted()), Sizing.fill());
+                Row rr = new Row().crossAlign(CrossAlign.CENTER).gap(Tokens.spacing().sm());
+                rr.add(new Label(s.label(), Tokens.type().label()).color(Tokens.palette().textMuted()).ellipsize(true), Sizing.fill());
                 rr.add(ctrl);
                 col.add(new LaneRow(rr)); focus.register(ctrl);
             }
@@ -928,9 +914,9 @@ public final class ClubMenuScreen extends Screen {
                 rebuildPopover();
             });
             popBindBtn = bind;
-            Row rr = new Row().crossAlign(CrossAlign.CENTER);
+            Row rr = new Row().crossAlign(CrossAlign.CENTER).gap(Tokens.spacing().sm());
             rr.add(new Label(hold ? "Hold key" : "Toggle key", Tokens.type().label())
-                    .color(Tokens.palette().textMuted()), Sizing.fill());
+                    .color(Tokens.palette().textMuted()).ellipsize(true), Sizing.fill());
             rr.add(bind);
             col.add(new LaneRow(rr)); focus.register(bind);
             // Discoverable clear (Stage 46/51): a plain-English hint appears only while listening — and
@@ -940,14 +926,14 @@ public final class ClubMenuScreen extends Screen {
             if (listening)
                 col.add(new Label(bindReserved ? "That key opens the menu"
                                                : "Press a key · Esc cancels · Delete clears", Tokens.type().caption())
-                        .color(bindReserved ? Tokens.palette().stateWarn() : Tokens.palette().textFaint()));
+                        .color(bindReserved ? Tokens.palette().stateWarn() : Tokens.palette().textFaint()).ellipsize(true));
             else {
                 // …and when NOT listening, the row admits what the key will actually do (Stage 62). All
                 // three of these states were silent: the field showed a key, and the key did nothing, or
                 // did something else's job. The player had no way to find that out from inside the mod.
                 String warn = bindWarning(m, hold);
                 if (warn != null)
-                    col.add(new Label(warn, Tokens.type().caption()).color(Tokens.palette().stateWarn()));
+                    col.add(new Label(warn, Tokens.type().caption()).color(Tokens.palette().stateWarn()).ellipsize(true));
             }
         } else popBindBtn = null;
 
@@ -1085,6 +1071,19 @@ public final class ClubMenuScreen extends Screen {
             if (atBase > fitSlot) fit = Math.min(fit, Math.max(NAME_MIN, fitSlot * NAME_BASE / atBase));
         }
         cardNameSize = fit;
+
+        // Accordion band (owner, v0.1.3 #4): the sheet drops out of its OWN card, and the rows below it slide
+        // down so every card stays in view. The band grows in lockstep with the sheet's reveal — same height,
+        // same curve — so the push reads as the sheet pushing them, not a separate jump. Driven from the
+        // persisted reveal/height tweens render() advances, so it is at most one frame behind the ink.
+        float bandNow = uiCtx.time();
+        int splitRow = (popModule != null) ? rowOf(popModule) : -1;
+        float band = 0f;
+        if (splitRow >= 0 && popReveal != null) {
+            float dh = popHTween.get(bandNow) * popReveal.progress(bandNow);
+            if (dh > 0.5f) band = dh + 2 * POP_GAP;
+        }
+        grid.split(splitRow, band);
 
         if (gridScroll != null) gridScroll.layout(wellX + 12, wellY + 12, gridW, wellH - 24);
 
@@ -1301,6 +1300,10 @@ public final class ClubMenuScreen extends Screen {
             } else {
                 float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
                 float pr = Tokens.radius().md();
+                // The sheet now drops out of its card and rides the grid's scroll (it is anchored to the live
+                // tile), so it is clipped to the well exactly like the cards — a sheet on a scrolled-off card
+                // clips at the well edge instead of floating over the header/footer.
+                r.pushClip(wellX + 12, wellY + 12, wellW - 24, wellH - 24);
 
                 // THE SHEET IS DRAWN WHERE THE TWEENS SAY, NOT WHERE THE LAYOUT SAYS. The two agree at rest;
                 // during a card switch the layout is already standing at the destination while the ink is
@@ -1337,6 +1340,7 @@ public final class ClubMenuScreen extends Screen {
                 popScroll.mouseMoved(mouseX, mouseY);
                 popScroll.render(uiCtx);
                 r.popClip();
+                r.popClip();   // close the well clip
             }
         }
         r.popOpacity();
@@ -1598,8 +1602,8 @@ public final class ClubMenuScreen extends Screen {
     private static final float NAME_MIN = 6f;   // hard sanity floor ONLY — the fit math guarantees no
                                                 // overflow (11.8 fix: a 9px floor let long names spill)
     private static final int POP_PAD = 8;   // tighter popover gutter — the scrollbar fills the right, so a wide left pad read as empty
-    private static final float POP_W = 236f, POP_W_MIN = 140f;   // sheet width, and the floor on a squeezed window
-    private static final float POP_H_MIN = 88f;                  // below this a settings sheet is not worth showing under the cards
+    private static final float POP_W_MIN = 140f;   // floor on the sheet width so a squeezed card can't collapse it
+    private static final float POP_GAP = 6f;       // gap between a card and the sheet that drops out of it
 
     /** Module card: icon chip + centered state stripe + name + ghost underlay.
      *  LMB = enable/disable (or run the action); RMB = settings popover. */

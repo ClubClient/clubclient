@@ -19,6 +19,7 @@ public final class Label extends Component {
     private Align align = Align.LEFT;
     private int color;
     private boolean colorSet;
+    private boolean ellipsize;      // truncate to the laid-out width with "…" instead of overflowing/clipping
     private TextEffect effect = TextEffect.NONE;
     private TextStyle style;        // cached; rebuilt only on change (alloc-free in render)
     private boolean styleDirty = true;
@@ -33,6 +34,9 @@ public final class Label extends Component {
     public Label text(String s)          { this.text = s; return this; }
     public Label role(Typography.Role r) { this.role = r; styleDirty = true; return this; }
     public Label align(Align a)          { this.align = a; styleDirty = true; return this; }
+    /** Truncate to the laid-out width with a trailing "…" when the text is too long, instead of overflowing
+     *  its neighbour or hard-clipping mid-glyph (owner, v0.1.3: "сократи или три точки поставь"). */
+    public Label ellipsize(boolean v)    { this.ellipsize = v; return this; }
     public Label color(int c)            { this.color = c; this.colorSet = true; styleDirty = true; return this; }
     public Label effect(TextEffect e)    { this.effect = e; styleDirty = true; return this; }
 
@@ -63,6 +67,21 @@ public final class Label extends Component {
                     .align(align).effect(effect);
         }
         float tx = switch (align) { case LEFT -> x; case CENTER -> x + w / 2f; case RIGHT -> x + w; };
-        ctx.text().draw(text, tx, y, s);
+        ctx.text().draw(ellipsize ? fit(text, w) : text, tx, y, s);
+    }
+
+    /** Longest prefix of {@code t} whose width plus "…" fits {@code maxW}; the whole string if it already
+     *  fits, or just "…" (or "") when there is no room. Runs only for ellipsize labels that overflow. */
+    private String fit(String t, float maxW) {
+        if (maxW <= 0) return t;
+        float full = Ui.text().width(t, role.weight(), role.size());
+        if (full <= maxW) return t;
+        float ell = Ui.text().width("…", role.weight(), role.size());
+        if (ell > maxW) return "";
+        for (int n = t.length() - 1; n >= 1; n--) {
+            String cand = t.substring(0, n);
+            if (Ui.text().width(cand, role.weight(), role.size()) + ell <= maxW) return cand + "…";
+        }
+        return "…";
     }
 }
