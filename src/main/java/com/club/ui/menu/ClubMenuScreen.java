@@ -783,12 +783,18 @@ public final class ClubMenuScreen extends Screen {
     }
 
     private void reallyClosePopover() {
+        // Typing in the search box is what closed this sheet (its onChange calls closePopover). The close
+        // finishes a few frames later, HERE — and focus.clear() below would then yank the keyboard off the
+        // search mid-word, so the next letter goes nowhere (owner, final bug: "поиск отвяжется, дальше нельзя
+        // писать"). Remember if the search held focus and hand it straight back.
+        boolean keepSearch = search != null && focus.focused() == search;
         popModule = null; popCol = null; popScroll = null; openDrop = null;
         popReveal = null; popClosing = false; resetArmed = false; popResetBtn = null;
         bindListening = false; bindModule = null; bindReserved = false; popBindBtn = null;
         focus.clear();
         if (search != null) focus.register(search);
-        if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // hand the zone back (Space → Esc round-trip)
+        if (keepSearch) focus.focusKeyboard(search);                 // stay in the search — the player is typing
+        else if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // else hand the zone back (Space → Esc round-trip)
     }
 
     private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
