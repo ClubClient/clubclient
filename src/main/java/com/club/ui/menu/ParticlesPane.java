@@ -7,30 +7,36 @@ import com.club.ui.Color;
 import com.club.ui.UiContext;
 import com.club.ui.UiRenderer;
 import com.club.ui.component.Container;
+import com.club.ui.motion.Transition;
 import com.club.ui.text.TextStyle;
 import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * The Particles category content — a TWO-PANE surface that replaces the card grid when the Particles
  * category is active (owner-designed; see the approved mock). LEFT: a sub-rail of particle GROUPS, each with
- * an On/Off pill that sets the whole group. RIGHT: the selected group's particle rows, each with its own
- * On/Off pill, scrollable, entering with the same fade+rise cascade the main categories use
- * ({@link TileMotion#categoryEnter}).
+ * an On/Off pill that sets the whole group. RIGHT: the selected group's particles, each with its own On/Off
+ * pill, scrollable.
  *
  * <p>WHY FULLY CUSTOM-DRAWN (no {@code Toggle} children): the config hidden-set is the single source of
  * truth, and every pill reads it LIVE via {@link ParticleVisibility}. So a group master and a per-particle
- * pill can never disagree — flip a particle and the group pill reflects it the same frame, with no state to
- * keep in sync. It also lets the cascade alpha ride straight into the pill colours.
+ * pill can never disagree — flip a particle and the group pill reflects it the same frame, no state to sync.
  *
- * <p>Nothing here is protected: every type is togglable, everything on by default (owner reversed the
- * earlier "Always on" idea — it's your client and your eyes). Interaction stays on the brand accent; the
- * category's gold is identity only (a swatch + the active bar), per the v2.5 rule.
+ * <p>MOTION, matched to the rest of the menu:
+ * <ul>
+ *   <li>Entering the category plays ONE cascade — the group rows AND the right-pane particle rows fade+rise
+ *       in a single wave ({@link TileMotion#categoryEnter}, the same choreography the card grid uses).</li>
+ *   <li>Switching group slides the active-row highlight the way the rail indicator slides between categories
+ *       (a {@link Transition}, not a jump), and re-cascades just the right pane.</li>
+ *   <li>Each pill's knob slides and its track cross-fades on toggle (a per-pill {@link Transition}).</li>
+ * </ul>
+ * Interaction stays on the brand accent; the category's gold is identity only (the active bar).
  */
 final class ParticlesPane extends Container {
 
@@ -47,12 +53,15 @@ final class ParticlesPane extends Container {
 
     private final List<GroupUi> groups = new ArrayList<>();
     private int selected;
-
-    // manual scroll for the right list (a lighter twin of ScrollArea — the list is the only scroller here)
     private float scroll, scrollMax;
 
-    // per-row entrance cascade, re-seeded whenever the selected group changes
+    // Entrance cascades — one wave: groups first, then the current group's rows (offset by group count).
+    private TileMotion[] groupMotion = new TileMotion[0];
     private TileMotion[] rowMotion = new TileMotion[0];
+    // Active-group highlight Y (local, within the sub-rail): slides between groups like the rail indicator.
+    private Transition selBar;
+    // Per-pill knob ease (key = particle id string, or "grp:"+group). Bounded by the registry — never pruned.
+    private final Map<Object, Transition> pillAnim = new HashMap<>();
 
     ParticlesPane() {
         Map<ParticleGroup, List<ParticleCatalog.Entry>> byGroup = new EnumMap<>(ParticleGroup.class);
@@ -62,17 +71,23 @@ final class ParticlesPane extends Container {
             List<ParticleCatalog.Entry> es = byGroup.get(g);
             if (!es.isEmpty()) groups.add(new GroupUi(g, es));   // OTHER shows only if a modded type landed there
         }
-        seedCascade();
+        onEnter();
     }
 
-    /** Called by the screen every time the Particles category is (re)entered — replays the cascade. */
-    void onEnter() { scroll = 0f; seedCascade(); }
+    /** Called by the screen every time the Particles category is (re)entered — replays the full-panel wave. */
+    void onEnter() {
+        if (groups.isEmpty()) return;
+        scroll = 0f;
+        groupMotion = new TileMotion[groups.size()];
+        for (int i = 0; i < groupMotion.length; i++) groupMotion[i] = TileMotion.categoryEnter(i);
+        seedRows(groups.size());   // the wave continues into the right pane after the last group row
+        selBar = null;             // snap the highlight to the current row on open (no slide)
+    }
 
-    private void seedCascade() {
-        if (groups.isEmpty()) { rowMotion = new TileMotion[0]; return; }
+    private void seedRows(int startIndex) {
         List<ParticleCatalog.Entry> rows = current().entries;
         rowMotion = new TileMotion[rows.size()];
-        for (int i = 0; i < rowMotion.length; i++) rowMotion[i] = TileMotion.categoryEnter(i);
+        for (int i = 0; i < rowMotion.length; i++) rowMotion[i] = TileMotion.categoryEnter(startIndex + i);
     }
 
     private GroupUi current() { return groups.get(Math.min(selected, groups.size() - 1)); }
@@ -80,6 +95,14 @@ final class ParticlesPane extends Container {
     private static boolean anyVisible(List<ParticleCatalog.Entry> es) {
         for (ParticleCatalog.Entry e : es) if (!ParticleVisibility.isHidden(e.id())) return true;
         return false;
+    }
+
+    /** Eased knob position [0,1] for a pill — the smooth on/off animation (knob slide + track cross-fade). */
+    private float knob(Object key, boolean on, float now) {
+        Transition t = pillAnim.computeIfAbsent(key,
+                k -> new Transition(on ? 1f : 0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard()));
+        t.target(on ? 1f : 0f, now);
+        return t.value(now);
     }
 
     // ---- layout --------------------------------------------------------------
@@ -104,19 +127,25 @@ final class ParticlesPane extends Container {
         float lh = ctx.text().lineHeight(lw, ls);
 
         // LEFT — group sub-rail, a recessed sub-tray (one tone below the content well)
-        float railX = x, railY = y, railH = h;
-        r.roundedRect(railX, railY, RAIL_W, railH, Tokens.radius().md(), Tokens.surface().wellShallow());
+        float railX = x, railY = y;
+        r.roundedRect(railX, railY, RAIL_W, h, Tokens.radius().md(), Tokens.surface().wellShallow());
+
+        // sliding highlight (like the rail indicator): eases to the selected row's local Y
+        float selLocalY = PAD + selected * RAIL_ROW;
+        if (selBar == null) selBar = new Transition(selLocalY, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+        selBar.target(selLocalY, now);
+        float barY = railY + selBar.value(now);
+        r.roundedRect(railX + 6, barY + 2, RAIL_W - 12, RAIL_ROW - 4, Tokens.radius().sm(), Tokens.surface().surfaceHi());
+        r.roundedRect(railX + 2, barY + 6, 3, RAIL_ROW - 12, 1.5f, Tokens.categories().particles());   // gold identity bar
+
         for (int i = 0; i < groups.size(); i++) {
             GroupUi g = groups.get(i);
-            float ry = railY + PAD + i * RAIL_ROW;
-            boolean active = i == selected;
-            if (active) {
-                r.roundedRect(railX + 6, ry + 2, RAIL_W - 12, RAIL_ROW - 4, Tokens.radius().sm(), Tokens.surface().surfaceHi());
-                r.roundedRect(railX + 2, ry + 6, 3, RAIL_ROW - 12, 1.5f, Tokens.categories().particles());   // identity bar
-            }
-            int nameCol = active ? Tokens.palette().textHi() : Tokens.palette().textMuted();
+            float ta = groupMotion[i].tick(now);
+            float ry = railY + PAD + i * RAIL_ROW + groupMotion[i].driftY(ta);
+            int nameCol = Color.scaleAlpha(i == selected ? Tokens.palette().textHi() : Tokens.palette().textMuted(), ta);
             ctx.text().draw(g.group.label(), railX + 16, ry + (RAIL_ROW - lh) / 2f, TextStyle.of(lw, ls, nameCol));
-            drawPill(r, railX + RAIL_W - PAD - PILL_W, ry + (RAIL_ROW - PILL_H) / 2f, anyVisible(g.entries), 1f);
+            drawPill(r, railX + RAIL_W - PAD - PILL_W, ry + (RAIL_ROW - PILL_H) / 2f,
+                    knob("grp:" + g.group.name(), anyVisible(g.entries), now), ta);
         }
 
         // RIGHT — detail: header (group name) + scrolling particle list
@@ -137,31 +166,28 @@ final class ParticlesPane extends Container {
             boolean vis = !ParticleVisibility.isHidden(e.id());
             int nameCol = Color.scaleAlpha(vis ? Tokens.palette().textHi() : Tokens.palette().textMuted(), ta);
             ctx.text().draw(e.label(), dx + PAD, ry + (LIST_ROW - lh) / 2f, TextStyle.of(lw, ls, nameCol));
-            drawPill(r, dx + dw - PILL_W - PAD, ry + (LIST_ROW - PILL_H) / 2f, vis, ta);
+            drawPill(r, dx + dw - PILL_W - PAD, ry + (LIST_ROW - PILL_H) / 2f, knob(e.id().toString(), vis, now), ta);
         }
         r.popClip();
 
-        // slim scrollbar when the list overflows (neutral — accent is for interaction, not chrome)
-        if (scrollMax > 0f) {
+        if (scrollMax > 0f) {   // slim neutral scrollbar (accent is for interaction, not chrome)
             float trackH = listH, thumbH = Math.max(18f, trackH * trackH / (rows.size() * LIST_ROW));
             float thumbY = listY + (trackH - thumbH) * (scroll / scrollMax);
             r.roundedRect(dx + dw - 3f, thumbY, 3f, thumbH, 1.5f, Tokens.palette().textFaint());
         }
     }
 
-    /** Draws the Toggle pill (custom, so its state is read live from config) — same visual language as
-     *  {@code Toggle}: off = inset surface + hairline, on = flat accent, white puck. Alpha rides the cascade. */
-    private void drawPill(UiRenderer r, float px, float py, boolean on, float a) {
+    /** Draws the Toggle pill (custom, live state). {@code k}∈[0,1] is the eased on-ness (knob slide + track
+     *  cross-fade); {@code a} is the cascade alpha. Off = inset surface + hairline; on = flat accent; white puck. */
+    private void drawPill(UiRenderer r, float px, float py, float k, float a) {
         float rad = PILL_H / 2f;
-        if (on) {
-            r.roundedRect(px, py, PILL_W, PILL_H, rad, Color.scaleAlpha(Tokens.accent().accent(), a));
-        } else {
-            r.roundedRect(px, py, PILL_W, PILL_H, rad, Color.scaleAlpha(Tokens.surface().surfaceHi(), a));
-            r.border(px, py, PILL_W, PILL_H, rad, Tokens.border().thickness(), Color.scaleAlpha(Tokens.border().defaultColor(), a));
-        }
+        int fill = Color.lerp(Tokens.surface().surfaceHi(), Tokens.accent().accent(), k);
+        r.roundedRect(px, py, PILL_W, PILL_H, rad, Color.scaleAlpha(fill, a));
+        r.border(px, py, PILL_W, PILL_H, rad, Tokens.border().thickness(),
+                Color.scaleAlpha(Tokens.border().defaultColor(), a * (1f - k)));   // hairline fades out as it turns on
         float knobR = rad - PILL_PAD;
-        float knobCx = on ? (px + PILL_W - PILL_PAD - knobR) : (px + PILL_PAD + knobR);
-        r.circle(knobCx, py + rad, knobR, Color.scaleAlpha(Tokens.palette().white(), a));
+        float leftCx = px + PILL_PAD + knobR, rightCx = px + PILL_W - PILL_PAD - knobR;
+        r.circle(leftCx + (rightCx - leftCx) * k, py + rad, knobR, Color.scaleAlpha(Tokens.palette().white(), a));
     }
 
     // ---- input ---------------------------------------------------------------
@@ -180,7 +206,7 @@ final class ParticlesPane extends Container {
                     boolean show = !anyVisible(g.entries);         // any on -> turn all off; all off -> all on
                     for (ParticleCatalog.Entry e : g.entries) ParticleVisibility.setVisible(e.id(), show);
                 } else if (i != selected) {
-                    selected = i; onEnter();
+                    selected = i; scroll = 0f; seedRows(0);         // slide the bar (selBar eases in render), re-cascade rows
                 }
                 return true;
             }

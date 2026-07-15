@@ -343,12 +343,11 @@ public final class ClubMenuScreen extends Screen {
      *  code path has to branch. Called on every real category change (init + setCategory). */
     private void applyCategoryMode() {
         boolean p = particlesActive();
-        search.visible = !p;
         gridScroll.visible = !p;
         particlesPane.visible = p;
-        // Blur so the now-hidden header search can't keep focus and swallow the menu-close key (the guard at
-        // the close route reads search.isFocused()). Replay the row cascade on each entry.
-        if (p) { focus.blur(); particlesPane.onEnter(); }
+        if (p) particlesPane.onEnter();   // replay the full-panel cascade on entry
+        // The global "Search modules" field stays visible in EVERY category (owner) — it is never hidden, so
+        // there is no hidden-but-focused search to swallow the close key, and nothing to blur here.
     }
 
     /** Rail bar colour, easing from the previous category's hue to the current one. */
