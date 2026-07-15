@@ -59,6 +59,11 @@ public final class Button extends Control {
     public Button compact() { this.compact = true; return this; }
     /** Width hugs the label (md padding), skipping the 96px alignment floor — see {@link #measure}. */
     public Button hug() { this.hug = true; return this; }
+    /** Left-align the label instead of centring it. A TEXT button pinned to a width floor (so an
+     *  arm/confirm swap cannot shift it) reads as INDENTED when its shorter label is centred in the wider
+     *  box — "Reset to default" floated away from the left edge (owner, v0.1.3: "почему ресет так съехано
+     *  выглядит"). Flush-left, both labels start on the same pixel: no shift, no float. */
+    public Button labelLeft() { this.label.align(com.club.ui.text.Align.LEFT); return this; }
     /** Armed / listening state (confirm-reset, keybind capture): a SOFT accent chip — subtle tinted
      *  fill + accent border + accent text — instead of a solid PRIMARY fill, which read as a garish
      *  pastel block against the flat dark UI (owner, Stage 50). Distinct and urgent, still premium. */

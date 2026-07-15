@@ -4,6 +4,8 @@ import com.club.modules.animations.AnimationModule;
 import com.club.modules.animations.Pose;
 import com.club.modules.hands.HandsModule;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.item.HeldItemRenderer;
@@ -55,6 +57,36 @@ public class MixinHeldItemRenderer {
                     target = "Lnet/minecraft/client/network/ClientPlayerEntity;getAttackCooldownProgress(F)F"))
     private float club$noCooldownDip(float original) {
         return AnimationModule.overridesVanillaSwing() ? 1.0f : original;
+    }
+
+    /**
+     * THE OTHER HALF OF THE EQUIP DIP — the one that fires when you HIT SOMETHING (owner, v0.1.3: "при
+     * попадании по игроку меч продолжает моментами опускаться вниз"). {@link #club$noCooldownDip} kills the
+     * cooldown-driven dip, but {@code updateHeldItems} has a SECOND path to it.
+     *
+     * <p>The bytecode: {@code if (ItemStack.areEqual(this.mainHand, current)) this.mainHand = current;} —
+     * the field is refreshed only when the two are equal. Later, {@code equipProgress += clamp((this.mainHand
+     * == current ? f³ : 0.0) - equipProgress, ...)} dips toward 0 when the references differ. And in 1.21 an
+     * item's DAMAGE is a component, so {@code areEqual} returns false the instant your sword loses a point of
+     * durability — which is exactly when you land a hit. The field is not refreshed, the reference check
+     * fails, and the hand dips. It looks intermittent because it tracks connecting hits, not swings.
+     *
+     * <p>Fix: while our animation owns the swing, treat a stack that is the SAME ITEM (ignoring damage,
+     * count, any component) as equal, so the field refreshes and the dip never arms. A genuine item switch
+     * (sword → pickaxe) is a different item, still returns the real {@code false}, and still plays vanilla's
+     * equip animation — which is correct. Main hand only (ordinal 0): the report is the sword, and the
+     * off-hand does not carry our attack pose.
+     */
+    @WrapOperation(
+            method = "updateHeldItems",
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/item/ItemStack;areEqual(Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemStack;)Z",
+                    ordinal = 0))
+    private boolean club$noSwapDipOnDamage(ItemStack a, ItemStack b, Operation<Boolean> original) {
+        if (AnimationModule.overridesVanillaSwing()
+                && a != null && b != null && !a.isEmpty() && !b.isEmpty() && a.isOf(b.getItem()))
+            return true;
+        return original.call(a, b);
     }
 
     /** Capture the real swing; zero it so vanilla never swings (unless Vanilla mode). */

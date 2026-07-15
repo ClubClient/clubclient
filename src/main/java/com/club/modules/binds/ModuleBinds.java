@@ -49,7 +49,7 @@ public final class ModuleBinds {
      * v0.1.2 shipped a fix for, wearing a new costume. The migration (ClubConfig v10) then deletes those
      * entries outright, so the config does not carry a lie either.
      */
-    public static final Set<String> KEYED = Set.of("Toggle Sprint", "Fullbright", "Item Scroll");
+    public static final Set<String> KEYED = Set.of("Toggle Sprint", "Fullbright");
 
     /** Does this module show a key row in its popover? True for {@link #KEYED} and for the HOLD modules,
      *  whose row rebinds the real vanilla binding they are held on. The single source of truth for the UI. */

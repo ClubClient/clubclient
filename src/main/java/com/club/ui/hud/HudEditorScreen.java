@@ -34,6 +34,10 @@ public final class HudEditorScreen extends Screen {
     private final UiContextImpl uiCtx = new UiContextImpl();
     private final FocusManager focus = new FocusManager();
     private final long start = System.nanoTime();
+    /** Entrance fade (owner, v0.1.3 #6: the editor "буквально в один тик резко меняется"). The menu fades
+     *  its scrim in on open; the editor slammed to an opaque dark panel in a single frame. Created lazily on
+     *  the first rendered frame — {@code init()} runs before the clock is meaningful. */
+    private com.club.ui.motion.Transition entrance;
 
     private final HudCanvas canvas = new HudCanvas(true)
             .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement()).add(new ArmorElement())
@@ -166,8 +170,9 @@ public final class HudEditorScreen extends Screen {
             addRow("Layout", new Segmented(new String[]{"Column", "Row"}, h().potionHorizontal ? 1 : 0,
                     i -> { h().potionHorizontal = (i == 1); save(); }));
         } else if (sel instanceof TargetElement) {
-            addRow("Range", new Slider(h().targetDistance, 3f, 32f, 1f)
-                    .onChange(v -> h().targetDistance = Math.round(v)).onRelease(this::save));
+            // No "Range" row (owner, v0.1.3 #10): a configurable detection distance is a soft cheat — it
+            // would let a player see a target named before they could reach it. Reach is a fixed 4 blocks in
+            // TargetHud now. The Target element keeps only its Size, like every other chip.
         } else if (sel instanceof ArmorElement) {
             addRow("Layout", new Segmented(new String[]{"Column", "Line"},
                     com.club.config.ArmorLayout.fromIndex(h().armorLayout).index(),
@@ -253,8 +258,19 @@ public final class HudEditorScreen extends Screen {
         com.club.hud.PixelIcons.set(dc);   // duotone icons draw through this DrawContext
         var r = Ui.renderer(); Typography ty = Tokens.type();
         if (stHint == null) initStyles();
-        r.rect(0, 0, canvasW, canvasH, 0xFF0A0E15);
         uiCtx.setTime((System.nanoTime() - start) / 1_000_000_000f);
+
+        // Entrance: the dark ground fades IN over the world instead of snapping opaque in one frame. The
+        // world shows through during the ~0.28s ramp, so opening the editor reads as a transition, not a cut
+        // (owner #6). The toolbar rides a small rise on the same curve. No content alpha (text does not fade
+        // through pushOpacity in this stack — Stage 9); the scrim reveal alone carries it.
+        float entranceNow = uiCtx.time();
+        if (entrance == null)
+            entrance = new com.club.ui.motion.Transition(0f, Tokens.motion().durations().normal(),
+                    Tokens.motion().easings().decelerate());
+        entrance.target(1f, entranceNow);
+        float ep = entrance.value(entranceNow);
+        r.rect(0, 0, canvasW, canvasH, Color.scaleAlpha(0xFF0A0E15, ep));
 
         canvas.setScreen(Math.round(canvasW), Math.round(canvasH));
         canvas.layoutFromConfig(mc);

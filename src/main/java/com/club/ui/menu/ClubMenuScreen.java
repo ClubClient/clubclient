@@ -158,7 +158,7 @@ public final class ClubMenuScreen extends Screen {
     private int tabIndex;
     private Transition segSlide;    // segmented-tab pill position — outer, so it survives popover rebuilds
     private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
-    private float popX, popY, popW, popH, popAX, popAY, popAH, popContentH, popInnerW;
+    private float popX, popY, popW, popH, popAX, popAY, popAW, popAH, popContentH, popInnerW;
     private float popRoom;   // vertical room the sheet was allowed — the denominator of "maximal" (harness seam)
     private int pressOwner;
     // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
@@ -430,12 +430,46 @@ public final class ClubMenuScreen extends Screen {
         else for (Setting s : m.settings()) if (s instanceof ActionSetting a) { a.action().run(); return; }
     }
 
+    /**
+     * Does a "Reset to default" earn its place in this module's popover?
+     *
+     * <p>It did not, on most of them (owner, v0.1.3 #4/#7: "зачем но фаир и подобным эта кнопка если там
+     * нечего сбросить", "зачем в перфоманс всем ресет, там всего один ползунок"). A reset restores TWEAKED
+     * VALUES — so it means something only where there are values to tweak. A flag module (No-Fire) has just
+     * its master switch; a Performance card has zero sliders or one. Nothing there for a reset to undo that a
+     * single click on the control itself would not.
+     *
+     * <p>The rule: at least TWO adjustable settings (a lone slider resets itself by being dragged back), OR a
+     * rebindable key row (reset restores the factory key / clears a bind). That keeps it on Hands, Animations,
+     * Zoom, and the keyed modules; drops it from the No-* flags and every Performance card.
+     */
+    private boolean resetWorthShowing(Module m) {
+        if (com.club.modules.binds.ModuleBinds.hasKeyRow(m.name())) return true;
+        int adjustable = 0;
+        java.util.List<Setting> all = new java.util.ArrayList<>(m.settings());
+        for (Tab t : m.tabs()) all.addAll(t.settings());
+        for (Setting s : all) if (!(s instanceof ActionSetting)) adjustable++;
+        return adjustable >= 2;
+    }
+
     private boolean hasConfigurable(Module m) {
         if (m.hasTabs()) return true;
-        // Every toggleable module carries a Bind row since Stage 43 — flag modules (Fullbright,
-        // Freelook, No-*) must open a popover too, or their keybind would be unreachable.
         if (m.hasToggle()) return true;
+        // A key row is enough on its own to justify a popover — and after v0.1.3 this is the ONLY thing
+        // Freelook has. It lost its on/off toggle (a hold module has no off state; the key is the switch),
+        // it has no sliders, and its only setting used to be that toggle. Without this line clicking the
+        // Freelook card does NOTHING — no popover, no way to rebind Left Alt, no way to see it at all
+        // (owner, v0.1.3: "фрилук вообще не открывает поповер… кнопка просто есть и с ней ничего не
+        // происходит"). Zoom escaped the bug only because it still has two sliders.
+        if (com.club.modules.binds.ModuleBinds.hasKeyRow(m.name())) return true;
         for (Setting s : m.settings()) if (!(s instanceof ActionSetting)) return true;
+        return false;
+    }
+
+    /** True when the card's only job is to run an action (HUD Editor) — no toggle, no popover. */
+    private boolean hasAction(Module m) {
+        if (m.hasToggle()) return false;
+        for (Setting s : m.settings()) if (s instanceof ActionSetting) return true;
         return false;
     }
 
@@ -525,7 +559,7 @@ public final class ClubMenuScreen extends Screen {
         // height tweens then carry the sheet to the new card on their own.
         popSwapping = popModule != null && popModule != m && !popClosing && popReveal != null;
 
-        popModule = m; popAX = ax; popAY = ay; popAH = ah; tabIndex = 0; openDrop = null;
+        popModule = m; popAX = ax; popAY = ay; popAW = aw; popAH = ah; tabIndex = 0; openDrop = null;
         resetArmed = false;                     // a fresh popover never opens pre-armed
         popClosing = false;
         if (!popSwapping) popReveal = null;     // a cold open: render() plays the grow-in on the first frame
@@ -537,10 +571,22 @@ public final class ClubMenuScreen extends Screen {
         float prevOffset = (popScroll != null) ? popScroll.scrollOffset() : 0f;   // survive dropdown-expand / tab-switch rebuild
         focus.clear();
         focus.register(search);
-        // Width FIRST — the rows size their label column against it. Never wider than the WELL it lives
-        // in: clamping to the window let a 236px sheet spill past the well (and invert the popX clamp)
-        // once the window shrank, i.e. at GUI scale 4 (Stage 58).
-        popW = Math.min(POP_W, Math.max(POP_W_MIN, wellW - 24f));
+        // Width FIRST — the rows size their label column against it. It is the WIDTH OF THE CARD that spawned
+        // it now (owner, v0.1.3 #11: "почему каждый поповер в два-три раза больше и длиннее самой иконки?"):
+        // a sheet as wide as its card reads as that card's settings, not as a second panel.
+        //
+        // The floor is POP_W_MIN, RAISED to fit a notice when there is one. A notice is a single non-wrapping
+        // caption ("Install Sodium for entity culling"), and card-width clipped it mid-word — a Performance
+        // card's popover is notice-only, so the width tightening left nothing BUT the clipped sentence. So the
+        // sheet is card-width, unless its own message needs more, in which case it grows to hold the message
+        // and no further. Capped at POP_W and the well width so a wide card can't spill on a small window.
+        float widthFloor = POP_W_MIN;
+        String notice0 = MenuContent.notice(popModule.name());
+        if (notice0 != null) {
+            var cap = Tokens.type().caption();
+            widthFloor = Math.max(widthFloor, Ui.text().width(notice0, cap.weight(), cap.size()) + 2 * POP_PAD + 4f);
+        }
+        popW = Math.max(widthFloor, Math.min(Math.max(popAW, widthFloor), Math.min(POP_W, wellW - 24f)));
         float innerW = popW - 2 * POP_PAD;
         popInnerW = innerW;
         popCol = buildSettings(popModule);
@@ -882,7 +928,7 @@ public final class ClubMenuScreen extends Screen {
             }
         } else popBindBtn = null;
 
-        if (m.hasReset() && openDrop == null) {   // hidden while a dropdown is expanded (see the guard above)
+        if (m.hasReset() && resetWorthShowing(m) && openDrop == null) {   // hidden while a dropdown is expanded
             // Stage 35 (hardened in 38): a destructive action asks first. Click 1 ARMS the button — it
             // becomes the soft-accent "Confirm reset?" (Stage 50); click 2 within the hold executes.
             // Arm and decay swap IN PLACE (label/armed only, width pinned to the idle box) — a rebuild
@@ -902,7 +948,7 @@ public final class ClubMenuScreen extends Screen {
             // that whispers is a confirmation nobody reads. The width floor pins the box to the WIDER of the
             // two labels so arming cannot shift the row under the cursor mid-click.
             Button reset = new Button(resetArmed ? "Confirm reset?" : "Reset to default")
-                    .variant(Button.Variant.TEXT).armed(resetArmed).compact().hug()
+                    .variant(Button.Variant.TEXT).armed(resetArmed).compact().hug().labelLeft()
                     .accent(resetArmed ? accent : Tokens.palette().stateLow());
             reset.minWidth(new Button("Confirm reset?").compact().hug().measure(10_000f, 22f).w());
             reset.onClick(() -> {
@@ -927,12 +973,9 @@ public final class ClubMenuScreen extends Screen {
                 }
             });
             popResetBtn = reset;
-            // Separated by AIR, not by a line. This screen's rule since Stage 22 is that zones separate by
-            // panel edges and depth — "every hairline divider is gone" (see the class header), and the owner
-            // approved that board. A footer that needed a rule to be legible would be a footer that had not
-            // been made quiet enough; making it quiet was the whole point. One extra step of the spacing scale
-            // is all it takes now that the button no longer wears a border.
-            col.add(Spacer.fixed(Tokens.spacing().sm()));
+            // The column's own xs gap already separates this row from the one above. An extra sm spacer on
+            // top of it stacked to ~16px — a canyon under a quiet text link (owner, v0.1.3 #3: "слишком много
+            // расстояния между ним, выглядит не компактно"). Air, yes — but one step of it, not three.
             Row rr = new Row(); rr.add(reset);
             col.add(rr); focus.register(reset);
         } else popResetBtn = null;
@@ -1524,6 +1567,8 @@ public final class ClubMenuScreen extends Screen {
     // name never truncates — its SIZE fits the space (one uniform size per category, see cardNameSize).
     // State lives in COLOUR only (grey <-> category hue via one eased factor) — geometry never jumps.
     private static final float TILE_H = 58f, TILE_PAD = 7f, NAME_GAP = 6f;
+    /** Modules shipping as beta — a "Beta" mark rides the card's top-right corner (v0.1.3 #5). */
+    private static final java.util.Set<String> BETA = java.util.Set.of("Item Scroll");
     private static final float CHIP = 22f, CHIP_RAD = 7f, CHIP_ICON = 13f;
     private static final float STRIPE_W = 14f, STRIPE_H = 3f, STRIPE_GAP = 4f;
     private static final float NAME_BASE = 12f;
@@ -1653,6 +1698,17 @@ public final class ClubMenuScreen extends Screen {
                     TextStyle.of(Tokens.type().heading().weight(), ns, Color.scaleAlpha(nameCol, screenAlpha * ta)));
             r.popClip();
 
+            // A "Beta" mark, top-right (owner, v0.1.3 #5: shipping Item Scroll as beta while it settles). It
+            // is a STATUS, not identity, so it wears the brand accent rather than the category hue — small,
+            // quiet, and out of the name's way. The name is centred and left; this corner is otherwise empty.
+            if (BETA.contains(m.name())) {
+                float bs = 8.5f;
+                float bw = ctx.text().width("Beta", Tokens.type().label().weight(), bs);
+                ctx.text().draw("Beta", x + w - TILE_PAD - bw, y + TILE_PAD - 1f,
+                        TextStyle.of(Tokens.type().label().weight(), bs,
+                                Color.scaleAlpha(Tokens.accent().accent(), 0.9f * screenAlpha * ta)));
+            }
+
             // Keyboard focus ring (Stage 27) — only in the grid zone (always keyboard-driven, so
             // this is inherently focus-visible), hugging the card just outside its edge.
             if (gridFocused && gridFocus == m) {
@@ -1665,7 +1721,18 @@ public final class ClubMenuScreen extends Screen {
         @Override public boolean mouseClicked(double mx, double my, int b) {
             if (!contains(mx, my)) return false;
             if (b == 0) { activate(m); return true; }
-            if (b == 1) { if (hasConfigurable(m)) { if (popModule == m && !popClosing) closePopover(); else openPopover(m, x, y, w, h); } return true; }
+            if (b == 1) {
+                if (hasConfigurable(m)) {
+                    if (popModule == m && !popClosing) closePopover(); else openPopover(m, x, y, w, h);
+                } else if (hasAction(m)) {
+                    // An action-only card (HUD Editor) has no popover to toggle, so a right-click would sit
+                    // dead — the owner right-clicked it and nothing happened (v0.1.3 #6). Both buttons run the
+                    // action: opening the editor is the only thing this card can do, and it should not matter
+                    // which button asked for it.
+                    activate(m);
+                }
+                return true;
+            }
             return false;
         }
     }

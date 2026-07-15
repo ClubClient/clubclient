@@ -99,12 +99,19 @@ public final class SprintElement extends HudElement {
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
         float cw = 2 * PAD_X + Ui.text().width(LABEL, Weight.MEDIUM, TEXT_SIZE);
-        HudPaint.chip(ctx, ox, oy, cw * s, CONTENT_H * s, HudPaint.CHIP_RAD * s, alpha);
+        // A DENSER GROUND than the shared V4 chip (owner, v0.1.3 #8: "кнопку спринта вообще не видно").
+        // The other chips carry bright content — 18px HP, armour icons — that reads over anything. This one
+        // is a single quiet word, and on the shared bg2-at-55% wash it vanished over a bright PvP world (on
+        // a dark scene it was fine, which is why it flickered in and out). bg1 (#090E16) at 82% is a real
+        // dark pill: the word sits on it legibly over grass in daylight, without becoming a loud panel.
+        ctx.renderer().roundedRect(ox, oy, cw * s, CONTENT_H * s, HudPaint.CHIP_RAD * s,
+                Color.scaleAlpha(Tokens.surface().bg1(), 0.82f * alpha));
         // The chip is only on screen while autosprint is working (see hasContent), so the one thing left to
-        // report is whether the player is actually MOVING under it. Bright = running. Faint = armed, idle.
-        // The editor's sample shows the bright state — a sample must show the element at full strength.
+        // report is whether the player is actually MOVING under it. Bright = running. Idle = one clear step
+        // down (textMuted, NOT the near-invisible textDesc): the state must READ, not merely differ. The
+        // editor's sample shows the bright state — a sample must show the element at full strength.
         boolean running = !live || (mc != null && mc.player != null && mc.player.isSprinting());
-        int col = Color.scaleAlpha(running ? Tokens.palette().textHi() : Tokens.palette().textDesc(), alpha);
+        int col = Color.scaleAlpha(running ? Tokens.palette().textHi() : Tokens.palette().textMuted(), alpha);
         float lh = Ui.text().lineHeight(Weight.MEDIUM, TEXT_SIZE);
         ctx.text().draw(LABEL, ox + PAD_X * s, oy + (CONTENT_H - lh) * 0.5f * s,
                 TextStyle.of(Weight.MEDIUM, TEXT_SIZE * s, col).effect(HudPaint.textShadow(alpha)));

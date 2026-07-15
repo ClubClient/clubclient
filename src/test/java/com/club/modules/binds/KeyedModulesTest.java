@@ -31,7 +31,6 @@ class KeyedModulesTest {
     void onlyModulesYouWouldFlipMidFightCarryAKey() {
         assertTrue(ModuleBinds.KEYED.contains("Toggle Sprint"), "sprint is flipped mid-fight");
         assertTrue(ModuleBinds.KEYED.contains("Fullbright"),    "you walk into a cave and want it now");
-        assertTrue(ModuleBinds.KEYED.contains("Item Scroll"),   "a strict anti-cheat server is a reason to kill it fast");
 
         // Set once, in a menu, and never thought about again. A key row on these is clutter, and clutter is
         // what the owner actually complained about ("это начинает выглядеть как мусорка").
@@ -42,7 +41,11 @@ class KeyedModulesTest {
         for (String setOnce : new String[] {
                 "Hands", "Animations", "Screen Stretch", "HUD Editor",
                 "No Hurt Cam", "No Fire Overlay", "No Bobbing", "Hide Effects",
-                "Particles", "Block Entities", "Background FPS" }) {
+                "Particles", "Block Entities", "Background FPS",
+                // Item Scroll lost its key in v0.1.3 (owner: "зачем итемскроллу кнопка бинда"). It is not a
+                // mid-fight toggle — you set your gestures once. Its bind, if any old file carries one, is
+                // dropped by the migration and inert in the tick loop.
+                "Item Scroll" }) {
             assertFalse(ModuleBinds.KEYED.contains(setOnce), setOnce + " is a set-once preference, not a hotkey");
             assertFalse(ModuleBinds.hasKeyRow(setOnce), setOnce + " must show no key row at all");
         }

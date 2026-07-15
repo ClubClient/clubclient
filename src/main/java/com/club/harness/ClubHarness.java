@@ -1113,9 +1113,14 @@ public final class ClubHarness {
             });
             step(4, () -> { mc.options.getGuiScale().setValue(prevGuiScale); mc.onResolutionChanged(); });
 
-            // Hands popover — TALL (tabs + 4 sliders + hotkey + reset): checks the body-clamp + card dim
+            // Hands popover — TALL (tabs + 4 sliders + hotkey + reset): checks the body-clamp + card dim.
+            // Category selected by NAME, not a relative Ctrl+Tab. The relative hop assumed the menu opens on
+            // Visuals and one tab lands on Player — but lastCatIndex is STATIC, so the moment a prior scene
+            // selected a different category (Performance, this pack), the fresh menu opened elsewhere and the
+            // single tab missed Player entirely. The search then found nothing, no card opened, and the
+            // popover check below passed on a sheet that was never there. Absolute selection cannot drift.
             step(6, () -> mc.setScreen(new ClubMenuScreen()));
-            step(2, () -> key(GLFW_KEY_TAB, GLFW_MOD_CONTROL));   // Visuals → Player
+            step(2, () -> { if (mc.currentScreen instanceof ClubMenuScreen cs) cs.selectCategory("Player"); });
             step(4, () -> {});
             step(2, () -> key(GLFW_KEY_TAB));                     // search focus
             step(1, () -> type('h'));
@@ -1147,8 +1152,13 @@ public final class ClubHarness {
                     float[] g = cs.popoverGeometry();
                     report.add(String.format("INFO  hands popover: contentH=%.0f h=%.0f y=%.0f room=%.0f waste=%.0f",
                             g[0], g[1], g[2], g[3], g[3] - g[1]));
+                    // g[0] > 0 FIRST: this whole check is about a TALL popover, so a popover that never opened
+                    // (all zeros) must fail, not pass. popoverIsMaximalAndWhole() answers true for "no popover"
+                    // — correct in isolation, a hole here — so the scene has to prove the sheet exists before
+                    // asking whether it is the right height. Caught exactly this: a mis-navigated scene left
+                    // the Hands popover unopened and the maximality check waved it through.
                     check("popover: as tall as the room allows, and never cut through a row",
-                            g[1] <= g[3] + 1f && cs.popoverIsMaximalAndWhole());
+                            g[0] > 0f && g[1] <= g[3] + 1f && cs.popoverIsMaximalAndWhole());
                 } else check("popover: menu still open for the geometry check", false);
             });
 

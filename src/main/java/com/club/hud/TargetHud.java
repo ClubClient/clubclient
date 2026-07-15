@@ -1,7 +1,6 @@
 package com.club.hud;
 
 import com.club.config.ClubConfig;
-import com.club.util.Mth;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -60,7 +59,12 @@ public final class TargetHud {
     private static LivingEntity raycastTarget(MinecraftClient mc, float tickDelta) {
         Entity camera = mc.getCameraEntity();
         if (camera == null || mc.world == null) return null;
-        double reach = Mth.clamp(ClubConfig.get().hud.targetDistance, 3, 32);
+        // Fixed reach, NOT a setting (owner, v0.1.3 #10: "убери настройку дистанции, засчитают как софт").
+        // A configurable detection range is a soft cheat: crank it up and the HUD names an opponent long
+        // before you could touch them. 4 blocks is just past vanilla's 3-block attack reach — the chip
+        // appears the moment a target is within a step of being hittable, and no further. hud.targetDistance
+        // stays in the config for old files, but nothing reads it and nothing writes it any more.
+        double reach = 4.0;
         Vec3d start = camera.getCameraPosVec(tickDelta);
         Vec3d dir = camera.getRotationVec(tickDelta);
         Vec3d end = start.add(dir.multiply(reach));

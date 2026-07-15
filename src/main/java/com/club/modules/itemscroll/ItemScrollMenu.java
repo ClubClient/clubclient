@@ -31,7 +31,9 @@ public final class ItemScrollMenu {
                             v -> { c.itemScroll.reverseScroll = v; ClubConfig.save(); }),
                     // The gesture matrix does not fit a 236px popover sheet, and a new row type would mean
                     // editing the frozen menu package. It opens a screen instead — the HUD editor's road.
-                    new MenuContent.ActionSetting("Edit gestures…", () -> {
+                    // "Change gestures…", not "Edit gestures…" (owner, v0.1.3 #5: "кто это поймёт?"): "edit"
+                    // is what you do to a file; "change" is what a player does to a control.
+                    new MenuContent.ActionSetting("Change gestures…", () -> {
                         MinecraftClient mc = MinecraftClient.getInstance();
                         mc.setScreen(new GestureScreen(mc.currentScreen));   // …and back to the menu on close
                     })));
