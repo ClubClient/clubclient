@@ -84,6 +84,8 @@ jobs:
             --arg repo "$GITHUB_REPOSITORY" '{
               username: "Club",
               avatar_url: "\($raw)/docs/icon.png",
+              content: "@everyone",
+              allowed_mentions: { parse: ["everyone"] },
               embeds: [{
                 author: { name: "Club · Fabric utility client", icon_url: "\($raw)/docs/icon.png", url: "https://modrinth.com/mod/clubclient" },
                 title: "Club \($tag) is out 🎉",
