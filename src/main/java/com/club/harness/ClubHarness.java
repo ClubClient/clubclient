@@ -581,7 +581,7 @@ public final class ClubHarness {
             // after, so the keyboard-nav scenes later don't inherit a category that has no cards.
             step(4, () -> mc.setScreen(new ClubMenuScreen()));
             step(2, () -> { if (mc.currentScreen instanceof ClubMenuScreen cs) cs.selectCategory("Particles"); });
-            step(8, () -> {});
+            step(18, () -> {});   // let the full entrance cascade (groups, then the offset row wave) settle
             step(2, () -> shot("menu-particles"));
             step(0, () -> check("particles: the two-pane category opens without closing the menu",
                     mc.currentScreen instanceof ClubMenuScreen));

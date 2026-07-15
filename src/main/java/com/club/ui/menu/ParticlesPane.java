@@ -122,10 +122,11 @@ final class ParticlesPane extends Container {
         return t.value(now);
     }
 
-    /** Where the screen should place the shared SearchField — the top-right of the detail header. */
+    /** Where the screen should place the shared SearchField — the top-right of the detail header. Wide enough
+     *  for its "Search particles" placeholder not to clip (the field has ~27px of icon+padding lead). */
     float[] searchBounds() {
         float dx = x + RAIL_W + GAP, dw = x + w - dx;
-        float sw = Math.min(dw * 0.5f, 150f), sh = 22f;
+        float sw = Math.min(dw * 0.62f, 192f), sh = 22f;
         return new float[]{ dx + dw - sw, y + (HEAD_H - sh) / 2f, sw, sh };
     }
 
