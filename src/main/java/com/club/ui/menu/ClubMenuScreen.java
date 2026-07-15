@@ -296,7 +296,7 @@ public final class ClubMenuScreen extends Screen {
                 .onChange(q -> { query = q; if (popModule != null) closePopover(); rebuildGrid(GridRebuild.SEARCH); layoutAll(); })
                 .onSubmit(this::submitSearch);   // Enter activates the first result
         gridScroll = new ScrollArea(grid).overlayScrollbar(true);   // bar floats on top — cards never jerk narrower (final pass #2)
-        particleSearch = new SearchField("Search particles").onChange(q -> particlesPane.setFilter(q));
+        particleSearch = new SearchField("Search").noSlashHint().onChange(q -> particlesPane.setFilter(q));
         root.clear();
         root.add(search);
         root.add(gridScroll);
@@ -1905,6 +1905,7 @@ public final class ClubMenuScreen extends Screen {
         private final TextEditState st = new TextEditState();
         private Consumer<String> onChange;
         private Runnable onSubmit;
+        private boolean slashHint = true;   // the "/" keycap hint; off for the in-pane particle search
         private long lastClickMs;     // double-click (word select) detection
         private int lastClickCaret = -1;
         private final Transition focusT =
@@ -1915,6 +1916,7 @@ public final class ClubMenuScreen extends Screen {
         SearchField(String placeholder) { this.placeholder = placeholder; }
         SearchField onChange(Consumer<String> cb) { this.onChange = cb; return this; }
         SearchField onSubmit(Runnable cb) { this.onSubmit = cb; return this; }
+        SearchField noSlashHint() { this.slashHint = false; return this; }
         void clear() { st.clear(); }
 
         private void notifyChange() { if (onChange != null) onChange.accept(st.text()); }
@@ -2038,9 +2040,11 @@ public final class ClubMenuScreen extends Screen {
                     Color.scaleAlpha(Color.lerp(Tokens.palette().textMuted(), acc, fv), screenAlpha));
             float textX = textStartX();
 
-            // "/" key hint (focuses the field in-game) — dissolves on focus, hidden while a query exists
+            // "/" key hint (focuses the field in-game) — dissolves on focus, hidden while a query exists.
+            // Suppressed for the in-pane particle search (slashHint=false): two identical "/" fields side by
+            // side read as one control duplicated (owner).
             float ka = (1f - fv) * (empty ? 1f : 0f) * screenAlpha;
-            if (ka > 0.001f) {
+            if (slashHint && ka > 0.001f) {
                 float kb = 18f, kx = x + w - 7f - kb, ky = y + (h - kb) / 2f;
                 r.roundedRect(kx, ky, kb, kb, 5f, Color.withAlpha(acc, Math.round(0x12 * ka)));
                 r.border(kx, ky, kb, kb, 5f, 1f, Color.scaleAlpha(Tokens.border().strong(), ka));
