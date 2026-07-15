@@ -39,6 +39,11 @@ public final class ScrollArea extends Container {
     private float contentH, viewportH;
     /** Width the content is laid out at: the viewport, MINUS the scrollbar lane while it's showing. */
     private float contentW;
+    /** Overlay scrollbar: draw the bar ON TOP of the content instead of reserving a lane, so the content
+     *  width never changes when the bar appears/disappears. The menu grid uses this — otherwise opening a
+     *  tall settings sheet makes the grid overflow, the bar claims its lane, and every card JERKS narrower
+     *  (owner, final pass #2). The popover keeps the reserved lane (its slider values must not sit under it). */
+    private boolean overlayBar;
 
     // Thumb-drag state (pointer-capture model) + hover, for the thumb affordance.
     private boolean draggingThumb, thumbHovered;
@@ -53,6 +58,10 @@ public final class ScrollArea extends Container {
         this.content = content;
         addChild(content);
     }
+
+    /** Draw the scrollbar over the content (no reserved lane) so the content width is stable whether or not
+     *  it overflows. See {@link #overlayBar}. */
+    public ScrollArea overlayScrollbar(boolean v) { this.overlayBar = v; return this; }
 
     /** Package-private accessor for tests. */
     float offset() { return offset; }
@@ -94,7 +103,9 @@ public final class ScrollArea extends Container {
         // the moment it appears: measure at full width to learn whether we overflow, then re-measure
         // narrowed. Rows here never reflow-grow when narrowed, so this settles in one pass.
         contentH = content.measure(w, h).h();
-        contentW = (contentH > viewportH) ? Math.max(1f, w - gutter()) : w;
+        // Overlay mode keeps the content full-width (the bar floats on top); otherwise the bar claims a lane
+        // the moment the content overflows, and re-measuring narrower is what jerks the menu cards.
+        contentW = (!overlayBar && contentH > viewportH) ? Math.max(1f, w - gutter()) : w;
         if (contentW != w) contentH = content.measure(contentW, h).h();
         offset = clampOffset(offset, contentH, viewportH);
         // Virtualization seam (frozen §11): lay out all children at their natural height.

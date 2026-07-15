@@ -289,7 +289,7 @@ public final class ClubMenuScreen extends Screen {
                 // over the results. The search is a new context; the sheet belongs to the old one.
                 .onChange(q -> { query = q; if (popModule != null) closePopover(); rebuildGrid(GridRebuild.SEARCH); layoutAll(); })
                 .onSubmit(this::submitSearch);   // Enter activates the first result
-        gridScroll = new ScrollArea(grid);
+        gridScroll = new ScrollArea(grid).overlayScrollbar(true);   // bar floats on top — cards never jerk narrower (final pass #2)
         root.clear();
         root.add(search);
         root.add(gridScroll);
@@ -1313,9 +1313,10 @@ public final class ClubMenuScreen extends Screen {
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
         if (popModule != null && popScroll != null) {
             if (popReveal == null) {
-                // fast + standard, not normal + decelerate: the sheet and the card it pushes share this reveal,
-                // and the softer 0.28s decelerate tail read as the push "lagging" the open (owner, pack 5 #2).
-                popReveal = new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().standard(), now);
+                // normal + standard: fast (0.17s) read as too quick once the push was synced (owner, final pass
+                // #1). The card and the sheet share this reveal, so both settle together at 0.28s — smooth, not
+                // laggy (the old lag was the double-ease, now fixed), and standard (not decelerate) keeps it crisp.
+                popReveal = new Reveal(Tokens.motion().durations().normal(), Tokens.motion().easings().standard(), now);
                 popHTween.snap(popH, now);
                 // A cold open arrives already at its card — there is nothing to glide FROM, and easing in from
                 // a stale position would make the sheet fly across the well on the first frame.
