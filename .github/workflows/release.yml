@@ -62,3 +62,36 @@ jobs:
           body_path: RELEASE_BODY.md
           files: build/libs/club-*.jar
           fail_on_unmatched_files: true
+
+      # A proper Discord announcement, not the bare "github-actions[bot] New release published" one-liner.
+      # Posts AS "Club" (icon + brand colour), with this version's changelog and download links. Fires only if
+      # the DISCORD_WEBHOOK secret holds the channel's PLAIN webhook URL (the one WITHOUT the /github suffix) —
+      # so turn the /github webhook's Releases event OFF once this is set, or both will post.
+      - name: announce on Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then echo "DISCORD_WEBHOOK not set — skipping the announcement"; exit 0; fi
+          ICON="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/docs/icon.png"
+          jq -n \
+            --arg tag "$TAG" \
+            --rawfile notes RELEASE_BODY.md \
+            --arg icon "$ICON" \
+            --arg repo "$GITHUB_REPOSITORY" '{
+              username: "Club",
+              avatar_url: $icon,
+              embeds: [{
+                title: "Club \($tag) is out",
+                url: "https://modrinth.com/mod/clubclient",
+                description: ($notes | if (length > 4000) then (.[0:3990] + "\n…") else . end),
+                color: 8170495,
+                thumbnail: { url: $icon },
+                fields: [
+                  { name: "📥 Download", value: "[Modrinth](https://modrinth.com/mod/clubclient)", inline: true },
+                  { name: "📄 Full notes", value: "[GitHub release](https://github.com/\($repo)/releases/tag/\($tag))", inline: true }
+                ],
+                footer: { text: "Fabric 1.21.1 · client-side · MIT" }
+              }]
+            }' > payload.json
+          curl -sS -X POST -H "Content-Type: application/json" -d @payload.json "$DISCORD_WEBHOOK" && echo "announced"
