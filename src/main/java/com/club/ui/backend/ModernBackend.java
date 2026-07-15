@@ -200,11 +200,26 @@ public final class ModernBackend implements UiRenderer {
                     0f, 0f, 0f, 0f, 0f, MODE_FILL, color, color, 0, 0f, 0f);
             return;
         }
-        // General diagonal: bounding-box approximation for Stage 1.
-        // TODO: shader-side rotated capsule SDF for diagonal lines.
-        shapeWithRadii(Math.min(x1, x2), Math.min(y1, y2),
-                Math.max(thickness, Math.abs(x2 - x1)), Math.max(thickness, Math.abs(y2 - y1)),
-                0f, 0f, 0f, 0f, 0f, MODE_FILL, color, color, 0, 0f, 0f);
+        // General diagonal: a real rotated capsule. We rotate the matrix about the line's midpoint and draw an
+        // ordinary axis-aligned rounded rect (radius = half-thickness → round caps). Only the screen VERTICES
+        // rotate; the shader's localPos stays axis-aligned, so the rounded-box SDF is exact and its
+        // fwidth-based AA adapts to the rotation on its own — no shader change, no manual capsule maths, and it
+        // still rides the shape batch (each quad bakes its own matrix). Rounded caps extend half-thickness past
+        // the endpoints, matching stroke-linecap: round.
+        if (broken || ctx == null) return;
+        float dx = x2 - x1, dy = y2 - y1;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        if (len < 1e-4f) return;
+        float mx = (x1 + x2) * 0.5f, my = (y1 + y2) * 0.5f, rad = thickness * 0.5f;
+        var ms = ctx.getMatrices();
+        ms.push();
+        ms.translate(mx, my, 0f);
+        ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotation((float) Math.atan2(dy, dx)));
+        ms.translate(-mx, -my, 0f);
+        roundedRect(mx - (len + thickness) * 0.5f, my - rad, len + thickness, thickness, rad, color);
+        // A batched quad bakes the CURRENT matrix into its vertices at emit, so it is safe to pop now —
+        // but only after a flush would be wrong: the quad is already recorded with its rotated matrix.
+        ms.pop();
     }
 
     // -------------------------------------------------------------------------

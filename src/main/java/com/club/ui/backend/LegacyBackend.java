@@ -38,7 +38,23 @@ public final class LegacyBackend implements UiRenderer {
         rect(x - 1, y - 1, w + 2, h + 2, Color.scaleAlpha(c, 0.4f));
     }
     @Override public void line(float x1, float y1, float x2, float y2, float th, int c) {
-        rect(Math.min(x1, x2), Math.min(y1, y2), Math.max(th, Math.abs(x2 - x1)), Math.max(th, Math.abs(y2 - y1)), c);
+        if (x1 == x2 || y1 == y2 || ctx == null) {   // axis-aligned: the bounding box IS the line
+            rect(Math.min(x1, x2), Math.min(y1, y2), Math.max(th, Math.abs(x2 - x1)), Math.max(th, Math.abs(y2 - y1)), c);
+            return;
+        }
+        // Diagonal: rotate the matrix about the midpoint and draw an axis-aligned bar (square caps — LEGACY
+        // has no rounding or AA, but it's a real diagonal, not a bounding-box blob). DrawContext.fill honours
+        // the matrix, so the bar rotates on screen.
+        float dx = x2 - x1, dy = y2 - y1;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        float mx = (x1 + x2) * 0.5f, my = (y1 + y2) * 0.5f;
+        var ms = ctx.getMatrices();
+        ms.push();
+        ms.translate(mx, my, 0f);
+        ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotation((float) Math.atan2(dy, dx)));
+        ms.translate(-mx, -my, 0f);
+        rect(mx - len * 0.5f, my - th * 0.5f, len, th, c);
+        ms.pop();
     }
     @Override public void circle(float cx, float cy, float r, int c) { rect(cx - r, cy - r, r * 2, r * 2, c); }
 

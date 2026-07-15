@@ -1808,38 +1808,23 @@ public final class ClubMenuScreen extends Screen {
 
     /** The "nothing to configure here" mark (owner, v0.1.3 pack 5 #5, variant A): a muted gear with a NEAT red
      *  slash top-right, plus a very quiet red outline round the whole card. All at alpha {@code a} so the
-     *  caller fades it in and out.
-     *
-     *  <p>Built from axis-aligned primitives only: this renderer draws a DIAGONAL {@code line()} as its
-     *  bounding-box rectangle (a Stage-1 placeholder), so a real diagonal would come out a solid red square.
-     *  The gear is a disc with eight square teeth and a punched hole; the slash is a STEPPED stroke (the same
-     *  trick the rail chevron uses), drawn twice — a card-colour under-stroke leaves a clean gap around the
-     *  red so it reads crossed-out, not smudged. */
+     *  caller fades it in and out. The gear is eight radial teeth (round-capped strokes) round a body disc
+     *  with a punched hole; the slash is drawn twice — a card-colour under-stroke leaves a clean gap around
+     *  the red so it reads crossed-out, not smudged. */
     private void drawNoSettingsFlash(UiRenderer r, float x, float y, float w, float h, float rad, int fill, float a) {
         r.border(x, y, w, h, rad, 1.6f, Color.scaleAlpha(Tokens.palette().stateLow(), 0.5f * a));   // very muted red outline
-        float Rb = 5.8f, Rtooth = 7.6f, tooth = 3.4f, Rh = 2.5f;
-        float gx = x + w - TILE_PAD - (Rtooth + tooth / 2f), gy = y + TILE_PAD + (Rtooth + tooth / 2f);
+        float R = 9.5f, Rb = 6.4f, Rh = 2.6f, toothW = 2.8f;
+        float gx = x + w - TILE_PAD - R, gy = y + TILE_PAD + R;
         int gcol = Color.scaleAlpha(Tokens.palette().textMuted(), a);
-        for (int k = 0; k < 8; k++) {   // eight square teeth around the ring
+        for (int k = 0; k < 8; k++) {   // eight teeth radiating from the centre (inner half hidden by the body)
             double ang = Math.toRadians(k * 45);
-            float tx = gx + (float) (Rtooth * Math.cos(ang)), ty = gy + (float) (Rtooth * Math.sin(ang));
-            r.rect(tx - tooth / 2f, ty - tooth / 2f, tooth, tooth, gcol);
+            r.line(gx, gy, gx + (float) (R * Math.cos(ang)), gy + (float) (R * Math.sin(ang)), toothW, gcol);
         }
         r.circle(gx, gy, Rb, gcol);                        // body
         r.circle(gx, gy, Rh, Color.scaleAlpha(fill, a));   // hole, in the card's own face colour
-        float s = Rtooth + tooth / 2f;                     // slash spans the whole mark, corner to corner
-        int under = Color.scaleAlpha(fill, a), red = Color.scaleAlpha(Tokens.palette().stateLow(), a);
-        steppedSlash(r, gx - s, gy - s, gx + s, gy + s, 3.8f, under);   // the neat gap
-        steppedSlash(r, gx - s, gy - s, gx + s, gy + s, 2.1f, red);     // the red slash
-    }
-
-    /** A diagonal stroke as a run of small squares (this renderer has no true diagonal line — see
-     *  {@link #drawNoSettingsFlash}). Steps one pixel at a time so the run reads as a clean line, not a stair. */
-    private void steppedSlash(UiRenderer r, float x1, float y1, float x2, float y2, float thick, int color) {
-        int steps = (int) Math.ceil(Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)));
-        float dx = (x2 - x1) / steps, dy = (y2 - y1) / steps;
-        for (int i = 0; i <= steps; i++)
-            r.rect(x1 + dx * i - thick / 2f, y1 + dy * i - thick / 2f, thick, thick, color);
+        float s = R * 0.9f;                                // slash across the whole mark
+        r.line(gx - s, gy - s, gx + s, gy + s, 3.6f, Color.scaleAlpha(fill, a));                          // under-stroke: the neat gap
+        r.line(gx - s, gy - s, gx + s, gy + s, 2.0f, Color.scaleAlpha(Tokens.palette().stateLow(), a));   // the red slash
     }
 
     /** Minimal single-line search input: leading glyph, placeholder when idle, blinking caret when
