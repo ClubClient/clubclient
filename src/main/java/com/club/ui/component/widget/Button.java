@@ -50,7 +50,13 @@ public final class Button extends Control {
 
     public Button(String text) { this.label = new Label(text).align(Align.CENTER); }
 
-    public Button variant(Variant v) { this.variant = v; this.styleInit = false; return this; }
+    public Button variant(Variant v) {
+        this.variant = v; this.styleInit = false;
+        // A VALUE chip is a quiet value, not a control: smaller type than a button's label so "Not set" / "Left
+        // Alt" stop shouting (owner, pack 5 #4: "почему текст в боксах так сильно выделяется и такой большой").
+        if (v == Variant.VALUE) this.label.role(Tokens.type().label());
+        return this;
+    }
     public Button onClick(Runnable r) { this.onClick = r; return this; }
     /** Overrides the accent colour (PRIMARY fill / GHOST hover tint / focus ring); 0 = theme accent. */
     public Button accent(int color) { this.accent = color; this.styleInit = false; return this; }
@@ -151,10 +157,10 @@ public final class Button extends Control {
                         // border to sit in and reads as a control.
                         : variant == Variant.TEXT
                             ? (hovered ? WidgetPaint.acc(accent) : Tokens.palette().textFaint())
-                        // VALUE reads like the number beside a slider — textHi, and it does NOT tint on
-                        // hover: a value that changes colour when the mouse passes over it is a value that
-                        // looks like it did something.
-                        : variant == Variant.VALUE ? Tokens.palette().textHi()
+                        // VALUE rests in textMuted, not textHi (owner, pack 5 #4): the chip already has a
+                        // ground, so bright text on top double-emphasised the least-used control in the sheet.
+                        // It does NOT tint on hover — a value that recolours under the cursor looks like it acted.
+                        : variant == Variant.VALUE ? Tokens.palette().textMuted()
                             : (hovered ? WidgetPaint.acc(accent) : Tokens.palette().textHi()));
             lastHovered = hovered;
             styleInit = true;

@@ -184,6 +184,24 @@ public final class HudCanvas extends Container {
     /** Set the editor overlays a dragged element must not slide under (toolbar, open popover). */
     public void setReserved(int[][] r) { this.reserved = (r != null) ? r : new int[0][]; }
 
+    /** Bump any element that RESTS under a reserved overlay out from under it, and persist. Preventing NEW
+     *  drags under the toolbar isn't enough: an element parked there BEFORE the constraint existed can't be
+     *  grabbed (the overlay eats the click), so it must free itself when the editor opens (owner, pack 5 #1).
+     *  Cheap and idempotent — once nothing overlaps, it no-ops and never saves again. Skips a live drag. */
+    public void unstickReserved() {
+        if (!editor || reserved.length == 0) return;
+        boolean moved = false;
+        for (HudElement e : elements) {
+            if (e == pressed) continue;
+            int w = (int) e.width(), h = (int) e.height(), x = (int) e.xLeft(), y = (int) e.yTop();
+            if (!HudSnap.overlapsAny(x, y, w, h, reserved)) continue;
+            int[] res = HudSnap.avoidOverlap(x, y, w, h, otherBoxes(e));
+            int nx = HudSnap.clampAxis(res[0], w, screenW), ny = HudSnap.clampAxis(res[1], h, screenH);
+            if (nx != x || ny != y) { e.cfgX(nx); e.cfgY(ny); e.layout(nx, ny, w, h); moved = true; }
+        }
+        if (moved) saver.run();
+    }
+
     @Override public boolean mouseReleased(double mx, double my, int button) {
         if (!editor || button != 0) return false;
         guideX = guideY = HudSnap.NO_GUIDE;

@@ -320,6 +320,7 @@ public final class HudEditorScreen extends Screen {
         // The settings popover is NOT reserved: it follows its own selected element as you drag it, so reserving
         // it would fight that drag; and it closes on deselect, so nothing stays stuck under it.
         canvas.setReserved(new int[][]{ {(int) tbX, (int) tbY, (int) tbW, (int) tbH} });
+        canvas.unstickReserved();   // free any element parked under the toolbar before this constraint existed (#1)
         if (hasPopover) {
             float now = uiCtx.time();
             if (popReveal == null) { popReveal = new Reveal(Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate(), now); popHTween.snap(popH, now); }

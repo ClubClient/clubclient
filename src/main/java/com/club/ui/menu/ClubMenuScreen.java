@@ -630,9 +630,11 @@ public final class ClubMenuScreen extends Screen {
         popRoom = wellH - 24;
         float want = popContentH + 2 * POP_PAD;
         popH = Math.max(1f, fit(want, popRoom));      // cap to the viewport; overflow scrolls inside the sheet
-        // The push (accordion band) is sized to the CLOSED sheet: with a dropdown shut, base == popH; with one
-        // open, popH grows for the options but popBaseH holds, so the sheet grows OVER the cards, not INTO them.
-        if (openDrop == null) popBaseH = popH;
+        if (openDrop == null) popBaseH = popH;        // remember the CLOSED height — the push is sized to this
+        // A dropdown does NOT grow the sheet or spill over the cards (owner, pack 5 #3): it stays the closed
+        // height and its option list SCROLLS inside the sheet (ScrollArea draws the side bar). So expanding a
+        // dropdown never changes the push, and the list is contained, not overlaid on the grid.
+        else popH = Math.min(popH, popBaseH);
         popY = t.yTop() + t.height() + POP_GAP;        // directly under the card, following it through scroll
         popScroll.layout(popX + POP_PAD, popY + POP_PAD,
                 Math.max(1f, popW - 2 * POP_PAD), Math.max(1f, popH - 2 * POP_PAD));
@@ -920,7 +922,7 @@ public final class ClubMenuScreen extends Screen {
             // The sheet still must not resize when the button arms, so the floor is the width of the widest
             // RESTING label ("Not set") — and the listening state no longer needs a wide one, because the
             // instruction moved to the caption below, which is where an instruction belongs anyway.
-            bind.minWidth(Math.min(new Button("Not set").compact().hug().measure(10_000f, 22f).w(),
+            bind.minWidth(Math.min(new Button("Not set").variant(Button.Variant.VALUE).compact().hug().measure(10_000f, 22f).w(),
                                    popInnerW * 0.55f));
             bind.onClick(() -> {
                 boolean was = bindListening && bindModule == m;
@@ -1300,7 +1302,9 @@ public final class ClubMenuScreen extends Screen {
         // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
         if (popModule != null && popScroll != null) {
             if (popReveal == null) {
-                popReveal = new Reveal(Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate(), now);
+                // fast + standard, not normal + decelerate: the sheet and the card it pushes share this reveal,
+                // and the softer 0.28s decelerate tail read as the push "lagging" the open (owner, pack 5 #2).
+                popReveal = new Reveal(Tokens.motion().durations().fast(), Tokens.motion().easings().standard(), now);
                 popHTween.snap(popH, now);
                 // A cold open arrives already at its card — there is nothing to glide FROM, and easing in from
                 // a stale position would make the sheet fly across the well on the first frame.
