@@ -576,6 +576,18 @@ public final class ClubHarness {
                 check("particles: a hidden type does not spawn, a visible one does", shown != null && hidden == null);
             });
 
+            // The two-pane category renders and is reachable — a screenshot for the owner, and a survives-it
+            // check (opening/selecting Particles must not crash or close the menu). Restore the rail to Visuals
+            // after, so the keyboard-nav scenes later don't inherit a category that has no cards.
+            step(4, () -> mc.setScreen(new ClubMenuScreen()));
+            step(2, () -> { if (mc.currentScreen instanceof ClubMenuScreen cs) cs.selectCategory("Particles"); });
+            step(8, () -> {});
+            step(2, () -> shot("menu-particles"));
+            step(0, () -> check("particles: the two-pane category opens without closing the menu",
+                    mc.currentScreen instanceof ClubMenuScreen));
+            step(2, () -> { if (mc.currentScreen instanceof ClubMenuScreen cs) cs.selectCategory("Visuals"); });
+            step(2, () -> mc.setScreen(null));
+
             // ===== IRIS — the guard that stops us deleting shadows, ASKED rather than read =====
             // The shadow pass draws the world from the sun. Any cull keyed to the MAIN camera's frustum,
             // firing during it, erases the shadows of everything off-screen. IrisCompat is what stops that,

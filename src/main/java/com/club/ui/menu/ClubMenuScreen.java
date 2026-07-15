@@ -84,6 +84,9 @@ public final class ClubMenuScreen extends Screen {
     // The Particles category renders a two-pane instead of the grid; it lives in root beside the grid and is
     // swapped in by visibility (applyCategoryMode). Built once — ParticleCatalog.all() is cached.
     private final ParticlesPane particlesPane = new ParticlesPane();
+    // The two-pane's own mini-search (global, across all particles). A SECOND SearchField so it inherits the
+    // focus/keyboard integration for free; shown only on Particles, positioned into the pane's header.
+    private SearchField particleSearch;
     private float cardNameSize = NAME_BASE;   // uniform per-category name size (auto-fit in layoutAll)
     // Whole-window fade (11.8): shapes ride the renderer opacity stack; text/icon glyphs can't
     // (known backend limit) — every text/glyph draw multiplies this via Color.scaleAlpha instead.
@@ -293,12 +296,15 @@ public final class ClubMenuScreen extends Screen {
                 .onChange(q -> { query = q; if (popModule != null) closePopover(); rebuildGrid(GridRebuild.SEARCH); layoutAll(); })
                 .onSubmit(this::submitSearch);   // Enter activates the first result
         gridScroll = new ScrollArea(grid).overlayScrollbar(true);   // bar floats on top — cards never jerk narrower (final pass #2)
+        particleSearch = new SearchField("Search particles").onChange(q -> particlesPane.setFilter(q));
         root.clear();
         root.add(search);
         root.add(gridScroll);
         root.add(particlesPane);
+        root.add(particleSearch);
         focus.clear();
         focus.register(search);
+        focus.register(particleSearch);
         rebuildGrid(GridRebuild.OPEN);
         applyCategoryMode();
         layoutAll();
@@ -345,7 +351,8 @@ public final class ClubMenuScreen extends Screen {
         boolean p = particlesActive();
         gridScroll.visible = !p;
         particlesPane.visible = p;
-        if (p) particlesPane.onEnter();   // replay the full-panel cascade on entry
+        particleSearch.visible = p;                        // the mini-search shows only on Particles
+        if (p) { particleSearch.clear(); particlesPane.onEnter(); }   // fresh: clear filter, replay the cascade
         // The global "Search modules" field stays visible in EVERY category (owner) — it is never hidden, so
         // there is no hidden-but-focused search to swallow the close key, and nothing to blur here.
     }
@@ -1092,7 +1099,11 @@ public final class ClubMenuScreen extends Screen {
 
         // Particles owns the well with its own two-pane; the grid block below still runs but is inert (empty
         // module list, hidden gridScroll), so this is the only layout branch the category needs.
-        if (particlesActive()) particlesPane.layout(wellX + 12, wellY + 12, wellW - 24, wellH - 24);
+        if (particlesActive()) {
+            particlesPane.layout(wellX + 12, wellY + 12, wellW - 24, wellH - 24);
+            float[] sb = particlesPane.searchBounds();
+            particleSearch.layout(sb[0], sb[1], sb[2], sb[3]);
+        }
 
         float searchH = 32;
         float searchW = clamp(wellW * 0.9f, 120f, 200f);   // never wider than the well it sits over
@@ -1554,7 +1565,8 @@ public final class ClubMenuScreen extends Screen {
         // reverse-of-open animation, but NOT while typing in the search (the bound letter must
         // type, not close).
         if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)
-                && !(search != null && search.isFocused())) { beginClose(); return true; }
+                && !(search != null && search.isFocused())
+                && !(particleSearch != null && particleSearch.isFocused())) { beginClose(); return true; }
 
         // ESC precedence (Stage 27, chain widened in Stage 31): popover → clear a live query (from
         // ANY zone — arrowing the filtered grid then Esc no longer strands the filter) → blur the
@@ -1562,6 +1574,8 @@ public final class ClubMenuScreen extends Screen {
         if (k == GLFW_KEY_ESCAPE) {
             if (popModule != null) { closePopover(); return true; }
             if (!query.isEmpty() && search != null) { search.clear(); query = ""; rebuildGrid(GridRebuild.SEARCH); layoutAll(); return true; }
+            // Particles mini-search: Esc clears the filter (clear() doesn't fire onChange, so tell the pane too).
+            if (particleSearch != null && particleSearch.isFocused()) { particleSearch.clear(); particlesPane.setFilter(""); focus.blur(); return true; }
             if (search != null && search.isFocused()) { focus.blur(); return true; }
             if (gridFocused) { gridFocused = false; return true; }
             return false;
@@ -1600,7 +1614,8 @@ public final class ClubMenuScreen extends Screen {
         if (bindListening) return true;   // capturing a key — its char must not type/route anywhere
         // "/" jumps into the search (the keycap hint in the field advertises it); consumed so the
         // slash itself never lands in the query
-        if (c == '/' && search != null && !search.isFocused() && !closing) { enterSearchZone(); return true; }
+        if (c == '/' && search != null && !search.isFocused() && !closing
+                && !(particleSearch != null && particleSearch.isFocused())) { enterSearchZone(); return true; }
         return focus.charTyped(c, mods) || super.charTyped(c, mods);
     }
 
