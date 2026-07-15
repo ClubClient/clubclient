@@ -161,6 +161,12 @@ public final class ClubMenuScreen extends Screen {
     private float popX, popY, popW, popH, popAX, popAY, popAW, popAH, popContentH, popInnerW;
     private float popBaseH;   // the sheet's height with dropdowns CLOSED — the accordion push is sized to THIS,
                               // so expanding a dropdown grows the sheet over the cards without shoving them (owner, pack 4 #5)
+    // "Nothing to configure here" flash (owner, v0.1.3 pack 5 #5, variant A): a right-click on a settingless
+    // module marks it for NO_SET_FLASH seconds — a muted gear with a red slash top-right + a very quiet red
+    // outline round the card. Transient feedback, so a dead right-click reads as "no settings", not "broken".
+    private static final float NO_SET_FLASH = 1.1f;
+    private Module noSetFlashMod;
+    private float noSetFlashAt;
     private float popRoom;   // vertical room the sheet was allowed — the denominator of "maximal" (harness seam)
     private int pressOwner;
     // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
@@ -1763,6 +1769,18 @@ public final class ClubMenuScreen extends Screen {
                 r.border(x - 2, y - 2, w + 4, h + 4, rad + 2, fw,
                         Color.scaleAlpha(Tokens.interaction().focusRing(), screenAlpha * ta));
             }
+
+            // "Nothing to configure" flash (owner, pack 5 #5): a right-click on this settingless card lit it up
+            // for NO_SET_FLASH seconds. Fades in fast, holds, fades out — then releases the marker.
+            if (m == noSetFlashMod) {
+                float fe = (now - noSetFlashAt) / NO_SET_FLASH;
+                if (fe >= 1f) noSetFlashMod = null;
+                else {
+                    float fa = fe < 0.08f ? fe / 0.08f : (fe > 0.62f ? 1f - (fe - 0.62f) / 0.38f : 1f);
+                    fa = Math.max(0f, Math.min(1f, fa)) * screenAlpha * ta;
+                    if (fa > 0.002f) drawNoSettingsFlash(r, x, y, w, h, rad, fill, fa);
+                }
+            }
         }
 
         @Override public boolean mouseClicked(double mx, double my, int b) {
@@ -1777,11 +1795,51 @@ public final class ClubMenuScreen extends Screen {
                     // action: opening the editor is the only thing this card can do, and it should not matter
                     // which button asked for it.
                     activate(m);
+                } else {
+                    // Nothing to configure (a Performance flag): a right-click flashes the "no settings" mark
+                    // instead of sitting dead, so the player learns it fast (owner, pack 5 #5, variant A).
+                    noSetFlashMod = m; noSetFlashAt = uiCtx.time();
                 }
                 return true;
             }
             return false;
         }
+    }
+
+    /** The "nothing to configure here" mark (owner, v0.1.3 pack 5 #5, variant A): a muted gear with a NEAT red
+     *  slash top-right, plus a very quiet red outline round the whole card. All at alpha {@code a} so the
+     *  caller fades it in and out.
+     *
+     *  <p>Built from axis-aligned primitives only: this renderer draws a DIAGONAL {@code line()} as its
+     *  bounding-box rectangle (a Stage-1 placeholder), so a real diagonal would come out a solid red square.
+     *  The gear is a disc with eight square teeth and a punched hole; the slash is a STEPPED stroke (the same
+     *  trick the rail chevron uses), drawn twice — a card-colour under-stroke leaves a clean gap around the
+     *  red so it reads crossed-out, not smudged. */
+    private void drawNoSettingsFlash(UiRenderer r, float x, float y, float w, float h, float rad, int fill, float a) {
+        r.border(x, y, w, h, rad, 1.6f, Color.scaleAlpha(Tokens.palette().stateLow(), 0.5f * a));   // very muted red outline
+        float Rb = 5.8f, Rtooth = 7.6f, tooth = 3.4f, Rh = 2.5f;
+        float gx = x + w - TILE_PAD - (Rtooth + tooth / 2f), gy = y + TILE_PAD + (Rtooth + tooth / 2f);
+        int gcol = Color.scaleAlpha(Tokens.palette().textMuted(), a);
+        for (int k = 0; k < 8; k++) {   // eight square teeth around the ring
+            double ang = Math.toRadians(k * 45);
+            float tx = gx + (float) (Rtooth * Math.cos(ang)), ty = gy + (float) (Rtooth * Math.sin(ang));
+            r.rect(tx - tooth / 2f, ty - tooth / 2f, tooth, tooth, gcol);
+        }
+        r.circle(gx, gy, Rb, gcol);                        // body
+        r.circle(gx, gy, Rh, Color.scaleAlpha(fill, a));   // hole, in the card's own face colour
+        float s = Rtooth + tooth / 2f;                     // slash spans the whole mark, corner to corner
+        int under = Color.scaleAlpha(fill, a), red = Color.scaleAlpha(Tokens.palette().stateLow(), a);
+        steppedSlash(r, gx - s, gy - s, gx + s, gy + s, 3.8f, under);   // the neat gap
+        steppedSlash(r, gx - s, gy - s, gx + s, gy + s, 2.1f, red);     // the red slash
+    }
+
+    /** A diagonal stroke as a run of small squares (this renderer has no true diagonal line — see
+     *  {@link #drawNoSettingsFlash}). Steps one pixel at a time so the run reads as a clean line, not a stair. */
+    private void steppedSlash(UiRenderer r, float x1, float y1, float x2, float y2, float thick, int color) {
+        int steps = (int) Math.ceil(Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)));
+        float dx = (x2 - x1) / steps, dy = (y2 - y1) / steps;
+        for (int i = 0; i <= steps; i++)
+            r.rect(x1 + dx * i - thick / 2f, y1 + dy * i - thick / 2f, thick, thick, color);
     }
 
     /** Minimal single-line search input: leading glyph, placeholder when idle, blinking caret when
