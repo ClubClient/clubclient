@@ -167,14 +167,22 @@ public final class HudCanvas extends Container {
         return true;
     }
 
-    /** Boxes {x,y,w,h} of every element EXCEPT {@code self} — the no-overlap exclusion set. Editor shows a
-     *  placeholder for all elements (enabled or not), so all of them are obstacles. */
+    /** Boxes {x,y,w,h} of every element EXCEPT {@code self}, PLUS the editor's reserved overlays — the
+     *  no-overlap exclusion set. Editor shows a placeholder for all elements (enabled or not), so all of them
+     *  are obstacles; the toolbar/popover are reserved so an element can't be parked under them where the
+     *  overlay would then swallow the click to grab it back (owner, pack 4). */
     private int[][] otherBoxes(HudElement self) {
         java.util.List<int[]> out = new java.util.ArrayList<>();
         for (HudElement e : elements)
             if (e != self) out.add(new int[]{(int) e.xLeft(), (int) e.yTop(), (int) e.width(), (int) e.height()});
+        for (int[] r : reserved) out.add(r);
         return out.toArray(new int[0][]);
     }
+
+    // Reserved no-go rectangles the editor feeds each frame (its floating toolbar + open settings popover).
+    private int[][] reserved = new int[0][];
+    /** Set the editor overlays a dragged element must not slide under (toolbar, open popover). */
+    public void setReserved(int[][] r) { this.reserved = (r != null) ? r : new int[0][]; }
 
     @Override public boolean mouseReleased(double mx, double my, int button) {
         if (!editor || button != 0) return false;

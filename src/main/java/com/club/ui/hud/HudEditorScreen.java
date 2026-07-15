@@ -280,7 +280,12 @@ public final class HudEditorScreen extends Screen {
                     Tokens.motion().easings().decelerate());
         entrance.target(1f, entranceNow);
         float ep = entrance.value(entranceNow);
-        r.rect(0, 0, canvasW, canvasH, Color.scaleAlpha(0xFF0A0E15, ep));
+        // Ground: opened FROM a screen (the menu — already dark with its scrim) → snap it opaque so the
+        // menu→editor handoff never flashes the bright world for a frame (owner, pack 4 #4: "на миг наше
+        // меню закрывается, будто мигает"). Opened straight over the world (no parent) → fade it in. Either
+        // way the toolbar still rides the entrance slide below.
+        float groundA = parent != null ? 1f : ep;
+        r.rect(0, 0, canvasW, canvasH, Color.scaleAlpha(0xFF0A0E15, groundA));
 
         canvas.setScreen(Math.round(canvasW), Math.round(canvasH));
         canvas.layoutFromConfig(mc);
@@ -310,6 +315,11 @@ public final class HudEditorScreen extends Screen {
         // popover — compact, re-anchored each frame; grows in on selection, plays the reveal in
         // reverse on deselection (dropped only once fully collapsed), content clipped to the eased height
         positionPopover();
+        // The TOOLBAR is a no-go zone for element dragging: an element parked under it is un-grabbable (the
+        // toolbar eats the click), and the toolbar is ALWAYS there — that is the trap the owner hit (pack 4 #6).
+        // The settings popover is NOT reserved: it follows its own selected element as you drag it, so reserving
+        // it would fight that drag; and it closes on deselect, so nothing stays stuck under it.
+        canvas.setReserved(new int[][]{ {(int) tbX, (int) tbY, (int) tbW, (int) tbH} });
         if (hasPopover) {
             float now = uiCtx.time();
             if (popReveal == null) { popReveal = new Reveal(Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate(), now); popHTween.snap(popH, now); }
