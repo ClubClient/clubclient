@@ -14,11 +14,14 @@ public final class TextEditState {
     private int selAnchor = -1;   // selection origin; -1 = no selection (caret is a point)
 
     public String text() { return text; }
-    public int caret() { return caret; }
+    // The accessors CLAMP to the current text length. The root invariant (below) already keeps caret and
+    // selAnchor in range, but a render that reads them must never be able to index past the text — an
+    // out-of-range substring here crashed the whole game from the search field's draw (owner, pack 6 #3).
+    public int caret() { return Math.min(Math.max(caret, 0), text.length()); }
 
     public boolean hasSelection() { return selAnchor >= 0 && selAnchor != caret; }
-    public int selectionStart() { return Math.min(selAnchor, caret); }
-    public int selectionEnd() { return Math.max(selAnchor, caret); }
+    public int selectionStart() { return Math.max(0, Math.min(Math.min(selAnchor, caret), text.length())); }
+    public int selectionEnd() { return Math.min(Math.max(selAnchor, caret), text.length()); }
     public String selectedText() { return hasSelection() ? text.substring(selectionStart(), selectionEnd()) : ""; }
 
     /** Reset to empty (clear button / Esc). */
@@ -83,7 +86,10 @@ public final class TextEditState {
         if (caret == 0) return false;
         int from = word ? wordStart(caret) : caret - 1;
         text = text.substring(0, from) + text.substring(caret);
-        caret = from;
+        // Collapse any anchor: a Shift-move onto the caret leaves a ZERO-WIDTH selAnchor (hasSelection is
+        // false, so deleteSelection above did nothing), and shrinking the text here would strand it PAST the
+        // end — later read as a bogus selection whose end index overran the text and crashed render (pack 6 #3).
+        caret = from; selAnchor = -1;
         return true;
     }
 
@@ -94,6 +100,7 @@ public final class TextEditState {
         if (caret >= text.length()) return false;
         int to = word ? wordEnd(caret) : caret + 1;
         text = text.substring(0, caret) + text.substring(to);
+        selAnchor = -1;   // collapse any zero-width anchor before it can strand past the end (see backspace)
         return true;
     }
 

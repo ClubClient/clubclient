@@ -128,4 +128,42 @@ class TextEditStateTest {
         TextEditState plain = of("abc");
         assertFalse(plain.insert(""), "no selection + empty insert = no change");
     }
+
+    /** Regression (owner, pack 6 #3): a Shift-move onto the caret plants a ZERO-WIDTH anchor; a following
+     *  backspace shrank the text but left the anchor stranded past the end, and the search field's render
+     *  then did {@code text.substring(0, selectionEnd())} with selectionEnd > length — crashing the game. */
+    @Test void shiftThenBackspaceLeavesNoStrandedAnchor() {
+        TextEditState st = of("ab");           // caret at 2 (end)
+        st.right(true);                        // Shift-Right at the end: to==caret ⇒ zero-width anchor at 2
+        assertTrue(st.backspace(false));       // deletes 'b' → text "a", length 1
+        assertEquals("a", st.text());
+        // The anchor must not survive as a bogus, out-of-range selection.
+        assertFalse(st.hasSelection(), "zero-width anchor is collapsed by the destructive edit");
+        assertTrue(st.selectionEnd() <= st.text().length(), "no index can overrun the text");
+        assertTrue(st.caret() <= st.text().length());
+        // And the exact call that crashed render is now safe.
+        assertDoesNotThrow(() -> st.text().substring(0, st.selectionEnd()));
+        assertDoesNotThrow(() -> st.text().substring(0, st.caret()));
+    }
+
+    @Test void repeatedBackspacesAfterShiftStayInRange() {
+        TextEditState st = of("abcd");         // caret 4
+        st.right(true);                        // zero-width anchor at 4
+        st.backspace(false);                   // "abc"
+        st.backspace(false);                   // "ab"
+        assertEquals("ab", st.text());
+        assertTrue(st.selectionEnd() <= st.text().length());
+        assertTrue(st.caret() <= st.text().length());
+        assertDoesNotThrow(() -> st.text().substring(0, st.selectionEnd()));
+    }
+
+    @Test void deleteThroughASelectionStaysInRange() {
+        TextEditState st = of("abcd");
+        st.moveCaret(1, false);                // caret 1
+        st.moveCaret(3, true);                 // selection [1,3)
+        assertTrue(st.delete(false));          // deleteSelection removes "bc" → "ad"
+        assertEquals("ad", st.text());
+        assertFalse(st.hasSelection());
+        assertTrue(st.selectionEnd() <= st.text().length());
+    }
 }
