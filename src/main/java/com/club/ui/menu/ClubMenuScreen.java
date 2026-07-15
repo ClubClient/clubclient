@@ -439,17 +439,18 @@ public final class ClubMenuScreen extends Screen {
      * its master switch; a Performance card has zero sliders or one. Nothing there for a reset to undo that a
      * single click on the control itself would not.
      *
-     * <p>The rule: at least TWO adjustable settings (a lone slider resets itself by being dragged back), OR a
-     * rebindable key row (reset restores the factory key / clears a bind). That keeps it on Hands, Animations,
-     * Zoom, and the keyed modules; drops it from the No-* flags and every Performance card.
+     * <p>The rule: at least TWO controls of any kind in the popover (a lone slider resets itself by being
+     * dragged back; a lone flag has nothing to restore), OR a rebindable key row (reset restores the factory
+     * key / clears a bind). Actions count — Item Scroll's "Change gestures…" is a door onto gesture state the
+     * reset genuinely restores, so its popover (a toggle + that action) keeps its reset (owner asked for the
+     * reset FIXED, not removed). Kept on Hands/Animations/Zoom, the keyed modules, and Item Scroll; dropped
+     * from the No-* flags, Hide Effects, and every Performance card.
      */
     private boolean resetWorthShowing(Module m) {
         if (com.club.modules.binds.ModuleBinds.hasKeyRow(m.name())) return true;
-        int adjustable = 0;
-        java.util.List<Setting> all = new java.util.ArrayList<>(m.settings());
-        for (Tab t : m.tabs()) all.addAll(t.settings());
-        for (Setting s : all) if (!(s instanceof ActionSetting)) adjustable++;
-        return adjustable >= 2;
+        int controls = m.settings().size();
+        for (Tab t : m.tabs()) controls += t.settings().size();
+        return controls >= 2;
     }
 
     private boolean hasConfigurable(Module m) {
@@ -694,6 +695,13 @@ public final class ClubMenuScreen extends Screen {
     public boolean cardEnabled(int i) {
         if (i < 0 || i >= grid.children().size()) return false;
         return ((ModuleTile) grid.children().get(i)).m.enabled();
+    }
+
+    /** Harness seam: the centre (Minecraft gui units) of a named card in the current category, or null. */
+    public double[] cardCentreByName(String name) {
+        for (int i = 0; i < grid.children().size(); i++)
+            if (((ModuleTile) grid.children().get(i)).m.name().equals(name)) return cardCentreMc(i);
+        return null;
     }
 
     /** Harness seam: is the first card's module enabled? */

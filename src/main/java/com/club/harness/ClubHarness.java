@@ -1162,6 +1162,23 @@ public final class ClubHarness {
                 } else check("popover: menu still open for the geometry check", false);
             });
 
+            // Item Scroll popover — the three v0.1.3 #5 fixes in one frame: NO bind row (removed from KEYED),
+            // "Change gestures…" not "Edit gestures…", a left-aligned "Reset to default" (the reset it KEEPS,
+            // because a toggle + the gesture door is two controls), and the "Beta" mark on its card behind.
+            // Item Scroll lives in Misc, so select by name and open it with a right-click, like a player.
+            step(4, () -> mc.setScreen(new ClubMenuScreen()));
+            step(2, () -> { if (mc.currentScreen instanceof ClubMenuScreen cs) cs.selectCategory("Misc"); });
+            step(4, () -> {});
+            step(2, () -> {
+                if (mc.currentScreen instanceof ClubMenuScreen cs) {
+                    double[] p = cs.cardCentreByName("Item Scroll");
+                    if (p != null) { cs.mouseClicked(p[0], p[1], 1); cs.mouseReleased(p[0], p[1], 1); }
+                }
+            });
+            step(8, () -> {});
+            step(2, () -> shot("itemscroll-popover"));
+            step(2, () -> mc.setScreen(null));   // hand the screen back — the next scene measures the HUD
+
             // The conflict, on screen (Stage 62): Fullbright's toggle put on Q — the key vanilla drops your
             // item with. The popover must name it. Before, the row just said "Q" and both things fired.
             step(2, () -> com.club.modules.binds.ModuleBinds.set("Fullbright", "key.keyboard.q"));
