@@ -558,6 +558,24 @@ public final class ClubHarness {
 
             // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
 
+            // ===== PARTICLES — the pills are not dummies: a hidden type must not spawn =====
+            // Drives the REAL path the menu drives — ParticleManager.addParticle, the method
+            // MixinParticleManagerVisibility wraps — with a genuine vanilla type. Visible => a particle comes
+            // back; hidden => the mixin cancels and it comes back null. End-to-end: config write + mixin read.
+            step(2, () -> {
+                if (mc.player == null || mc.world == null) { check("particles: world ready", false); return; }
+                net.minecraft.util.Identifier crit =
+                        net.minecraft.registry.Registries.PARTICLE_TYPE.getId(net.minecraft.particle.ParticleTypes.CRIT);
+                double px = mc.player.getX(), py = mc.player.getY() + 1, pz = mc.player.getZ();
+                com.club.modules.particles.ParticleVisibility.setVisible(crit, true);
+                var shown = mc.particleManager.addParticle(net.minecraft.particle.ParticleTypes.CRIT, px, py, pz, 0, 0, 0);
+                com.club.modules.particles.ParticleVisibility.setVisible(crit, false);
+                var hidden = mc.particleManager.addParticle(net.minecraft.particle.ParticleTypes.CRIT, px, py, pz, 0, 0, 0);
+                com.club.modules.particles.ParticleVisibility.setVisible(crit, true);   // restore: nothing hidden
+                report.add("INFO  particles: addParticle(crit) shown=" + (shown != null) + " hidden=" + (hidden != null));
+                check("particles: a hidden type does not spawn, a visible one does", shown != null && hidden == null);
+            });
+
             // ===== IRIS — the guard that stops us deleting shadows, ASKED rather than read =====
             // The shadow pass draws the world from the sun. Any cull keyed to the MAIN camera's frustum,
             // firing during it, erases the shadows of everything off-screen. IrisCompat is what stops that,
@@ -954,6 +972,14 @@ public final class ClubHarness {
                         .anyMatch(m -> m.name().equals("Particles") || m.name().equals("Block Entities"));
                 check("no Particles / Block Entities card exists any more", !ghostCard);
             });
+            // Leave the rail on Visuals for the keyboard-nav scenes below: they open a fresh menu on the last
+            // category and drive Tab/Tab/Space into its FIRST card. On Visuals that first card is Zoom — a
+            // popover, harmless. The dissolved Performance category used to leave a toggle-only first card here
+            // and keep this invariant by accident; selecting Misc for the Background-FPS check above broke it,
+            // because Misc's first card is HUD Editor — an ACTION that opens the editor and closes the menu,
+            // which is exactly what turned the switch/bind/scale scenes red. (The scene comment below already
+            // says "the rail sits on Visuals" — this makes it true again.)
+            step(2, () -> { if (mc.currentScreen instanceof ClubMenuScreen cs) cs.selectCategory("Visuals"); });
             // Hand the screen back. The scene that follows measures the HUD's own draw cost, and a HUD behind
             // an open menu is not drawn at all — leaving this screen up made "the icon draws are counted, not
             // invisible" report 0/frame and go red, which is precisely what that check exists to do. It caught
