@@ -45,11 +45,16 @@ public class ClubConfig {
     /** Performance. Only techniques that cannot change what the player sees may default to ON. */
     public static final class Perf {
         /** Skip tessellating particles the camera cannot see. Behind the camera is invisible BY
-         *  CONSTRUCTION — no distance limit, no per-frame cap, nothing that trades pixels for frames. */
+         *  CONSTRUCTION — no distance limit, no per-frame cap, nothing that trades pixels for frames.
+         *  BAKED IN (owner): there is no menu card for this any more. The cull is on by default and this
+         *  field is the CONFIG-ONLY kill switch — the one edit that rules the mod out of a suspected
+         *  rendering bug. Set it false by hand here if you ever need to; nothing in the UI writes it. */
         public boolean cullParticles = true;
         /** Skip block entities that are off-screen inside a VISIBLE section — vanilla frustum-culls the
          *  16x16x16 section but never the chest inside it. Renderers that asked for anything unusual (a
-         *  beacon's 256 blocks, a piston drawing outside its own block) are never touched. */
+         *  beacon's 256 blocks, a piston drawing outside its own block) are never touched.
+         *  BAKED IN (owner): no menu card. On by default; this field is the config-only kill switch — see
+         *  {@link #cullParticles}. Left at whatever an old file carries, so a deliberate off is respected. */
         public boolean cullBlockEntities = true;
         /** Cap the frame rate while the window is in the BACKGROUND. This gives ZERO in-game FPS: it is a
          *  battery / fan-noise / second-monitor feature, and calling it an FPS boost would be a lie. */

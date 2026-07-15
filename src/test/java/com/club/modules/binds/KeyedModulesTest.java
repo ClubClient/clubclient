@@ -35,13 +35,14 @@ class KeyedModulesTest {
         // Set once, in a menu, and never thought about again. A key row on these is clutter, and clutter is
         // what the owner actually complained about ("это начинает выглядеть как мусорка").
         //
-        // "Performance" is NOT in this list any more, and its absence is deliberate: it stopped being a module
-        // in v0.1.3 and became a CATEGORY. Its three cards are named below. A test that goes on asserting
-        // things about a module nobody ships is a test that has quietly stopped testing anything.
+        // "Performance" is not a module here, and no longer a category either: the two culls it briefly held —
+        // Particles and Block Entities — are baked in now (on by default, config-only kill switch), so they are
+        // not cards at all, and a test asserting things about a card nobody ships tests nothing. The one perf
+        // setting that stayed a card, Background FPS, is a set-once preference and belongs on this list.
         for (String setOnce : new String[] {
                 "Hands", "Animations", "Screen Stretch", "HUD Editor",
                 "No Hurt Cam", "No Fire Overlay", "No Bobbing", "Hide Effects",
-                "Particles", "Block Entities", "Background FPS",
+                "Background FPS",
                 // Item Scroll lost its key in v0.1.3 (owner: "зачем итемскроллу кнопка бинда"). It is not a
                 // mid-fight toggle — you set your gestures once. Its bind, if any old file carries one, is
                 // dropped by the migration and inert in the tick loop.

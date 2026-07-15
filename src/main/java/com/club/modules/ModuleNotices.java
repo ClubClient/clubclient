@@ -17,9 +17,12 @@ import java.util.function.Supplier;
  * module registers its own notice from its own package, at init, and the menu file is never touched again:</p>
  *
  * <pre>{@code
- * ModuleNotices.register("Performance", () ->
+ * ModuleNotices.register("My Module", () ->
  *         FabricLoader.getInstance().isModLoaded("sodium") ? null : "Install Sodium for entity culling");
  * }</pre>
+ *
+ * <p>(No module registers a notice today — the perf cards that once did, Particles and Block Entities, are
+ * baked in and gone from the menu. The mechanism stays for the next module that needs it.)</p>
  *
  * <p>The supplier is called every frame the popover is open, so it must be cheap and it must read LIVE state —
  * a notice that goes stale is worse than no notice, because the card is then lying with confidence.</p>

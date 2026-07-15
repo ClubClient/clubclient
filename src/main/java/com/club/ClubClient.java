@@ -95,7 +95,8 @@ public class ClubClient implements ClientModInitializer {
 
         // [SEAM:init] Module registration. One line per workstream, logic lives in the module's own package.
         com.club.modules.itemscroll.ItemScrollModule.init();
-        com.club.modules.perf.PerfMenu.init();
+        // (Perf has no init any more: the two culls are baked in and gate straight off the config, and the
+        //  Sodium notice that PerfMenu.init() registered belonged to cards that no longer exist.)
 
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ClubConfig.close());

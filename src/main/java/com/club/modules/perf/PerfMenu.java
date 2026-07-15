@@ -1,87 +1,31 @@
 package com.club.modules.perf;
 
 import com.club.config.ClubConfig;
-import com.club.modules.ModuleNotices;
 import com.club.ui.IconGlyph;
 import com.club.ui.menu.MenuContent;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.util.List;
 
 /**
- * The Performance CATEGORY — three cards, one per thing the mod actually skips.
+ * The one performance setting that is actually a CHOICE — Background FPS — and nothing else.
  *
- * <p><b>What changed in v0.1.3, and what it cost.</b> This was ONE card with three toggles in a popover, and
- * the javadoc that shipped it argued the case well: "a Performance tab full of toggles is what a cheat client
- * looks like, and it also lies — it implies each row is a dial the player should be tuning". That argument
- * still stands against a TAB OF DIALS. It does not stand against three named things, each of which is a
- * separate technique with a separate risk and a separate reason to exist. The owner asked for the category
- * and he is right: the toggles were never dials, they were three different modules hiding in one card.
+ * <p><b>Why this class shrank.</b> It once built a whole "Performance" category of three cards. Two of them,
+ * Particles and Block Entities, were culls that are invisible BY CONSTRUCTION — they skip work whose result
+ * cannot reach the screen, with no distance limit and no per-frame cap. A switch on a thing the player can
+ * never see is not a dial; it only ever earned its place as a KILL SWITCH — the one edit that rules the mod
+ * out when a rendering bug is suspected. The owner's call, and the honest one: bake the culls in, on by
+ * default, and keep that kill switch in the config file ({@code perf.cullParticles} / {@code perf.cullBlockEntities})
+ * instead of a menu toggle pretending to be a quality setting. {@link ParticleCull#enabled()} and
+ * {@link BlockEntityCull#enabled()} still read those fields, so the escape hatch is real — it is just no longer a card.
  *
- * <p><b>The cost, said out loud rather than buried.</b> The old card had a MASTER toggle — one click turned
- * everything off, and its javadoc called that "the first thing to try when a player suspects us of a rendering
- * bug, and the answer we want them to be able to give in one click". Three cards cannot have a master. Ruling
- * the mod out is now three clicks instead of one. They are three clicks in a single place with the category's
- * name on it, which is the honest trade — but it IS a trade, and pretending otherwise would be the kind of
- * quiet loss this project keeps a changelog to prevent.
- *
- * <p><b>Every card must survive the same sentence:</b> nothing here changes what you see. Both culls skip work
- * whose result is invisible BY CONSTRUCTION — no distance limit, no particle cap, nothing that trades pixels
- * for frames. The moment one of these grows a "quality" slider, the sentence dies and the feature is not worth
- * having. The background throttle is the odd one out and says so on its own card: it gives ZERO in-game FPS.
- *
- * <p>THAT SENTENCE IS A PROMISE ANOTHER FILE KEEPS. It is only true because {@link BlockEntityCull} culls
- * vanilla block entity types drawn by vanilla renderers and nothing else — a modded renderer that draws beyond
- * its own block cannot be erased by us. Loosen that and these strings become lies, on by default.
+ * <p><b>Why Background FPS stayed.</b> It is the odd one out and always was: it gives ZERO in-game FPS and
+ * changes nothing you see while playing — it caps the frame rate only while the window is in the BACKGROUND,
+ * for your battery and your fans. That is a genuine preference, not a cull, so it remains a card (now in Misc).
+ * Its own subtitle says what it is NOT, because calling it an FPS boost would be a lie the mod has already
+ * retracted three of.
  */
 public final class PerfMenu {
     private PerfMenu() {}
-
-    /** Called once at init. Registers the category's honest self-assessment (see {@link ModuleNotices}).
-     *
-     *  <p>The notice hangs on the CULL cards, not on a master that no longer exists: the biggest win in this
-     *  space is not ours and never will be, and a player deserves to be told that without asking. */
-    public static void init() {
-        ModuleNotices.register("Particles", PerfMenu::sodiumNotice);
-        ModuleNotices.register("Block Entities", PerfMenu::sodiumNotice);
-    }
-
-    /** The one thing a player deserves to be told without asking: the biggest win here is one mod away, and
-     *  it is not us. Kept SHORT — a notice is a single-line 12px caption in a 220px sheet, and Label does not
-     *  wrap. Why we do not cull entities ourselves is a paragraph, and it lives where a paragraph fits. */
-    private static String sodiumNotice() {
-        if (FabricLoader.getInstance().isModLoaded("sodium")) return null;
-        return "Install Sodium for entity culling";
-    }
-
-    /** Skip tessellating particles the camera cannot see. */
-    public static MenuContent.Module particles() {
-        ClubConfig.Perf p = ClubConfig.get().perf;
-        return new MenuContent.Module(
-                "Particles",
-                // "Behind you", not "off-screen": behind the camera is invisible BY CONSTRUCTION, and that is
-                // the whole safety argument. "Off-screen" would imply a frustum test with edges to get wrong.
-                "Stop building the particles behind you. Minecraft builds them anyway.",
-                IconGlyph.PARTICLES,
-                () -> p.cullParticles, v -> { p.cullParticles = v; save(); },
-                () -> { p.cullParticles = true; save(); },
-                List.of());
-    }
-
-    /** Skip block entities that are off-screen inside a section the frustum kept. */
-    public static MenuContent.Module blockEntities() {
-        ClubConfig.Perf p = ClubConfig.get().perf;
-        return new MenuContent.Module(
-                "Block Entities",
-                // The sentence a player can actually picture. Vanilla frustum-culls the 16x16x16 section and
-                // never the chest inside it — so the chest behind your head, in a section you can see the edge
-                // of, is drawn every frame.
-                "Stop drawing the chests you cannot see. Vanilla culls the chunk, never the chest in it.",
-                IconGlyph.BLOCK_ENTITIES,
-                () -> p.cullBlockEntities, v -> { p.cullBlockEntities = v; save(); },
-                () -> { p.cullBlockEntities = true; save(); },
-                List.of());
-    }
 
     /** Cap the frame rate while the window is behind something else. */
     public static MenuContent.Module backgroundFps() {

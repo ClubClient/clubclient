@@ -472,9 +472,9 @@ public final class ClubMenuScreen extends Screen {
         if (m.hasTabs()) return true;
         // A MASTER TOGGLE IS NOT POPOVER CONTENT (owner, v0.1.3: "пустой поповер зачем функциям?"). The
         // on/off switch lives on the CARD, never inside the sheet — so a module whose ONLY control is that
-        // switch (every Performance flag: Particles, Block Entities, No-Fire…) opened a popover with nothing
-        // in it. `hasToggle()` used to return true here and that is exactly what drew the empty box under the
-        // cards. Removed: a toggle-only card now just toggles on click, no sheet.
+        // switch (the No-* flags, Hide Effects…) opened a popover with nothing in it. `hasToggle()` used to
+        // return true here and that is exactly what drew the empty box under the cards. Removed: a toggle-only
+        // card now just toggles on click, no sheet.
         // A key row is enough on its own to justify a popover — and after v0.1.3 this is the ONLY thing
         // Freelook has. It lost its on/off toggle (a hold module has no off state; the key is the switch),
         // it has no sliders, and its only setting used to be that toggle. Without this line clicking the

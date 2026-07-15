@@ -121,18 +121,18 @@ public final class MenuContent {
                 // A hold module, so NO on/off toggle — see zoom(c) for the reasoning. The key is the switch.
                 new Module("Freelook", "Hold the freelook key to swing the camera freely.", IconGlyph.FREELOOK,
                         null, null, () -> {}, List.of()))),
-            // PERFORMANCE IS ITS OWN CATEGORY (owner, v0.1.3 item 5). It was one card in Misc carrying three
-            // toggles — three separate techniques, with separate risks, hiding in one popover. See PerfMenu
-            // for what that cost (the master "turn it all off" switch) and why the trade is the honest one.
-            new Category("Performance", IconGlyph.PERFORMANCE, List.of(
-                com.club.modules.perf.PerfMenu.particles(),
-                com.club.modules.perf.PerfMenu.blockEntities(),
-                com.club.modules.perf.PerfMenu.backgroundFps())),
+            // PERFORMANCE STOPPED BEING A CATEGORY (owner). It briefly held three cards, but two of them —
+            // Particles and Block Entities — were culls that are invisible BY CONSTRUCTION and on by default:
+            // never dials a player should be tuning, so they are baked in now, with a config-only kill switch
+            // (perf.cullParticles / perf.cullBlockEntities) for the one thing a toggle was ever for — ruling
+            // the mod out of a suspected rendering bug in one edit. The third, Background FPS, is a REAL choice
+            // (battery / fans while alt-tabbed), so it survives as a lone card in Misc below.
             new Category("Misc", IconGlyph.MISC, List.of(
                 hudEditor(openHudEditor),
                 // [SEAM:cards] New module cards go here, one line each, calling a factory in the module's own
                 // package. This anchor must survive any refactor of this file (see docs/NEXT-PLAN.md).
                 com.club.modules.itemscroll.ItemScrollMenu.card(),
+                com.club.modules.perf.PerfMenu.backgroundFps(),
                 flag("Hide Effects", "Hide Minecraft's own potion icons.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
         );
     }
