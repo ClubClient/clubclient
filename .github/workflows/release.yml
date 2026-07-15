@@ -73,20 +73,24 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           if [ -z "$DISCORD_WEBHOOK" ]; then echo "DISCORD_WEBHOOK not set — skipping the announcement"; exit 0; fi
-          ICON="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/docs/icon.png"
+          RAW="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"
+          # A SHORT, punchy blurb for Discord — the full technical changelog stays on the GitHub release page,
+          # linked below. Edit .github/discord-release.md per release; falls back to the changelog if it's gone.
+          BLURB=".github/discord-release.md"; [ -s "$BLURB" ] || BLURB="RELEASE_BODY.md"
           jq -n \
             --arg tag "$TAG" \
-            --rawfile notes RELEASE_BODY.md \
-            --arg icon "$ICON" \
+            --rawfile notes "$BLURB" \
+            --arg raw "$RAW" \
             --arg repo "$GITHUB_REPOSITORY" '{
               username: "Club",
-              avatar_url: $icon,
+              avatar_url: "\($raw)/docs/icon.png",
               embeds: [{
-                title: "Club \($tag) is out",
+                author: { name: "Club · Fabric utility client", icon_url: "\($raw)/docs/icon.png", url: "https://modrinth.com/mod/clubclient" },
+                title: "Club \($tag) is out 🎉",
                 url: "https://modrinth.com/mod/clubclient",
                 description: ($notes | if (length > 4000) then (.[0:3990] + "\n…") else . end),
                 color: 8170495,
-                thumbnail: { url: $icon },
+                image: { url: "\($raw)/docs/gallery/01-hero.png" },
                 fields: [
                   { name: "📥 Download", value: "[Modrinth](https://modrinth.com/mod/clubclient)", inline: true },
                   { name: "📄 Full notes", value: "[GitHub release](https://github.com/\($repo)/releases/tag/\($tag))", inline: true }
