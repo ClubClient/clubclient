@@ -81,6 +81,9 @@ public final class ClubMenuScreen extends Screen {
 
     private final Pane root = new Pane();
     private final Grid grid = new Grid(GRID_COLS, Tokens.spacing().sm());
+    // The Particles category renders a two-pane instead of the grid; it lives in root beside the grid and is
+    // swapped in by visibility (applyCategoryMode). Built once — ParticleCatalog.all() is cached.
+    private final ParticlesPane particlesPane = new ParticlesPane();
     private float cardNameSize = NAME_BASE;   // uniform per-category name size (auto-fit in layoutAll)
     // Whole-window fade (11.8): shapes ride the renderer opacity stack; text/icon glyphs can't
     // (known backend limit) — every text/glyph draw multiplies this via Color.scaleAlpha instead.
@@ -293,9 +296,11 @@ public final class ClubMenuScreen extends Screen {
         root.clear();
         root.add(search);
         root.add(gridScroll);
+        root.add(particlesPane);
         focus.clear();
         focus.register(search);
         rebuildGrid(GridRebuild.OPEN);
+        applyCategoryMode();
         layoutAll();
         indicator = new Transition(railYRel(catIndex), Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         railText = new Transition[cats.size()];
@@ -324,9 +329,26 @@ public final class ClubMenuScreen extends Screen {
             case COMBAT      -> Tokens.categories().combat();
             case VISUALS     -> Tokens.categories().visuals();
             case PLAYER      -> Tokens.categories().player();
-            case PERFORMANCE -> Tokens.categories().performance();
+            case PARTICLES   -> Tokens.categories().particles();
             default          -> Tokens.categories().misc();
         };
+    }
+
+    /** True while the Particles category is selected — the one category whose content is the two-pane
+     *  {@link ParticlesPane}, not the card grid. Keyed off the icon (same as {@link #catAccent}). */
+    private boolean particlesActive() { return cats.get(catIndex).icon() == IconGlyph.PARTICLES; }
+
+    /** Swap the well's content between the card grid and the Particles two-pane by VISIBILITY: the free-form
+     *  {@code root} Pane renders and routes input only to its visible children (see Container), so no other
+     *  code path has to branch. Called on every real category change (init + setCategory). */
+    private void applyCategoryMode() {
+        boolean p = particlesActive();
+        search.visible = !p;
+        gridScroll.visible = !p;
+        particlesPane.visible = p;
+        // Blur so the now-hidden header search can't keep focus and swallow the menu-close key (the guard at
+        // the close route reads search.isFocused()). Replay the row cascade on each entry.
+        if (p) { focus.blur(); particlesPane.onEnter(); }
     }
 
     /** Rail bar colour, easing from the previous category's hue to the current one. */
@@ -364,6 +386,7 @@ public final class ClubMenuScreen extends Screen {
         query = "";
         if (search != null) search.clear();
         rebuildGrid(GridRebuild.CATEGORY);
+        applyCategoryMode();
         layoutAll();
     }
 
@@ -1068,6 +1091,10 @@ public final class ClubMenuScreen extends Screen {
         wellW = winX + winW - 12 - wellX;
         wellH = bodyH - 2 - 6;
 
+        // Particles owns the well with its own two-pane; the grid block below still runs but is inert (empty
+        // module list, hidden gridScroll), so this is the only layout branch the category needs.
+        if (particlesActive()) particlesPane.layout(wellX + 12, wellY + 12, wellW - 24, wellH - 24);
+
         float searchH = 32;
         float searchW = clamp(wellW * 0.9f, 120f, 200f);   // never wider than the well it sits over
         // the search's RIGHT edge lands exactly on the content well's right line (header on the grid)
@@ -1550,8 +1577,9 @@ public final class ClubMenuScreen extends Screen {
             return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
         }
 
-        // Tab toggles the keyboard zone: search field ↔ card grid.
-        if (k == GLFW_KEY_TAB) { toggleZone(); return true; }
+        // Tab toggles the keyboard zone: search field ↔ card grid. Particles has no grid zone (its two-pane
+        // is mouse-driven), so Tab is swallowed there rather than dropping into an empty grid.
+        if (k == GLFW_KEY_TAB) { if (!particlesActive()) toggleZone(); return true; }
 
         // The focused search field owns its editing keys (caret, Enter, Ctrl+A, …).
         if (search != null && search.isFocused()) {

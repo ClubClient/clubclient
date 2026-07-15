@@ -121,6 +121,11 @@ public final class MenuContent {
                 // A hold module, so NO on/off toggle — see zoom(c) for the reasoning. The key is the switch.
                 new Module("Freelook", "Hold the freelook key to swing the camera freely.", IconGlyph.FREELOOK,
                         null, null, () -> {}, List.of()))),
+            // Particles is the one category whose CONTENT is not cards: ClubMenuScreen renders a two-pane for
+            // it (groups on the left, per-particle On/Off on the right) — see com.club.ui.menu.ParticlesPane.
+            // The empty module list is deliberate; the rail entry, its gold accent and its icon are all this
+            // file needs to give it. Everything on by default; nothing is protected (owner).
+            new Category("Particles", IconGlyph.PARTICLES, List.of()),
             // PERFORMANCE STOPPED BEING A CATEGORY (owner). It briefly held three cards, but two of them —
             // Particles and Block Entities — were culls that are invisible BY CONSTRUCTION and on by default:
             // never dials a player should be tuning, so they are baked in now, with a config-only kill switch

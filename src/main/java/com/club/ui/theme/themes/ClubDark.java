@@ -82,13 +82,13 @@ public final class ClubDark {
             0xFF9E8BD9,   // Visuals — muted violet (render; continuity with the enabled-edge violet)
             0xFF7FBFA6,   // Player  — cold teal-green (body/self)
             0xFF8C9BB5,   // Misc    — slate (neutral toolbox, the quietest)
-            // Performance — muted sand (v0.1.3). It had to be a fifth hue that no existing one owns, and the
-            // obvious candidates were all taken by something that MEANS: any blue is the brand accent (which
-            // marks INTERACTION, never identity — v2.5 rule), any strong amber is stateWarn, red is stateLow,
-            // and green is stateGood, which the Target HP bar now speaks. Sand sits between slate and warm,
-            // owns nothing else, and is lightness-matched to the other four so no category shouts over its
-            // neighbours. It also, deliberately, is not a colour anyone reads as "speed".
-            0xFFC0A47E); // Performance — muted sand (rendering / cost)
+            // Particles — muted gold (spark / glint / glow). It inherits the warm-neutral slot the retired
+            // Performance category opened up: a fifth hue no existing one owns. The obvious candidates were all
+            // taken by something that MEANS — any blue is the brand accent (INTERACTION, never identity — v2.5
+            // rule), any STRONG amber is stateWarn, red is stateLow, green is stateGood (the Target HP bar).
+            // This gold is muted and sits clear of stateWarn's brighter amber; lightness-matched to the other
+            // four so no category shouts over its neighbours, and it reads as a spark, not as "speed".
+            0xFFCBA96B); // Particles — muted gold
 
         return new Theme(p, radius, spacing, type, surface, accent, border, shadow, glow, elevation, motion, interaction, categories);
     }
