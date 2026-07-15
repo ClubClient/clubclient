@@ -36,7 +36,7 @@ import static org.lwjgl.glfw.GLFW.*;
  * {@code Control} commits on RELEASE (press captures, release-inside activates), so a row is armed by the
  * release of the arming click and the next PRESS is genuinely the player's gesture. This is load-bearing —
  * a future Control that fired on press would resurrect the bug — so the harness pins it: it arms a row
- * with a real click and then demands the row still says "Press a gesture…" rather than "Left Click".</p>
+ * with a real click and then demands the row still says "Press a key or scroll…" rather than "Left Click".</p>
  */
 public final class GestureScreen extends Screen {
 
@@ -68,7 +68,7 @@ public final class GestureScreen extends Screen {
     private TextStyle stTitle, stHint, stAction, stCaption, stWarn;
 
     public GestureScreen(Screen parent) {
-        super(Text.literal("Item Scroll — Gestures"));
+        super(Text.literal("Item Scroll — Controls"));
         this.parent = parent;
     }
 
@@ -112,7 +112,7 @@ public final class GestureScreen extends Screen {
     }
 
     private String chipLabel(ScrollAction action) {
-        if (capturing == action) return "Press a gesture…";
+        if (capturing == action) return "Press a key or scroll…";
         Gesture g = ItemScrollBinds.get(action);
         return g == null ? "Not set" : g.label();
     }
@@ -259,7 +259,7 @@ public final class GestureScreen extends Screen {
 
             // header: the accent tick + the title, exactly as the menu's popover states itself
             r.roundedRect(sheetX + PAD, sheetY + 19, 6, 6, 2, Tokens.accent().accent());
-            uiCtx.text().draw("Item Scroll — Gestures", sheetX + PAD + 14, sheetY + 15, stTitle);
+            uiCtx.text().draw("Item Scroll — Controls", sheetX + PAD + 14, sheetY + 15, stTitle);
 
             float y = sheetY + HEAD_H;
             for (ScrollAction action : ScrollAction.values()) {
@@ -284,7 +284,7 @@ public final class GestureScreen extends Screen {
 
             uiCtx.text().draw(capturing != null
                             ? "Scroll or click · Esc to cancel · Delete to remove"
-                            : "Click a gesture to change it",
+                            : "Click a row to change it",
                     sheetX + PAD, sheetY + sheetH - FOOT_H + 14, stHint);
 
             rows.mouseMoved(mx, my);
