@@ -91,9 +91,15 @@ public final class Button extends Control {
         // padding it out to 96px made it the heaviest object in a 236px sheet, heavier than the sliders the
         // player actually drags. A value hugs its content and sits in the same column as the numbers beside it.
         float w = hug
-                ? Math.max(t.w() + Tokens.spacing().md() * 2f, minWidth)
+                ? Math.max(t.w() + Tokens.spacing().sm() * 2f, minWidth)   // sm, not md: a key chip is a tag, not a button (owner, v0.1.3 #8)
                 : Math.max(Math.max(t.w() + Tokens.spacing().lg() * 2f, Tokens.spacing().xxl() * 3f), minWidth);
-        return new Size(w, compact ? Tokens.spacing().xl() : t.h() + Tokens.spacing().sm() * 2f);
+        // A VALUE chip hugs its text vertically too — the 24px control lane made "Left Alt" a chunky pill for a
+        // one-word value ("для чего им столько места", owner #8). It drops to line-height + sm; PRIMARY/GHOST
+        // fields keep the lane so they still align with the sliders beside them.
+        float h = compact
+                ? (variant == Variant.VALUE ? t.h() + Tokens.spacing().sm() : Tokens.spacing().xl())
+                : t.h() + Tokens.spacing().sm() * 2f;
+        return new Size(w, h);
     }
 
     @Override public void layout(float x, float y, float w, float h) {

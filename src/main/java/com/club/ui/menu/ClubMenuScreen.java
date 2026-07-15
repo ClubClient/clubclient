@@ -272,7 +272,10 @@ public final class ClubMenuScreen extends Screen {
         // again to move at all.
         if (moveWasDown != null) java.util.Arrays.fill(moveWasDown, false);
         search = new SearchField("Search modules")
-                .onChange(q -> { query = q; rebuildGrid(GridRebuild.SEARCH); layoutAll(); })
+                // Typing in search closes any open sheet (owner, v0.1.3 #7: "начать искать — поповер не
+                // пропадает"). It was left anchored to a card that the filter may have just removed, floating
+                // over the results. The search is a new context; the sheet belongs to the old one.
+                .onChange(q -> { query = q; if (popModule != null) closePopover(); rebuildGrid(GridRebuild.SEARCH); layoutAll(); })
                 .onSubmit(this::submitSearch);   // Enter activates the first result
         gridScroll = new ScrollArea(grid);
         root.clear();
@@ -455,7 +458,11 @@ public final class ClubMenuScreen extends Screen {
 
     private boolean hasConfigurable(Module m) {
         if (m.hasTabs()) return true;
-        if (m.hasToggle()) return true;
+        // A MASTER TOGGLE IS NOT POPOVER CONTENT (owner, v0.1.3: "пустой поповер зачем функциям?"). The
+        // on/off switch lives on the CARD, never inside the sheet — so a module whose ONLY control is that
+        // switch (every Performance flag: Particles, Block Entities, No-Fire…) opened a popover with nothing
+        // in it. `hasToggle()` used to return true here and that is exactly what drew the empty box under the
+        // cards. Removed: a toggle-only card now just toggles on click, no sheet.
         // A key row is enough on its own to justify a popover — and after v0.1.3 this is the ONLY thing
         // Freelook has. It lost its on/off toggle (a hold module has no off state; the key is the switch),
         // it has no sliders, and its only setting used to be that toggle. Without this line clicking the
@@ -464,6 +471,10 @@ public final class ClubMenuScreen extends Screen {
         // происходит"). Zoom escaped the bug only because it still has two sliders.
         if (com.club.modules.binds.ModuleBinds.hasKeyRow(m.name())) return true;
         for (Setting s : m.settings()) if (!(s instanceof ActionSetting)) return true;
+        // …and a live notice earns a sheet even with no controls: a Performance card with Sodium MISSING has
+        // one line worth saying ("Install Sodium for entity culling"). With Sodium present that returns null,
+        // the card falls through to false, and the sheet stays shut — the empty box is gone.
+        if (MenuContent.notice(m.name()) != null) return true;
         return false;
     }
 
@@ -531,7 +542,11 @@ public final class ClubMenuScreen extends Screen {
                 idx -= gridCols; break;
             case GLFW_KEY_DOWN:  idx = Math.min(mods.size() - 1, idx + gridCols); break;
             case GLFW_KEY_ENTER, GLFW_KEY_KP_ENTER: activate(mods.get(idx)); gridFocus = mods.get(idx); return true;
-            case GLFW_KEY_SPACE: openPopoverForFocused(mods.get(idx)); gridFocus = mods.get(idx); return true;
+            case GLFW_KEY_SPACE: {   // open the sheet if there is one; otherwise a toggle-only card just toggles
+                Module fm = mods.get(idx);
+                if (hasConfigurable(fm)) openPopoverForFocused(fm); else activate(fm);
+                gridFocus = fm; return true;
+            }
             default: return false;
         }
         gridFocus = mods.get(idx);
