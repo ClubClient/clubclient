@@ -167,6 +167,10 @@ public final class ClubMenuScreen extends Screen {
     private static final float NO_SET_FLASH = 1.1f;
     private Module noSetFlashMod;
     private float noSetFlashAt;
+    // Accordion push, applied rigidly at render (see Grid.split / TileMotion note, pack 6 #4): the cards in
+    // column bandCol below row bandRow slide down by bandPx — a value that ramps with the sheet's reveal.
+    private int bandCol = -1, bandRow = -1;
+    private float bandPx;
     private float popRoom;   // vertical room the sheet was allowed — the denominator of "maximal" (harness seam)
     private int pressOwner;
     // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
@@ -1102,12 +1106,13 @@ public final class ClubMenuScreen extends Screen {
         int splitRow = (popModule != null) ? rowOf(popModule) : -1;
         int splitCol = (popModule != null) ? colOf(popModule) : -1;
         float band = 0f;
-        // A CONTINUOUS ramp (was `dh > 0.5 ? dh + gap : 0`, which JUMPED ~12px at the start and read as the
-        // push "playing after" the sheet — owner pack 4 #3). progress·(closed height + gaps): starts at 0,
-        // ends at the sheet's footprint, and uses popBaseH so a dropdown expanding never changes the push (#5).
+        // A CONTINUOUS ramp of the closed-sheet footprint (popBaseH, so a dropdown never changes the push).
+        // The cards move RIGIDLY by this at render — not through TileMotion, which re-eased it and made the
+        // card arrive after the sheet (owner, pack 6 #4). Same reveal clock as the sheet ⇒ they move together.
         if (splitRow >= 0 && popReveal != null)
             band = popReveal.progress(bandNow) * (popBaseH + 2 * POP_GAP);
-        grid.split(splitCol, splitRow, band);
+        bandCol = splitCol; bandRow = splitRow; bandPx = band;
+        grid.split(splitRow, band);   // reserve scroll room only; the offset itself is applied per-tile in render
 
         if (gridScroll != null) gridScroll.layout(wellX + 12, wellY + 12, gridW, wellH - 24);
 
@@ -1689,6 +1694,14 @@ public final class ClubMenuScreen extends Screen {
                 if (ta <= 0.001f) return;   // pre-delay or fully dissolved — nothing to draw
             }
 
+            // Accordion push — RIGID (owner, pack 6 #4): the sheet's reveal already animates this offset, so it
+            // is added straight to the box rather than eased again through TileMotion (which made the card
+            // arrive AFTER the sheet). Only the sheet's own column, below its row, moves.
+            if (bandPx > 0f && bandRow >= 0 && (tm == null || !tm.leaving)) {
+                int idx = grid.children().indexOf(this);
+                if (idx >= 0 && idx % gridCols == bandCol && idx / gridCols > bandRow) y += bandPx;
+            }
+
             // action-only cards (HUD Editor) read as available (full colour), never "off"
             onT.target(m.hasToggle() ? (m.enabled() ? 1f : 0f) : 1f, now);
             hoverT.target(hovered ? 1f : 0f, now);
@@ -1796,8 +1809,10 @@ public final class ClubMenuScreen extends Screen {
                     // which button asked for it.
                     activate(m);
                 } else {
-                    // Nothing to configure (a Performance flag): a right-click flashes the "no settings" mark
-                    // instead of sitting dead, so the player learns it fast (owner, pack 5 #5, variant A).
+                    // Nothing to configure (a Performance flag): close any open sheet (owner, pack 6 #2 — a
+                    // right-click elsewhere should dismiss it) and flash the "no settings" mark instead of
+                    // sitting dead, so the player learns it fast (owner, pack 5 #5, variant A).
+                    if (popModule != null && !popClosing) closePopover();
                     noSetFlashMod = m; noSetFlashAt = uiCtx.time();
                 }
                 return true;
@@ -1813,18 +1828,22 @@ public final class ClubMenuScreen extends Screen {
      *  the red so it reads crossed-out, not smudged. */
     private void drawNoSettingsFlash(UiRenderer r, float x, float y, float w, float h, float rad, int fill, float a) {
         r.border(x, y, w, h, rad, 1.6f, Color.scaleAlpha(Tokens.palette().stateLow(), 0.5f * a));   // very muted red outline
-        float R = 9.5f, Rb = 6.4f, Rh = 2.6f, toothW = 2.8f;
-        float gx = x + w - TILE_PAD - R, gy = y + TILE_PAD + R;
+        // A small gear: STUBBY teeth at the rim (base Ri → tip Ro), not long spokes from the centre — that
+        // read as a sun, not a cog (owner, pack 6 #1). ~14px overall. Teeth offset 22.5° so the slash passes
+        // between them, not down a tooth.
+        float Ro = 7f, Ri = 4.9f, Rb = 5.2f, Rh = 2.2f, toothW = 2.3f;
+        float gx = x + w - TILE_PAD - Ro, gy = y + TILE_PAD + Ro;
         int gcol = Color.scaleAlpha(Tokens.palette().textMuted(), a);
-        for (int k = 0; k < 8; k++) {   // eight teeth radiating from the centre (inner half hidden by the body)
-            double ang = Math.toRadians(k * 45);
-            r.line(gx, gy, gx + (float) (R * Math.cos(ang)), gy + (float) (R * Math.sin(ang)), toothW, gcol);
+        for (int k = 0; k < 8; k++) {
+            double ang = Math.toRadians(k * 45 + 22.5);
+            float c = (float) Math.cos(ang), s2 = (float) Math.sin(ang);
+            r.line(gx + Ri * c, gy + Ri * s2, gx + Ro * c, gy + Ro * s2, toothW, gcol);
         }
-        r.circle(gx, gy, Rb, gcol);                        // body
-        r.circle(gx, gy, Rh, Color.scaleAlpha(fill, a));   // hole, in the card's own face colour
-        float s = R * 0.9f;                                // slash across the whole mark
-        r.line(gx - s, gy - s, gx + s, gy + s, 3.6f, Color.scaleAlpha(fill, a));                          // under-stroke: the neat gap
-        r.line(gx - s, gy - s, gx + s, gy + s, 2.0f, Color.scaleAlpha(Tokens.palette().stateLow(), a));   // the red slash
+        r.circle(gx, gy, Rb, gcol);                        // body ring…
+        r.circle(gx, gy, Rh, Color.scaleAlpha(fill, a));   // …with a punched hole in the card's own face colour
+        float s = Ro * 0.98f;                              // slash across the whole mark
+        r.line(gx - s, gy - s, gx + s, gy + s, 2.8f, Color.scaleAlpha(fill, a));                          // under-stroke: the neat gap
+        r.line(gx - s, gy - s, gx + s, gy + s, 1.6f, Color.scaleAlpha(Tokens.palette().stateLow(), a));   // the red slash
     }
 
     /** Minimal single-line search input: leading glyph, placeholder when idle, blinking caret when

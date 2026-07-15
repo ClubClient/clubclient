@@ -11,11 +11,12 @@ import com.club.ui.component.Container;
 public final class Grid extends Container {
     private int cols;
     private float gap;
-    // Accordion band (menu settings sheet): the settings popover drops out of the clicked card, which is
-    // ONE column wide. So only the cards in THAT column, below the clicked row, slide down (owner, pack 4:
-    // "зачем отъезжают строки которые поповером не закрывают ничего"). Other columns stay put; the measured
-    // height still grows by the band so a ScrollArea can reveal a sheet taller than the grid.
-    private int splitCol = -1, splitAfterRow = -1;
+    // Accordion band (menu settings sheet): the sheet drops out of the clicked card and the column's lower
+    // cards slide down for it. Only the MEASURED height grows here (so a ScrollArea can reveal a tall sheet).
+    // The cards are NOT offset in layout — the screen offsets the affected column's lower cards at RENDER
+    // time, rigidly synced with the sheet's reveal, so TileMotion doesn't re-ease the push and make the card
+    // arrive after the sheet (owner, pack 6 #4).
+    private int splitAfterRow = -1;
     private float splitGap;
 
     public Grid(int cols, float gap) { this.cols = Math.max(1, cols); this.gap = gap; }
@@ -25,16 +26,10 @@ public final class Grid extends Container {
     public Grid add(Component c) { addChild(c); return this; }
     public void clear() { children.clear(); }
 
-    /** Push the cards in column {@code col} that sit below row {@code afterRow} down by {@code gap} — the room
-     *  the settings sheet drops into. The measured height grows by {@code gap} so a ScrollArea can reveal it.
-     *  {@code afterRow < 0} clears the split; {@code col < 0} would push every column (unused now). */
-    public Grid split(int col, int afterRow, float gap) {
-        this.splitCol = col; this.splitAfterRow = afterRow; this.splitGap = Math.max(0f, gap); return this;
-    }
+    /** Reserve {@code gap} of extra measured height for a sheet dropped after row {@code afterRow}, so a
+     *  ScrollArea can scroll to it. Does NOT move any card. {@code afterRow < 0} clears it. */
+    public Grid split(int afterRow, float gap) { this.splitAfterRow = afterRow; this.splitGap = Math.max(0f, gap); return this; }
 
-    private float bandAt(int row, int col) {
-        return (splitAfterRow >= 0 && row > splitAfterRow && (splitCol < 0 || col == splitCol)) ? splitGap : 0f;
-    }
     private float bandTotal() { return splitAfterRow >= 0 ? splitGap : 0f; }
 
     private float cellW(float w) { return (w - gap * (cols - 1)) / cols; }
@@ -60,7 +55,7 @@ public final class Grid extends Container {
         for (int i = 0; i < children.size(); i++) {
             int col = i % cols, row = i / cols;
             float cx = x + col * (cw + gap);
-            float cy = y + row * (rh + gap) + bandAt(row, col);   // only the split column's lower cards slide down
+            float cy = y + row * (rh + gap);   // the accordion push is applied by the screen at render time
             children.get(i).layout(cx, cy, cw, rh);
         }
     }

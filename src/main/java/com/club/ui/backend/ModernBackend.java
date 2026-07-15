@@ -213,13 +213,16 @@ public final class ModernBackend implements UiRenderer {
         float mx = (x1 + x2) * 0.5f, my = (y1 + y2) * 0.5f, rad = thickness * 0.5f;
         var ms = ctx.getMatrices();
         ms.push();
-        ms.translate(mx, my, 0f);
-        ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotation((float) Math.atan2(dy, dx)));
-        ms.translate(-mx, -my, 0f);
-        roundedRect(mx - (len + thickness) * 0.5f, my - rad, len + thickness, thickness, rad, color);
-        // A batched quad bakes the CURRENT matrix into its vertices at emit, so it is safe to pop now —
-        // but only after a flush would be wrong: the quad is already recorded with its rotated matrix.
-        ms.pop();
+        try {
+            ms.translate(mx, my, 0f);
+            ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotation((float) Math.atan2(dy, dx)));
+            ms.translate(-mx, -my, 0f);
+            // A batched quad bakes the CURRENT matrix into its vertices at emit, so the rotation is captured
+            // here and the pop below can't undo it.
+            roundedRect(mx - (len + thickness) * 0.5f, my - rad, len + thickness, thickness, rad, color);
+        } finally {
+            ms.pop();   // ALWAYS balance the stack — a throw here would otherwise corrupt every later draw
+        }
     }
 
     // -------------------------------------------------------------------------
