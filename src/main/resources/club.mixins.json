@@ -17,6 +17,7 @@
     "WorldRendererAccessor",
     "MixinWorldRendererFrustum",
     "MixinParticleManager",
+    "MixinParticleManagerVisibility",
     "MixinBlockEntityRenderDispatcher",
     "MixinMinecraftClientFps"
   ],

@@ -41,6 +41,7 @@ public class ClubConfig {
     // same file is a clean merge; three branches reformatting the same block is not.
     public com.club.modules.itemscroll.ItemScrollConfig itemScroll = new com.club.modules.itemscroll.ItemScrollConfig();
     public Perf perf = new Perf();
+    public Particles particles = new Particles();
 
     /** Performance. Only techniques that cannot change what the player sees may default to ON. */
     public static final class Perf {
@@ -67,6 +68,14 @@ public class ClubConfig {
         // vanilla's visible-section list holds only sections that CONTAIN BLOCKS, so a phantom in open air
         // belongs to no visible section and would be deleted while the player is looking straight at it.
         // Sodium does not have that problem because it owns the occlusion graph. See docs/PERF.md.
+    }
+
+    /** Particles category: which particle types the player has HIDDEN. Everything is on by default, so this
+     *  starts EMPTY — and an empty set is the hot-path fast case in {@link com.club.modules.particles.ParticleVisibility}.
+     *  Stored as full ids ("minecraft:crit") so it survives regardless of registry iteration order. Unlike the
+     *  perf culls this DOES change what you see — on purpose; it is a visibility preference, not an optimisation. */
+    public static final class Particles {
+        public java.util.Set<String> hidden = new java.util.HashSet<>();
     }
 
     public Hud hud = new Hud();
@@ -301,6 +310,10 @@ public class ClubConfig {
         // guarding only the section that CONTAINS it would leave the same crash one line deeper.
         if (itemScroll.gestures == null) itemScroll.gestures = new java.util.HashMap<>();
         if (perf == null) perf = new Perf();
+        // Dereferenced on the particle hot path (MixinParticleManagerVisibility, every addParticle): a
+        // hand-edited "particles": null — or a partial file — must be a default, never an NPE mid-frame.
+        if (particles == null) particles = new Particles();
+        if (particles.hidden == null) particles.hidden = new java.util.HashSet<>();
         if (hud == null) hud = new Hud();
         // Canonicalize armorLayout ONCE here (Stage 29) instead of clamping at every read site: an
         // old/hand-edited value (e.g. the retired 2, or junk) self-heals to 0/1 on load.
