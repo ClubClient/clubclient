@@ -102,7 +102,13 @@ public final class HudManager {
                     // The frame, cut into the four things it actually does — so the profiler can say WHERE the
                     // time goes instead of handing us one number to guess about (Stage 64). The stamps are taken
                     // only while a measurement window is open.
+                    // Renamed in 1.21.5 (measured, not guessed — 1.21.4 still has getTickDelta). Same number,
+                    // same meaning: the fraction of a tick this frame sits at.
+                    //? if <1.21.5 {
                     TargetHud.frame(mc, tickCounter.getTickDelta(true));   // one crosshair raycast per frame, real partial tick
+                    //?} else {
+                    /*TargetHud.frame(mc, tickCounter.getTickProgress(true));*/
+                    //?}
                     t1 = prof ? System.nanoTime() : 0L;                    // ── RAYCAST
                     HudSpace.migrate(mc);   // once: saved positions were absolute GUI pixels of the old space
                     CANVAS.setScreen(com.club.ui.ClubCanvas.widthI(mc), com.club.ui.ClubCanvas.heightI());

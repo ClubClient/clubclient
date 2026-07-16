@@ -78,7 +78,13 @@ public final class MsdfAtlas {
             NativeImage img = NativeImage.read(in);
             boolean owned = false;
             try {
+                // 1.21.5 added a debug label to the constructor (a Supplier, so it costs nothing unless a
+                // graphics debugger asks). Same texture either way.
+                //? if <1.21.5 {
                 NativeImageBackedTexture tex = new NativeImageBackedTexture(img);
+                //?} else {
+                /*NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "club/msdf", img);*/
+                //?}
                 // NativeImageBackedTexture took ownership of img; don't close it on success
                 owned = true;
                 tex.setFilter(true, false);   // bilinear, no mip — correct for SDF

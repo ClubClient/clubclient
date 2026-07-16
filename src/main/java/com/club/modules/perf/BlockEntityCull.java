@@ -131,7 +131,13 @@ public final class BlockEntityCull {
         if (!isVanillaType(be.getType()) || !isVanillaRenderer(r)) return false;
 
         // Hands off anything that is not an ordinary, inside-its-own-block, 64-metre renderer.
+        // rendersOutsideBoundingBox dropped its argument in 1.21.6 (measured: 1.21.5 still takes the
+        // BlockEntity). The question is the same one — does this renderer draw outside its own block.
+        //? if <1.21.6 {
         if (r.getRenderDistance() != 64 || r.rendersOutsideBoundingBox(be)) return false;
+        //?} else {
+        /*if (r.getRenderDistance() != 64 || r.rendersOutsideBoundingBox()) return false;*/
+        //?}
 
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.gameRenderer == null || mc.gameRenderer.getCamera() == null) return false;
