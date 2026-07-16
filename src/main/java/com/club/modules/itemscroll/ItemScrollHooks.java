@@ -2,6 +2,8 @@ package com.club.modules.itemscroll;
 
 import com.club.config.ClubConfig;
 import com.club.mixin.MixinHandledScreenAccessor;
+import com.club.policy.ServerFeature;
+import com.club.policy.ServerPolicy;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.client.MinecraftClient;
@@ -137,6 +139,10 @@ public final class ItemScrollHooks {
         // it by landing on this screen (vanilla swaps InventoryScreen for it in creative) and walking away
         // with 64 jungle stairs on the cursor. A guard at the door is not a guard on the act.
         if (screen instanceof CreativeInventoryScreen) return;
+        // The same reason the creative refusal is here and not only at the door: the harness calls act()
+        // directly, and so could any future caller. A server whose rules forbid item scrolling must not be
+        // able to see a click from us because someone reached past active().
+        if (!ServerPolicy.allows(ServerFeature.ITEM_SCROLL)) return;
         // Every composed gesture assumes an empty cursor (PICKUP would swap, THROW is ignored outright).
         // Holding a stack means the player is mid-move by hand: stay out of it.
         if (!handler.getCursorStack().isEmpty()) return;

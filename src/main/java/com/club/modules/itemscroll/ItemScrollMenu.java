@@ -1,6 +1,8 @@
 package com.club.modules.itemscroll;
 
 import com.club.config.ClubConfig;
+import com.club.policy.ServerFeature;
+import com.club.policy.ServerPolicy;
 import com.club.ui.IconGlyph;
 import com.club.ui.menu.MenuContent;
 import net.minecraft.client.MinecraftClient;
@@ -41,10 +43,13 @@ public final class ItemScrollMenu {
     }
 
     /**
-     * What the card would otherwise lie about. Two truths, in priority order: a sibling mod owning the
-     * same gestures means we are deliberately inert (a lit card doing nothing is how a mod earns a
-     * "broken" review), and creative is not handled at all — its screen keeps fake slots behind a
-     * different click path, and a half-working creative is worse than an honest gap.
+     * What the card would otherwise lie about. Three truths, in priority order: the server we are on
+     * forbids item scrolling by rule, a sibling mod owning the same gestures means we are deliberately
+     * inert (a lit card doing nothing is how a mod earns a "broken" review), and creative is not handled
+     * at all — its screen keeps fake slots behind a different click path, and a half-working creative is
+     * worse than an honest gap.
+     *
+     * <p>The server rule comes first: it is the only one of the three with a consequence outside the game.</p>
      *
      * <p>Both lines are written for a PLAYER, not for us. "Creative inventory: not handled" was the old
      * second line: "handled" is a word about our code, and it left the player to guess whether that meant
@@ -53,6 +58,11 @@ public final class ItemScrollMenu {
      * is why OUR card has gone quiet, which is that X already does this.</p>
      */
     public static String notice() {
+        // First, because it is the line with a consequence: the player who does not know the module is off
+        // here is the player who wonders why their scroll does nothing — and the player who does not know it
+        // is ON here is the one who breaks a server rule without meaning to.
+        if (ClubConfig.get().itemScroll.enabled && !ServerPolicy.allows(ServerFeature.ITEM_SCROLL))
+            return "Idle — not allowed on this server";
         String sibling = ItemScrollModule.sibling();
         if (sibling != null) return "Idle — " + sibling + " does this";
         return ClubConfig.get().itemScroll.enabled ? "Doesn't work in the creative inventory" : null;

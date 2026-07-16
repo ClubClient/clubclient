@@ -1,5 +1,8 @@
 package com.club.policy;
 
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ServerInfo;
+
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -95,5 +98,22 @@ public final class ServerPolicy {
     /** What the shipped table forbids at {@code address}. */
     static Set<ServerFeature> restrictionsFor(String address) {
         return lookup(RULES, address);
+    }
+
+    // ---- the client adapter -----------------------------------------------------------------------
+
+    /**
+     * May {@code f} act where the player is standing right now?
+     *
+     * <p>Read live, never cached. A cache here would go stale exactly once — on the hop from a listed
+     * server to any other, or back — and stale means either a dead feature or a forbidden one firing.
+     * The cost is a handful of string operations on a mouse event, which is not a render loop.</p>
+     */
+    public static boolean allows(ServerFeature f) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null || mc.isInSingleplayer()) return true;   // no server, no rules
+        ServerInfo entry = mc.getCurrentServerEntry();
+        if (entry == null || entry.isLocal()) return true;      // LAN, or nowhere we can name
+        return !restrictionsFor(entry.address).contains(f);
     }
 }

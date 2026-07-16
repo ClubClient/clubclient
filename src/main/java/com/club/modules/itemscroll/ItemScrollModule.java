@@ -2,6 +2,8 @@ package com.club.modules.itemscroll;
 
 import com.club.config.ClubConfig;
 import com.club.modules.ModuleNotices;
+import com.club.policy.ServerFeature;
+import com.club.policy.ServerPolicy;
 import net.fabricmc.loader.api.FabricLoader;
 
 /**
@@ -47,8 +49,11 @@ public final class ItemScrollModule {
         return sibling;
     }
 
-    /** Whether a gesture may fire right now: the module is on and no sibling mod owns the same gestures. */
+    /** Whether a gesture may fire right now: the module is on, no sibling mod owns the same gestures, and
+     *  the server we are on does not forbid item scrolling. */
     public static boolean active() {
-        return ClubConfig.get().itemScroll.enabled && sibling() == null;
+        return ClubConfig.get().itemScroll.enabled
+                && sibling() == null
+                && ServerPolicy.allows(ServerFeature.ITEM_SCROLL);
     }
 }
