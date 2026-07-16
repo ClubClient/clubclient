@@ -52,12 +52,15 @@ public final class ItemScrollHarness {
         server.execute(() -> {
             ServerPlayerEntity sp = server.getPlayerManager().getPlayer(mc.player.getUuid());
             if (sp == null) return;
-            // getServerWorld survived to 1.21.5 and went in 1.21.6 — a DIFFERENT boundary from the rest of
-            // this file's guards, measured rather than assumed. getWorld() is already typed ServerWorld here.
+            // This accessor has been renamed TWICE, at two different boundaries, neither of them guessable:
+            // getServerWorld survived to 1.21.5 and went in 1.21.6; the getWorld() that replaced it survived
+            // to 1.21.8 and became getEntityWorld() in 1.21.9. All three are typed ServerWorld here.
             //? if <1.21.6 {
             ServerWorld world = sp.getServerWorld();
-            //?} else {
+            //?} elif <1.21.9 {
             /*ServerWorld world = sp.getWorld();*/
+            //?} else {
+            /*ServerWorld world = sp.getEntityWorld();*/
             //?}
 
             BlockPos pos = sp.getBlockPos().up(2);       // inside the chest handler's own 8-block canUse range
@@ -141,13 +144,34 @@ public final class ItemScrollHarness {
 
     // ---- driving the gesture editor ---------------------------------------------------------------
 
+    // 1.21.9 folded a mouse event's (x, y, button) into a Click record, and Fabric's ScreenMouseEvents
+    // followed it. Measured: the loose triple is live through 1.21.8 and gone in 1.21.9 — NOT a 1.21.11
+    // change, and not the same boundary as this file's ServerWorld guard above. The factory below exists
+    // only where Click does; every site in this file goes through it, so the shape is spelled once.
+    //? if >=1.21.9 {
+    /*private static net.minecraft.client.gui.Click click(double x, double y, int button) {
+        return new net.minecraft.client.gui.Click(x, y, new net.minecraft.client.input.MouseInput(button, 0));
+    }*/
+    //?}
+
+    /** A real click: press AND release, at one place, so the version split above is written once. */
+    private static void clickRelease(net.minecraft.client.gui.screen.Screen screen, double x, double y, int button) {
+        //? if <1.21.9 {
+        screen.mouseClicked(x, y, button);
+        screen.mouseReleased(x, y, button);
+        //?} else {
+        /*net.minecraft.client.gui.Click c = click(x, y, button);
+        screen.mouseClicked(c, false);   // `doubled` = false: a plain single click, as before
+        screen.mouseReleased(c);*/
+        //?}
+    }
+
     /** Click a row's chip, press AND release — the release matters: the arming click is itself a left
      *  click, and a capture that starts on the press binds every row to LMB the instant you touch it. */
     public static void armRow(MinecraftClient mc, int row) {
         if (!(mc.currentScreen instanceof GestureScreen screen)) return;
         double[] p = screen.chipCentre(ScrollAction.values()[row]);
-        screen.mouseClicked(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
-        screen.mouseReleased(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        clickRelease(screen, p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
     }
 
     /** Perform a bare left click into an armed row. It must be REFUSED — that click is how a player picks
@@ -155,16 +179,14 @@ public final class ItemScrollHarness {
     public static void captureBareLeftClick(MinecraftClient mc) {
         if (!(mc.currentScreen instanceof GestureScreen screen)) return;
         double[] p = screen.chipCentre(ScrollAction.MOVE_ONE);
-        screen.mouseClicked(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
-        screen.mouseReleased(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        clickRelease(screen, p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
     }
 
     /** Arm "Move everything" and scroll — which is Move one's gesture. It must be TAKEN, not shared. */
     public static void stealGesture(MinecraftClient mc) {
         if (!(mc.currentScreen instanceof GestureScreen screen)) return;
         double[] p = screen.chipCentre(ScrollAction.MOVE_EVERYTHING);
-        screen.mouseClicked(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
-        screen.mouseReleased(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        clickRelease(screen, p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
         screen.mouseScrolled(p[0], p[1], 0, 1);
     }
 
@@ -208,10 +230,18 @@ public final class ItemScrollHarness {
         if (screen == null) return "no screen";
         moveCursor(mc, slotId);
         double[] p = slotCentre(mc, screen, slotId);
+        // Press only, no release: this asks what vanilla does with the PRESS, so it must stay a press.
+        //? if <1.21.9 {
         boolean allowed = ScreenMouseEvents.allowMouseClick(screen).invoker()
                 .allowMouseClick(screen, p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
         if (!allowed) return "consumed";
         screen.mouseClicked(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);   // the client would — so we do
+        //?} else {
+        /*net.minecraft.client.gui.Click c = click(p[0], p[1], GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        boolean allowed = ScreenMouseEvents.allowMouseClick(screen).invoker().allowMouseClick(screen, c);
+        if (!allowed) return "consumed";
+        screen.mouseClicked(c, false);   // the client would — so we do
+        *///?}
         return "NOT consumed — vanilla handled the press";
     }
 
@@ -220,10 +250,17 @@ public final class ItemScrollHarness {
         if (screen == null) return "no screen";
         double x = mc.mouse.getX() / mc.getWindow().getScaleFactor();
         double y = mc.mouse.getY() / mc.getWindow().getScaleFactor();
+        //? if <1.21.9 {
         boolean allowed = ScreenMouseEvents.allowMouseRelease(screen).invoker()
                 .allowMouseRelease(screen, x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
         if (!allowed) return "consumed";
         screen.mouseReleased(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        //?} else {
+        /*net.minecraft.client.gui.Click c = click(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        boolean allowed = ScreenMouseEvents.allowMouseRelease(screen).invoker().allowMouseRelease(screen, c);
+        if (!allowed) return "consumed";
+        screen.mouseReleased(c);
+        *///?}
         return "NOT consumed — vanilla handled the release";
     }
 
@@ -240,7 +277,11 @@ public final class ItemScrollHarness {
         HandledScreen<?> screen = screen(mc);
         if (screen == null) return false;
         double[] p = slotCentre(mc, screen, slotId);
+        //? if <1.21.9 {
         return ScreenMouseEvents.allowMouseClick(screen).invoker().allowMouseClick(screen, p[0], p[1], button);
+        //?} else {
+        /*return ScreenMouseEvents.allowMouseClick(screen).invoker().allowMouseClick(screen, click(p[0], p[1], button));*/
+        //?}
     }
 
     /** A scroll BESIDE the container box — where REI's and EMI's panels live. We must not touch it. */

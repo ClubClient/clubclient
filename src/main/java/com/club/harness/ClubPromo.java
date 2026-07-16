@@ -23,7 +23,13 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.GameMode;
+// 1.21.11 moved GameRules to net.minecraft.world.rule and reworked how a rule is read/written — see the
+// set-dressing step below. Measured: net.minecraft.world through 1.21.10, net.minecraft.world.rule in 1.21.11.
+//? if <1.21.11 {
 import net.minecraft.world.GameRules;
+//?} else {
+/*import net.minecraft.world.rule.GameRules;*/
+//?}
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
@@ -200,10 +206,19 @@ public final class ClubPromo {
             // ---- the set: an empty, quiet, good-looking world ----
             step(2, () -> onServer(server -> {
                 ServerWorld w = server.getOverworld();
+                // 1.21.11: getGameRules() moved from MinecraftServer to ServerWorld, get(..).set(..) became
+                // setValue(..), and doDaylightCycle/doWeatherCycle were renamed ADVANCE_TIME/ADVANCE_WEATHER.
+                //? if <1.21.11 {
                 GameRules r = server.getGameRules();
                 r.get(GameRules.DO_DAYLIGHT_CYCLE).set(false, server);   // the sun holds its position for the shot
                 r.get(GameRules.DO_WEATHER_CYCLE).set(false, server);
                 r.get(GameRules.DO_MOB_SPAWNING).set(false, server);
+                //?} else {
+                /*GameRules r = w.getGameRules();
+                r.setValue(GameRules.ADVANCE_TIME, false, server);       // the sun holds its position for the shot
+                r.setValue(GameRules.ADVANCE_WEATHER, false, server);
+                r.setValue(GameRules.DO_MOB_SPAWNING, false, server);*/
+                //?}
                 server.setDifficulty(Difficulty.PEACEFUL, true);
                 w.setWeather(6000, 0, false, false);                     // clear, and staying clear
                 purge(w);
@@ -257,7 +272,13 @@ public final class ClubPromo {
 
             // ---- the camera: everything the player's own settings would otherwise dictate ----
             step(10, () -> {
+                // 1.21.11 renamed getGraphicsMode() to getPreset(); the option's change-callback is
+                // GameOptions.applyGraphicsMode, so setValue still applies the preset exactly as before.
+                //? if <1.21.11 {
                 mc.options.getGraphicsMode().setValue(GraphicsMode.FANCY);
+                //?} else {
+                /*mc.options.getPreset().setValue(GraphicsMode.FANCY);*/
+                //?}
                 mc.options.getViewDistance().setValue(16);        // a horizon, not a wall of fog (and not a
                                                                  // ten-minute wait for chunks that never show)
                 mc.options.getEntityShadows().setValue(true);
@@ -340,7 +361,13 @@ public final class ClubPromo {
                 ServerPlayerEntity sp = serverPlayer(server);
                 if (sp == null) return;
                 w.setTimeOfDay(s.time());
+                // World.getSpawnPos() was replaced by getSpawnPoint(), a record carrying dimension+angles.
+                // Measured: getSpawnPos survives through 1.21.8 and is gone in 1.21.9 — NOT a 1.21.11 change.
+                //? if <1.21.9 {
                 BlockPos from = w.getSpawnPos();
+                //?} else {
+                /*BlockPos from = w.getSpawnPoint().getPos();*/
+                //?}
                 BlockPos at = null;
                 for (RegistryKey<Biome> want : s.biomes()) {                  // first choice, then what we'll accept
                     var found = w.locateBiome(e -> e.matchesKey(want), from, 3000, 32, 64);
@@ -449,7 +476,15 @@ public final class ClubPromo {
     /** A real tap: press AND release (the menu tracks held keys to tell a repeat from a fresh press). */
     private static void tap(Screen s, int k, int mods) {
         if (s == null) return;
+        // 1.21.9 folded (key, scancode, modifiers) into a KeyInput record. Measured: the int triple is live
+        // through 1.21.8 and gone in 1.21.9 — the same release that introduced CharInput and Click.
+        //? if <1.21.9 {
         s.keyPressed(k, 0, mods);
         s.keyReleased(k, 0, mods);
+        //?} else {
+        /*net.minecraft.client.input.KeyInput in = new net.minecraft.client.input.KeyInput(k, 0, mods);
+        s.keyPressed(in);
+        s.keyReleased(in);*/
+        //?}
     }
 }

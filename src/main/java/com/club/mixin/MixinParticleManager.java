@@ -40,15 +40,22 @@ public class MixinParticleManager {
                      target = "Lnet/minecraft/client/particle/Particle;buildGeometry("
                             + "Lnet/minecraft/client/render/VertexConsumer;"
                             + "Lnet/minecraft/client/render/Camera;F)V"))
+    private void club$cullInvisibleParticles(Particle particle, VertexConsumer vertices, Camera camera, float tickDelta,
+                                             Operation<Void> original) {
+        if (ParticleCull.skip(particle, camera, tickDelta)) return;
+        original.call(particle, vertices, camera, tickDelta);
+    }
     //?} else {
-    /*// Two changes, one release apart in cause but both landing here:
-    //   1.21.4 renamed Particle.buildGeometry -> render. Same method (method_3074), same descriptor; the
-    //          name is all that moved, and a name is all an @At target is.
-    //   1.21.8 split renderParticles into three: a public entry point and two private static workers. The
-    //          call we wrap is in the SHEET worker, not the entry point — so `method = "renderParticles"`
-    //          is now both ambiguous AND pointed at the overload that does not contain the call. It is
-    //          spelled out in full below; ambiguity here would either fail loudly or silently pick wrong,
-    //          and neither is something to leave to luck.
+    /*// THREE changes, all landing on this one injection, all arriving in 1.21.4:
+    //   1. Particle.buildGeometry was renamed to render. Same method (method_3074), same descriptor — only
+    //      the name moved, and a name is all an @At target is.
+    //   2. renderParticles split into three: a public entry point plus two workers. The call we wrap lives
+    //      in the SHEET worker, so the bare name is now BOTH ambiguous and aimed at the overload that does
+    //      not contain the call. Spelled out in full below.
+    //   3. That worker is STATIC — so this handler must be static too. Mixin says so plainly at startup
+    //      ("non-static callback method targets a static method which is not supported") and nothing says
+    //      it earlier: not javac, and not our own offline checker, which read names and call sites but
+    //      never compared modifiers. It does now.
     @WrapOperation(
             method = "renderParticles(Lnet/minecraft/client/render/Camera;F"
                    + "Lnet/minecraft/client/render/VertexConsumerProvider$Immediate;"
@@ -56,11 +63,11 @@ public class MixinParticleManager {
             at = @At(value = "INVOKE",
                      target = "Lnet/minecraft/client/particle/Particle;render("
                             + "Lnet/minecraft/client/render/VertexConsumer;"
-                            + "Lnet/minecraft/client/render/Camera;F)V"))*/
-    //?}
-    private void club$cullInvisibleParticles(Particle particle, VertexConsumer vertices, Camera camera, float tickDelta,
-                                             Operation<Void> original) {
+                            + "Lnet/minecraft/client/render/Camera;F)V"))
+    private static void club$cullInvisibleParticles(Particle particle, VertexConsumer vertices, Camera camera,
+                                                    float tickDelta, Operation<Void> original) {
         if (ParticleCull.skip(particle, camera, tickDelta)) return;
         original.call(particle, vertices, camera, tickDelta);
-    }
+    }*/
+    //?}
 }

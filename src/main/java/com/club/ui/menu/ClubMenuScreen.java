@@ -1461,7 +1461,11 @@ public final class ClubMenuScreen extends Screen {
         closePopover();
         MinecraftClient mc = MinecraftClient.getInstance();
         double cx = mc.getWindow().getWidth() / 2.0, cy = mc.getWindow().getHeight() / 2.0;
+        //? if <1.21.9 {
         InputUtil.setCursorParameters(mc.getWindow().getHandle(), GLFW_CURSOR_DISABLED, cx, cy);
+        //?} else {
+        /*InputUtil.setCursorParameters(mc.getWindow(), GLFW_CURSOR_DISABLED, cx, cy);*/
+        //?}
         var mouse = (com.club.mixin.MouseAccessor) mc.mouse;
         mouse.club$setCursorLocked(true);
         // mirror vanilla lockCursor: re-centre the tracked pos + drop pending deltas, or the first
@@ -1473,7 +1477,35 @@ public final class ClubMenuScreen extends Screen {
 
     // Every mouse entry point converts MC GUI units → Club canvas units first (Stage 60): the widgets
     // below live entirely in canvas space, so a click must be measured in the same ruler it was drawn to.
+    //
+    // 1.21.9 rewrote Element's input: (x, y, button) became a Click record, (key, scancode, mods) a KeyInput
+    // and (char, mods) a CharInput. Club's OWN component tree keeps the old shape — it is our interface, not
+    // Minecraft's — so the change stops at this boundary. Each handler below is Club's, with the vanilla
+    // signature adapted on top of it; the order is unchanged: our logic first, super last.
+
+    //? if <1.21.9 {
     @Override public boolean mouseClicked(double mx0, double my0, int b) {
+        return onMouseClicked(mx0, my0, b) || super.mouseClicked(mx0, my0, b);
+    }
+    @Override public boolean mouseReleased(double mx0, double my0, int b) {
+        return onMouseReleased(mx0, my0, b) || super.mouseReleased(mx0, my0, b);
+    }
+    @Override public boolean mouseDragged(double mx0, double my0, int b, double dx0, double dy0) {
+        return onMouseDragged(mx0, my0, b, dx0, dy0) || super.mouseDragged(mx0, my0, b, dx0, dy0);
+    }
+    //?} else {
+    /*@Override public boolean mouseClicked(net.minecraft.client.gui.Click c, boolean doubled) {
+        return onMouseClicked(c.x(), c.y(), c.button()) || super.mouseClicked(c, doubled);
+    }
+    @Override public boolean mouseReleased(net.minecraft.client.gui.Click c) {
+        return onMouseReleased(c.x(), c.y(), c.button()) || super.mouseReleased(c);
+    }
+    @Override public boolean mouseDragged(net.minecraft.client.gui.Click c, double dx0, double dy0) {
+        return onMouseDragged(c.x(), c.y(), c.button(), dx0, dy0) || super.mouseDragged(c, dx0, dy0);
+    }*/
+    //?}
+
+    private boolean onMouseClicked(double mx0, double my0, int b) {
         double mx = cx(mx0), my = cy(my0);
         if (closing) return true;   // window is fading out — swallow clicks
         gridFocused = false;        // any mouse interaction leaves the keyboard grid zone (ring hides)
@@ -1493,20 +1525,19 @@ public final class ClubMenuScreen extends Screen {
         if (root.mouseClicked(mx, my, b)) { pressOwner = 2; return true; }
         closePopover();                                        // click on empty space (any button) → close
         pressOwner = 0;
-        return super.mouseClicked(mx0, my0, b);
+        return false;
     }
-    @Override public boolean mouseReleased(double mx0, double my0, int b) {
+    private boolean onMouseReleased(double mx0, double my0, int b) {
         double mx = cx(mx0), my = cy(my0);
         // inside the popover the gesture is routed as left-button (RMB acts as LMB there)
         boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseReleased(mx, my, 0)) : root.mouseReleased(mx, my, b);
         pressOwner = 0;
-        return h || super.mouseReleased(mx0, my0, b);
+        return h;
     }
-    @Override public boolean mouseDragged(double mx0, double my0, int b, double dx0, double dy0) {
+    private boolean onMouseDragged(double mx0, double my0, int b, double dx0, double dy0) {
         double mx = cx(mx0), my = cy(my0), dx = dx0 / canvasK, dy = dy0 / canvasK;   // deltas scale too
-        boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseDragged(mx, my, 0, dx, dy))
-                                      : root.mouseDragged(mx, my, b, dx, dy);
-        return h || super.mouseDragged(mx0, my0, b, dx0, dy0);
+        return (pressOwner == 1) ? (popScroll != null && popScroll.mouseDragged(mx, my, 0, dx, dy))
+                                 : root.mouseDragged(mx, my, b, dx, dy);
     }
     @Override public void mouseMoved(double mx0, double my0) {
         double mx = cx(mx0), my = cy(my0);
@@ -1518,7 +1549,36 @@ public final class ClubMenuScreen extends Screen {
         if (insidePop(mx, my) && popScroll != null && popScroll.mouseScrolled(mx, my, v)) return true;
         return root.mouseScrolled(mx, my, v) || super.mouseScrolled(mx0, my0, hx, v);
     }
+    //? if <1.21.9 {
     @Override public boolean keyPressed(int k, int scan, int mods) {
+        return onKeyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
+    }
+    @Override public boolean keyReleased(int k, int scan, int mods) {
+        return onKeyReleased(k) || super.keyReleased(k, scan, mods);
+    }
+    @Override public boolean charTyped(char c, int mods) {
+        return onCharTyped(c, mods) || super.charTyped(c, mods);
+    }
+    //?} else {
+    /*@Override public boolean keyPressed(net.minecraft.client.input.KeyInput in) {
+        // KeyInput.modifiers() is the same GLFW mask the old (key, scancode, mods) triple carried, so the
+        // GLFW_MOD_* tests below read identically on both branches.
+        return onKeyPressed(in.key(), in.scancode(), in.modifiers()) || super.keyPressed(in);
+    }
+    @Override public boolean keyReleased(net.minecraft.client.input.KeyInput in) {
+        return onKeyReleased(in.key()) || super.keyReleased(in);
+    }
+    @Override public boolean charTyped(net.minecraft.client.input.CharInput in) {
+        // codepoint() is an int; the '/' shortcut and the query below are char-based. A codepoint outside
+        // the BMP has no single-char form, and casting one would silently type half a surrogate pair —
+        // so anything above 0xFFFF is handed straight to super rather than truncated.
+        int cp = in.codepoint();
+        if (cp > 0xFFFF) return super.charTyped(in);
+        return onCharTyped((char) cp, in.modifiers()) || super.charTyped(in);
+    }*/
+    //?}
+
+    private boolean onKeyPressed(int k, int scan, int mods) {
         boolean shift = (mods & GLFW_MOD_SHIFT) != 0, ctrl = (mods & GLFW_MOD_CONTROL) != 0;
         // Minecraft dispatches keyPressed for GLFW_REPEAT too, and Screen never sees the action code —
         // so a HELD key arrives as a stream of presses. Tracking the physical down-set (cleared in
@@ -1535,7 +1595,7 @@ public final class ClubMenuScreen extends Screen {
             boolean hold = com.club.modules.binds.HoldKeys.isHold(bindModule.name());
             if (k == GLFW_KEY_UNKNOWN)
                 return true;   // no GLFW keycode → would be a dead SCANCODE bind; ignore, keep listening
-            if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)) {
+            if (matchesOpenMenu(k, scan, mods)) {
                 // RESERVED. Stay in capture and SAY so — cancelling here left the key's GLFW repeat to
                 // land on the close route below, which shut the menu mid-bind (owner, Stage 58).
                 if (!bindReserved) { bindReserved = true; rebuildPopover(); }
@@ -1546,7 +1606,7 @@ public final class ClubMenuScreen extends Screen {
                 if (hold) com.club.modules.binds.HoldKeys.set(bindModule.name(), null);
                 else com.club.modules.binds.ModuleBinds.set(bindModule.name(), null);
             } else {
-                InputUtil.Key key = InputUtil.fromKeyCode(k, scan);
+                InputUtil.Key key = keyFromCode(k, scan, mods);
                 if (hold) com.club.modules.binds.HoldKeys.set(bindModule.name(), key);
                 else com.club.modules.binds.ModuleBinds.set(bindModule.name(), key.getTranslationKey());
             }
@@ -1564,7 +1624,7 @@ public final class ClubMenuScreen extends Screen {
         // The menu closes on the SAME key that opens it (owner decision 2026-07-02) — with the
         // reverse-of-open animation, but NOT while typing in the search (the bound letter must
         // type, not close).
-        if (com.club.ClubClient.openMenuKey.matchesKey(k, scan)
+        if (matchesOpenMenu(k, scan, mods)
                 && !(search != null && search.isFocused())
                 && !(particleSearch != null && particleSearch.isFocused())) { beginClose(); return true; }
 
@@ -1587,7 +1647,7 @@ public final class ClubMenuScreen extends Screen {
         // While a popover is open its controls own Tab + all keys (unchanged behaviour).
         if (popModule != null && !popClosing) {
             if (k == GLFW_KEY_TAB) { if (shift) focus.previous(); else focus.next(); return true; }
-            return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
+            return focus.keyPressed(k, scan, mods);
         }
 
         // Tab toggles the keyboard zone: search field ↔ card grid. Particles has no grid zone (its two-pane
@@ -1598,26 +1658,58 @@ public final class ClubMenuScreen extends Screen {
         if (search != null && search.isFocused()) {
             if (search.keyPressed(k, scan, mods)) return true;
             if (k == GLFW_KEY_DOWN) { enterGridZone(); return true; }   // Down out of search → into the grid
-            return super.keyPressed(k, scan, mods);
+            return false;
         }
 
         // Card grid navigation (arrows / Enter / Space) when the grid zone is active.
         if (gridFocused && gridNav(k)) return true;
 
-        return focus.keyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
+        return focus.keyPressed(k, scan, mods);
     }
-    @Override public boolean keyReleased(int k, int scan, int mods) {
+    private boolean onKeyReleased(int k) {
         keysDown.remove(k);               // the key is up: a fresh press of it is a real press again
-        return super.keyReleased(k, scan, mods);
+        return false;
     }
-    @Override public boolean charTyped(char c, int mods) {
+    private boolean onCharTyped(char c, int mods) {
         if (bindListening) return true;   // capturing a key — its char must not type/route anywhere
         // "/" jumps into the search (the keycap hint in the field advertises it); consumed so the
         // slash itself never lands in the query
         if (c == '/' && search != null && !search.isFocused() && !closing
                 && !(particleSearch != null && particleSearch.isFocused())) { enterSearchZone(); return true; }
-        return focus.charTyped(c, mods) || super.charTyped(c, mods);
+        return focus.charTyped(c, mods);
     }
+
+    // The two vanilla calls below stopped taking (key, scancode) in 1.21.9 and now take the whole KeyInput.
+    // Club's handlers still speak ints, so the record is rebuilt from the event's own values — measured as
+    // exactly equivalent: both KeyBinding.matchesKey and InputUtil.fromKeyCode read only key() and
+    // scancode() out of it, and never look at modifiers().
+    //? if <1.21.9 {
+    private static boolean matchesOpenMenu(int k, int scan, int mods) {
+        return com.club.ClubClient.openMenuKey.matchesKey(k, scan);
+    }
+    private static InputUtil.Key keyFromCode(int k, int scan, int mods) {
+        return InputUtil.fromKeyCode(k, scan);
+    }
+    //?} else {
+    /*private static boolean matchesOpenMenu(int k, int scan, int mods) {
+        return com.club.ClubClient.openMenuKey.matchesKey(new net.minecraft.client.input.KeyInput(k, scan, mods));
+    }
+    private static InputUtil.Key keyFromCode(int k, int scan, int mods) {
+        return InputUtil.fromKeyCode(new net.minecraft.client.input.KeyInput(k, scan, mods));
+    }*/
+    //?}
+
+    /** Shift held right now. 1.21.9 deleted {@code Screen.hasShiftDown()} and moved the mask onto the input
+     *  event — but Club's {@code Control.mouseClicked} carries no mask (that is our interface, and it is not
+     *  changing for one call site), so the live read the old helper did is reproduced here verbatim. */
+    //? if <1.21.9 {
+    private static boolean shiftDown() { return hasShiftDown(); }
+    //?} else {
+    /*private static boolean shiftDown() {
+        net.minecraft.client.util.Window w = MinecraftClient.getInstance().getWindow();
+        return InputUtil.isKeyPressed(w, GLFW_KEY_LEFT_SHIFT) || InputUtil.isKeyPressed(w, GLFW_KEY_RIGHT_SHIFT);
+    }*/
+    //?}
 
     @Override public boolean shouldCloseOnEsc() { return false; }
     @Override public boolean shouldPause() { return false; }
@@ -1639,13 +1731,13 @@ public final class ClubMenuScreen extends Screen {
         // driving the card grid — otherwise Space (open settings) doubles as jump and WASD would
         // walk the player while arrowing the grid. Mouse users (no keyboard zone) keep moving.
         boolean typing = (search != null && search.isFocused()) || gridFocused;
-        long handle = mc.getWindow().getHandle();
+        var win = mc.getWindow();
         KeyBinding[] moves = {
                 mc.options.forwardKey, mc.options.backKey, mc.options.leftKey, mc.options.rightKey,
                 mc.options.jumpKey, mc.options.sneakKey, mc.options.sprintKey };
         if (moveWasDown == null) moveWasDown = new boolean[moves.length];
         for (int i = 0; i < moves.length; i++) {
-            boolean down = !typing && rawKeyDown(handle, moves[i]);
+            boolean down = !typing && rawKeyDown(win, moves[i]);
             if (down != moveWasDown[i]) {
                 moves[i].setPressed(down);
                 moveWasDown[i] = down;
@@ -1658,13 +1750,20 @@ public final class ClubMenuScreen extends Screen {
     // STRING, so a mid-session rebind naturally misses the cache and re-parses.
     private static final java.util.Map<String, InputUtil.Key> KEY_CACHE = new java.util.HashMap<>();
 
-    /** True if the physical key a binding is bound to is currently held (keyboard-bound only). */
-    private static boolean rawKeyDown(long handle, KeyBinding binding) {
+    /** True if the physical key a binding is bound to is currently held (keyboard-bound only).
+     *  Takes the Window rather than its raw handle: 1.21.9 moved {@code InputUtil.isKeyPressed} onto the
+     *  Window object, and the handle is still reachable from it on the older branch. */
+    private static boolean rawKeyDown(net.minecraft.client.util.Window win, KeyBinding binding) {
         InputUtil.Key key = KEY_CACHE.computeIfAbsent(
                 binding.getBoundKeyTranslationKey(), InputUtil::fromTranslationKey);
         if (key.getCategory() != InputUtil.Type.KEYSYM) return false;   // mouse-bound → leave to vanilla
         int code = key.getCode();
-        return code != GLFW_KEY_UNKNOWN && InputUtil.isKeyPressed(handle, code);
+        if (code == GLFW_KEY_UNKNOWN) return false;
+        //? if <1.21.9 {
+        return InputUtil.isKeyPressed(win.getHandle(), code);
+        //?} else {
+        /*return InputUtil.isKeyPressed(win, code);*/
+        //?}
     }
 
     // ---- module card ---------------------------------------------------------
@@ -1949,7 +2048,7 @@ public final class ClubMenuScreen extends Screen {
             if (nowMs - lastClickMs < 300 && at == lastClickCaret) {   // double-click → word select
                 st.selectWordAt(at);
             } else {
-                st.moveCaret(at, hasShiftDown());   // Shift+click extends the selection
+                st.moveCaret(at, shiftDown());   // Shift+click extends the selection
             }
             lastClickMs = nowMs; lastClickCaret = at;
             return true;

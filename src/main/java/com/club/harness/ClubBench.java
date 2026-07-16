@@ -25,7 +25,15 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.GameMode;
+// 1.21.11 reworked the game rules: the class moved to net.minecraft.world.rule, the rules themselves
+// became GameRule<T> handles read/written through GameRules.getValue/setValue, and several were renamed
+// outright (doDaylightCycle -> ADVANCE_TIME, doWeatherCycle -> ADVANCE_WEATHER). Measured: the class sits
+// in net.minecraft.world through 1.21.10 and moves in 1.21.11.
+//? if <1.21.11 {
 import net.minecraft.world.GameRules;
+//?} else {
+/*import net.minecraft.world.rule.GameRules;*/
+//?}
 import net.minecraft.world.gen.GeneratorOptions;
 import net.minecraft.world.level.LevelInfo;
 import net.minecraft.world.gen.WorldPresets;
@@ -201,11 +209,22 @@ public final class ClubBench {
             // ---- the set ----
             step(2, () -> onServer(server -> {
                 ServerWorld w = server.getOverworld();
+                // 1.21.11: getGameRules() left MinecraftServer for ServerWorld, get(..).set(..) became
+                // setValue(..), and doFireTick was DELETED — fire spread is now an int radius around the
+                // player, so 0 is what "no fire tick" spells today. Same frozen set either way.
+                //? if <1.21.11 {
                 GameRules r = server.getGameRules();
                 r.get(GameRules.DO_DAYLIGHT_CYCLE).set(false, server);
                 r.get(GameRules.DO_WEATHER_CYCLE).set(false, server);
                 r.get(GameRules.DO_MOB_SPAWNING).set(false, server);
                 r.get(GameRules.DO_FIRE_TICK).set(false, server);
+                //?} else {
+                /*GameRules r = w.getGameRules();
+                r.setValue(GameRules.ADVANCE_TIME, false, server);
+                r.setValue(GameRules.ADVANCE_WEATHER, false, server);
+                r.setValue(GameRules.DO_MOB_SPAWNING, false, server);
+                r.setValue(GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER, 0, server);*/
+                //?}
                 server.setDifficulty(Difficulty.EASY, true);   // PEACEFUL DELETES hostile mobs — the arena would empty itself
                 w.setWeather(60000, 0, false, false);
                 w.setTimeOfDay(18000);   // midnight: zombies in open sun BURN, and a burning arena is not a fixed scene
@@ -393,7 +412,13 @@ public final class ClubBench {
             if (winW == 0) { winW = mc.getWindow().getWidth(); winH = mc.getWindow().getHeight(); }
             pinCommon();
             mc.options.getViewDistance().setValue(12);
+            // 1.21.11 renamed getGraphicsMode() to getPreset(). Not just a name: the option's change-callback
+            // IS GameOptions.applyGraphicsMode, so setValue still applies the preset exactly as before.
+            //? if <1.21.11 {
             mc.options.getGraphicsMode().setValue(GraphicsMode.FANCY);
+            //?} else {
+            /*mc.options.getPreset().setValue(GraphicsMode.FANCY);*/
+            //?}
             mc.getWindow().setWindowedSize(winW, winH);
             mc.onResolutionChanged();
         }
@@ -408,7 +433,11 @@ public final class ClubBench {
         private void pinCpuBound() {
             pinCommon();
             mc.options.getViewDistance().setValue(2);
+            //? if <1.21.11 {
             mc.options.getGraphicsMode().setValue(GraphicsMode.FAST);
+            //?} else {
+            /*mc.options.getPreset().setValue(GraphicsMode.FAST);*/
+            //?}
             mc.getWindow().setWindowedSize(640, 360);
             mc.onResolutionChanged();
         }
@@ -487,10 +516,15 @@ public final class ClubBench {
             //?} else {
             /*report.add("GPU        " + org.lwjgl.opengl.GL11.glGetString(org.lwjgl.opengl.GL11.GL_RENDERER));*/
             //?}
+            //? if <1.21.11 {
+            GraphicsMode gfx = mc.options.getGraphicsMode().getValue();
+            //?} else {
+            /*GraphicsMode gfx = mc.options.getPreset().getValue();*/
+            //?}
             report.add(String.format("window     %dx%d, gui scale %d, render distance %d, %s",
                     mc.getWindow().getFramebufferWidth(), mc.getWindow().getFramebufferHeight(),
                     mc.options.getGuiScale().getValue(), mc.options.getViewDistance().getValue(),
-                    mc.options.getGraphicsMode().getValue()));
+                    gfx));
             report.add(String.format("vsync %s, max fps %d, particles %s, ui backend %s",
                     mc.options.getEnableVsync().getValue(), mc.options.getMaxFps().getValue(),
                     mc.options.getParticles().getValue(), com.club.ui.Ui.backend()));

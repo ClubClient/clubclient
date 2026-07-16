@@ -96,6 +96,24 @@ for F0 in "$SRC"/*.java; do
     for M in $(grep -oP 'method\s*=\s*"\K[a-zA-Z0-9_$]+' "$F" | sort -u); do
         if ! has_method "$OWNER" "$M"; then
             echo "  NO METHOD    $B  ->  $OWNER :: $M(...)"; echo x >> "$FAILFILE"
+            continue
+        fi
+        # STATIC-NESS. Mixin refuses a non-static handler on a static target and says so only at startup:
+        # "non-static callback method ... targets a static method which is not supported". 1.21.4 split
+        # ParticleManager.renderParticles into private STATIC workers and that is exactly how it bit us —
+        # after this script had already said the name resolved and the call site was there. Names and call
+        # sites were never the whole contract; modifiers are part of it.
+        TGT_STATIC=$(javap -p -classpath "$MCJAR" "$OWNER" 2>/dev/null | grep "[ .]$M(" | grep -c 'static')
+        TGT_ANY=$(javap -p -classpath "$MCJAR" "$OWNER" 2>/dev/null | grep -c "[ .]$M(")
+        # Only meaningful when every overload agrees; a mixed set needs the descriptor to disambiguate and
+        # this check stays quiet rather than guessing (a checker that guesses is a checker nobody believes).
+        if [ "${TGT_ANY:-0}" -gt 0 ] && [ "${TGT_STATIC:-0}" = "${TGT_ANY:-0}" ]; then
+            HANDLER_STATIC=$(grep -A2 "method\s*=\s*\"$M" "$F" | grep -c 'private static\|public static')
+            if [ "${HANDLER_STATIC:-0}" = "0" ] && grep -q "method\s*=\s*\"$M" "$F"; then
+                echo "  STATIC MISMATCH  $B  ->  $OWNER::$M is static in $MC; the handler is not"
+                echo "                   (mixin rejects this at STARTUP, never at compile time)"
+                echo x >> "$FAILFILE"
+            fi
         fi
     done
 

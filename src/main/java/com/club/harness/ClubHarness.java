@@ -235,8 +235,16 @@ public final class ClubHarness {
         private void key(int k, int mods) {
             Screen s = mc.currentScreen;
             if (s == null) return;
+            // 1.21.9 folded (key, scancode, modifiers) into a KeyInput record. Measured: the int triple is
+            // live through 1.21.8 and gone in 1.21.9 — the same release that brought CharInput and Click.
+            //? if <1.21.9 {
             s.keyPressed(k, 0, mods);
             s.keyReleased(k, 0, mods);
+            //?} else {
+            /*net.minecraft.client.input.KeyInput in = new net.minecraft.client.input.KeyInput(k, 0, mods);
+            s.keyPressed(in);
+            s.keyReleased(in);*/
+            //?}
         }
         /** The key that actually opens the Club menu — read from the binding, NOT assumed to be the
          *  default: a dev run (or a player) may have rebound it, and then the test would press a key
@@ -244,7 +252,32 @@ public final class ClubHarness {
         private int menuKey() {
             return InputUtil.fromTranslationKey(ClubClient.openMenuKey.getBoundKeyTranslationKey()).getCode();
         }
-        private void type(char c) { Screen s = mc.currentScreen; if (s != null) s.charTyped(c, 0); }
+        private void type(char c) {
+            Screen s = mc.currentScreen;
+            if (s == null) return;
+            // 1.21.9: charTyped(char, int) became charTyped(CharInput), whose first component is a codepoint.
+            //? if <1.21.9 {
+            s.charTyped(c, 0);
+            //?} else {
+            /*s.charTyped(new net.minecraft.client.input.CharInput(c, 0));*/
+            //?}
+        }
+
+        /** A real click: press AND release, the way the window delivers one. Lives here so the 1.21.9 mouse
+         *  refactor is spelled ONCE — (x, y, button) became a Click record, and mouseClicked gained a
+         *  `doubled` flag (measured from the mapping's own param name); false is a plain single click. */
+        private void click(Screen s, double x, double y, int button) {
+            if (s == null) return;
+            //? if <1.21.9 {
+            s.mouseClicked(x, y, button);
+            s.mouseReleased(x, y, button);
+            //?} else {
+            /*net.minecraft.client.gui.Click c =
+                    new net.minecraft.client.gui.Click(x, y, new net.minecraft.client.input.MouseInput(button, 0));
+            s.mouseClicked(c, false);
+            s.mouseReleased(c);*/
+            //?}
+        }
 
         // ---- the script --------------------------------------------------------
 
@@ -376,7 +409,13 @@ public final class ClubHarness {
             // HOLD keys (Stage 58): the Zoom/Freelook row rebinds the REAL vanilla binding, and one
             // physical key can never drive two Club actions (the namespaces steal from each other).
             step(2, () -> {
+                // 1.21.9: fromKeyCode(keyCode, scanCode) became fromKeyCode(KeyInput) — same (key, scancode),
+                // now carried in the record. Measured: the int pair is live through 1.21.8, gone in 1.21.9.
+                //? if <1.21.9 {
                 HoldKeys.set("Zoom", InputUtil.fromKeyCode(GLFW_KEY_C, 0));
+                //?} else {
+                /*HoldKeys.set("Zoom", InputUtil.fromKeyCode(new net.minecraft.client.input.KeyInput(GLFW_KEY_C, 0, 0)));*/
+                //?}
                 check("holdkeys: Zoom's hold key binds to C", "C".equals(HoldKeys.label("Zoom")));
                 check("holdkeys: the vanilla binding really moved",
                         "key.keyboard.c".equals(ClubClient.zoomKey.getBoundKeyTranslationKey()));
@@ -405,7 +444,11 @@ public final class ClubHarness {
                         com.club.modules.binds.KeyConflicts.other(InputUtil.UNKNOWN_KEY.getTranslationKey()) == null);
                 // A key only CLUB uses is not a conflict — the scan must skip our own bindings, or every
                 // bind row in the mod would permanently accuse itself.
+                //? if <1.21.9 {
                 InputUtil.Key free = InputUtil.fromKeyCode(GLFW_KEY_F13, 0);
+                //?} else {
+                /*InputUtil.Key free = InputUtil.fromKeyCode(new net.minecraft.client.input.KeyInput(GLFW_KEY_F13, 0, 0));*/
+                //?}
                 com.club.modules.binds.HoldKeys.set("Zoom", free);
                 check("conflicts: a key only Club uses is not reported as a conflict",
                         com.club.modules.binds.KeyConflicts.other(free.getTranslationKey()) == null);
@@ -441,7 +484,11 @@ public final class ClubHarness {
             // that overlap behind the popover's back, and the row went on showing a dead key as if it worked.
             step(2, () -> {
                 com.club.modules.binds.ModuleBinds.set("Fullbright", "key.keyboard.k");
+                //? if <1.21.9 {
                 ClubClient.zoomKey.setBoundKey(InputUtil.fromKeyCode(GLFW_KEY_K, 0));   // the vanilla screen, again
+                //?} else {
+                /*ClubClient.zoomKey.setBoundKey(InputUtil.fromKeyCode(new net.minecraft.client.input.KeyInput(GLFW_KEY_K, 0, 0)));   // the vanilla screen, again*/
+                //?}
                 net.minecraft.client.option.KeyBinding.updateKeysByCode();
                 check("binds: the row knows which hold module took its key",
                         "Zoom".equals(com.club.modules.binds.ModuleBinds.shadowedBy("Fullbright")));
@@ -1031,8 +1078,7 @@ public final class ClubHarness {
                 if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("popover: menu for the switch check", false); return; }
                 double[] a = cs.cardCentreMc(0);
                 if (a == null) { check("popover: a first card to right-click", false); return; }
-                cs.mouseClicked(a[0], a[1], 1);   // right-click card 0 → its popover
-                cs.mouseReleased(a[0], a[1], 1);
+                click(cs, a[0], a[1], 1);   // right-click card 0 → its popover
             });
             step(8, () -> {});                     // let the cold open finish its grow-in
             step(0, () -> {
@@ -1040,8 +1086,7 @@ public final class ClubHarness {
                 double[] b = cs.cardCentreMc(1);
                 if (b == null) { check("popover: a second card to right-click", false); return; }
                 float before = cs.popoverRevealProgress();
-                cs.mouseClicked(b[0], b[1], 1);   // right-click card 1 → a SWITCH, not a new sheet
-                cs.mouseReleased(b[0], b[1], 1);
+                click(cs, b[0], b[1], 1);   // right-click card 1 → a SWITCH, not a new sheet
                 float after = cs.popoverRevealProgress();
                 report.add(String.format("INFO  popover switch: reveal %.2f → %.2f  (stays 1.00 = the sheet "
                         + "glided; drops to 0.00 = it died and respawned)", before, after));
@@ -1111,10 +1156,20 @@ public final class ClubHarness {
             step(2, () -> {
                 Screen s = mc.currentScreen;
                 if (s == null) { check("bind: menu open for the auto-repeat check", false); return; }
+                // 1.21.9: KeyInput carries the triple. Reusing ONE instance is the point, not a shortcut —
+                // auto-repeat is the same physical key arriving again, which is what the menu must tell apart.
+                //? if <1.21.9 {
                 s.keyPressed(GLFW_KEY_ENTER, 0, 0);         // press — arms listening
                 s.keyPressed(GLFW_KEY_ENTER, 0, 0);         // auto-repeat of the SAME held key
                 s.keyPressed(GLFW_KEY_ENTER, 0, 0);         // …and again
                 s.keyReleased(GLFW_KEY_ENTER, 0, 0);
+                //?} else {
+                /*net.minecraft.client.input.KeyInput enter = new net.minecraft.client.input.KeyInput(GLFW_KEY_ENTER, 0, 0);
+                s.keyPressed(enter);                        // press — arms listening
+                s.keyPressed(enter);                        // auto-repeat of the SAME held key
+                s.keyPressed(enter);                        // …and again
+                s.keyReleased(enter);*/
+                //?}
                 check("bind: a held Enter's auto-repeat never binds itself", ModuleBinds.label("Fullbright") == null);
                 check("bind: …and the menu survives it", mc.currentScreen instanceof ClubMenuScreen);
             });
@@ -1159,12 +1214,10 @@ public final class ClubHarness {
                 double[] p = cs.cardCentreMc(i);
                 if (p == null) { check("menu: a card to click", false); return; }
                 boolean before = cs.cardEnabled(i);
-                cs.mouseClicked(p[0], p[1], 0);
-                cs.mouseReleased(p[0], p[1], 0);
+                click(cs, p[0], p[1], 0);
                 check("menu: a mouse click lands on the card it points at (gui scale 4)",
                         cs.cardEnabled(i) != before);
-                cs.mouseClicked(p[0], p[1], 0);   // put it back
-                cs.mouseReleased(p[0], p[1], 0);
+                click(cs, p[0], p[1], 0);   // put it back
             });
             step(4, () -> { mc.options.getGuiScale().setValue(prevGuiScale); mc.onResolutionChanged(); });
 
@@ -1227,7 +1280,7 @@ public final class ClubHarness {
             step(2, () -> {
                 if (mc.currentScreen instanceof ClubMenuScreen cs) {
                     double[] p = cs.cardCentreByName("Item Scroll");
-                    if (p != null) { cs.mouseClicked(p[0], p[1], 1); cs.mouseReleased(p[0], p[1], 1); }
+                    if (p != null) { click(cs, p[0], p[1], 1); }
                 }
             });
             step(8, () -> {});

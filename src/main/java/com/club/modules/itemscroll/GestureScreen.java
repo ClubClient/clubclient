@@ -167,9 +167,35 @@ public final class GestureScreen extends Screen {
             e.getValue().label(chipLabel(e.getKey())).armed(capturing == e.getKey());
     }
 
-    private int mods() {
+    /**
+     * The modifiers held right now, as Club's mask.
+     *
+     * <p>1.21.9 deleted {@code Screen.hasShiftDown()} and friends and moved the mask onto the input event,
+     * which is where a press/keystroke reads it from below. The wheel has no such event — {@code mouseScrolled}
+     * kept its old shape and carries no modifiers at all — so a LIVE read is the only way to know whether
+     * Ctrl+Scroll was Ctrl. This reproduces exactly what the deleted helpers did, including their Mac rule:
+     * {@code hasControlDown()} polled SUPER (cmd) on macOS and CONTROL elsewhere, so "Ctrl" here means the
+     * same key a Mac player actually presses.</p>
+     */
+    //? if <1.21.9 {
+    private static int liveMods() {
         return Gesture.mods(hasShiftDown(), hasControlDown(), hasAltDown());
     }
+    //?} else {
+    /*private static int liveMods() {
+        net.minecraft.client.util.Window w = MinecraftClient.getInstance().getWindow();
+        boolean shift = net.minecraft.client.util.InputUtil.isKeyPressed(w, GLFW_KEY_LEFT_SHIFT)
+                     || net.minecraft.client.util.InputUtil.isKeyPressed(w, GLFW_KEY_RIGHT_SHIFT);
+        boolean ctrl  = net.minecraft.client.input.SystemKeycodes.IS_MAC_OS
+                ? net.minecraft.client.util.InputUtil.isKeyPressed(w, GLFW_KEY_LEFT_SUPER)
+                        || net.minecraft.client.util.InputUtil.isKeyPressed(w, GLFW_KEY_RIGHT_SUPER)
+                : net.minecraft.client.util.InputUtil.isKeyPressed(w, GLFW_KEY_LEFT_CONTROL)
+                        || net.minecraft.client.util.InputUtil.isKeyPressed(w, GLFW_KEY_RIGHT_CONTROL);
+        boolean alt   = net.minecraft.client.util.InputUtil.isKeyPressed(w, GLFW_KEY_LEFT_ALT)
+                     || net.minecraft.client.util.InputUtil.isKeyPressed(w, GLFW_KEY_RIGHT_ALT);
+        return Gesture.mods(shift, ctrl, alt);
+    }*/
+    //?}
 
     // ---- input ------------------------------------------------------------------------------------
     //
@@ -180,7 +206,7 @@ public final class GestureScreen extends Screen {
 
     //? if <1.21.9 {
     @Override public boolean mouseClicked(double mxMc, double myMc, int button) {
-        return onMouseClicked(mxMc, myMc, button) || super.mouseClicked(mxMc, myMc, button);
+        return onMouseClicked(mxMc, myMc, button, liveMods()) || super.mouseClicked(mxMc, myMc, button);
     }
     @Override public boolean mouseReleased(double mxMc, double myMc, int button) {
         return onMouseReleased(mxMc, myMc, button) || super.mouseReleased(mxMc, myMc, button);
@@ -190,7 +216,11 @@ public final class GestureScreen extends Screen {
     }
     //?} else {
     /*@Override public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean doubled) {
-        return onMouseClicked(click.x(), click.y(), click.button()) || super.mouseClicked(click, doubled);
+        // The press carries its own modifier mask now, so the gesture is read from the EVENT rather than
+        // from live keyboard state — no race between the click and the hand leaving the key.
+        return onMouseClicked(click.x(), click.y(), click.button(),
+                Gesture.mods(click.hasShift(), click.hasCtrlOrCmd(), click.hasAlt()))
+                || super.mouseClicked(click, doubled);
     }
     @Override public boolean mouseReleased(net.minecraft.client.gui.Click click) {
         return onMouseReleased(click.x(), click.y(), click.button()) || super.mouseReleased(click);
@@ -200,7 +230,7 @@ public final class GestureScreen extends Screen {
     }*/
     //?}
 
-    private boolean onMouseClicked(double mxMc, double myMc, int button) {
+    private boolean onMouseClicked(double mxMc, double myMc, int button, int mods) {
         double mx = cx(mxMc), my = cx(myMc);
 
         if (capturing != null) {
@@ -211,7 +241,7 @@ public final class GestureScreen extends Screen {
                 case GLFW_MOUSE_BUTTON_MIDDLE -> GestureInput.MMB;
                 default -> null;     // a side button is not a gesture — but it does not fall through either
             };
-            if (input != null) capture(new Gesture(mods(), input));
+            if (input != null) capture(new Gesture(mods, input));
             return true;
         }
 
@@ -226,7 +256,7 @@ public final class GestureScreen extends Screen {
 
     @Override public boolean mouseScrolled(double mxMc, double myMc, double horizontal, double vertical) {
         if (capturing != null && vertical != 0) {
-            capture(new Gesture(mods(), GestureInput.SCROLL));   // one input, both directions — direction is the action's argument
+            capture(new Gesture(liveMods(), GestureInput.SCROLL));   // one input, both directions — direction is the action's argument
             return true;
         }
         return super.mouseScrolled(mxMc, myMc, horizontal, vertical);

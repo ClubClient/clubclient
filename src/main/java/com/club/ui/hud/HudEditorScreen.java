@@ -366,42 +366,75 @@ public final class HudEditorScreen extends Screen {
     // they are converted at the boundary (Stage 63) — every one of them, including the drag DELTAS: a drag
     // measured in the wrong space is an element that lags or races the cursor by exactly the ratio between
     // the two, which is the kind of bug that gets reported as "the HUD editor feels weird".
+    //
+    // 1.21.9 rewrote Element's input: (x, y, button) became a Click record and (key, scancode, mods) a
+    // KeyInput. Club's OWN component tree (toolbar/popover/canvas/focus) keeps the old shape — it is our
+    // interface, not Minecraft's — so the change stops at this boundary. Each handler below is Club's, with
+    // the vanilla signature adapted on top of it, and the order is unchanged: ours first, super last.
+
+    //? if <1.21.9 {
     @Override public boolean mouseClicked(double mxMc, double myMc, int b) {
+        return onMouseClicked(mxMc, myMc, b) || super.mouseClicked(mxMc, myMc, b);
+    }
+    @Override public boolean mouseReleased(double mxMc, double myMc, int b) {
+        return onMouseReleased(mxMc, myMc, b) || super.mouseReleased(mxMc, myMc, b);
+    }
+    @Override public boolean mouseDragged(double mxMc, double myMc, int b, double dxMc, double dyMc) {
+        return onMouseDragged(mxMc, myMc, b, dxMc, dyMc) || super.mouseDragged(mxMc, myMc, b, dxMc, dyMc);
+    }
+    @Override public boolean keyPressed(int k, int scan, int mods) {
+        return onKeyPressed(k, scan, mods) || super.keyPressed(k, scan, mods);
+    }
+    //?} else {
+    /*@Override public boolean mouseClicked(net.minecraft.client.gui.Click c, boolean doubled) {
+        return onMouseClicked(c.x(), c.y(), c.button()) || super.mouseClicked(c, doubled);
+    }
+    @Override public boolean mouseReleased(net.minecraft.client.gui.Click c) {
+        return onMouseReleased(c.x(), c.y(), c.button()) || super.mouseReleased(c);
+    }
+    @Override public boolean mouseDragged(net.minecraft.client.gui.Click c, double dxMc, double dyMc) {
+        return onMouseDragged(c.x(), c.y(), c.button(), dxMc, dyMc) || super.mouseDragged(c, dxMc, dyMc);
+    }
+    @Override public boolean keyPressed(net.minecraft.client.input.KeyInput in) {
+        // KeyInput.modifiers() is the same GLFW mask the old (key, scancode, mods) triple carried, so the
+        // GLFW_MOD_* tests below read identically on both branches.
+        return onKeyPressed(in.key(), in.scancode(), in.modifiers()) || super.keyPressed(in);
+    }*/
+    //?}
+
+    private boolean onMouseClicked(double mxMc, double myMc, int b) {
         double mx = cx(mxMc), my = cy(myMc);
         focus.clickFocus(mx, my);
         if (toolbar.mouseClicked(mx, my, b)) { pressOwner = 1; return true; }
         if (hasPopover && !popClosing && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH) { popover.mouseClicked(mx, my, b); pressOwner = 2; return true; }
         if (canvas.mouseClicked(mx, my, b)) { pressOwner = 3; return true; }
         pressOwner = 0;
-        return super.mouseClicked(mxMc, myMc, b);
+        return false;
     }
-    @Override public boolean mouseReleased(double mxMc, double myMc, int b) {
+    private boolean onMouseReleased(double mxMc, double myMc, int b) {
         double mx = cx(mxMc), my = cy(myMc);
         int owner = pressOwner; pressOwner = 0;
-        boolean h = switch (owner) {
+        return switch (owner) {
             case 1 -> toolbar.mouseReleased(mx, my, b);
             case 2 -> popover.mouseReleased(mx, my, b);
             case 3 -> canvas.mouseReleased(mx, my, b);
             default -> false;
         };
-        return h || super.mouseReleased(mxMc, myMc, b);
     }
-    @Override public boolean mouseDragged(double mxMc, double myMc, int b, double dxMc, double dyMc) {
+    private boolean onMouseDragged(double mxMc, double myMc, int b, double dxMc, double dyMc) {
         double mx = cx(mxMc), my = cy(myMc), dx = cx(dxMc), dy = cy(dyMc);
-        boolean h = switch (pressOwner) {
+        return switch (pressOwner) {
             case 1 -> toolbar.mouseDragged(mx, my, b, dx, dy);
             case 2 -> popover.mouseDragged(mx, my, b, dx, dy);
             case 3 -> canvas.mouseDragged(mx, my, b, dx, dy);
             default -> false;
         };
-        return h || super.mouseDragged(mxMc, myMc, b, dxMc, dyMc);
     }
-    @Override public boolean keyPressed(int k, int scan, int mods) {
+    private boolean onKeyPressed(int k, int scan, int mods) {
         if (k == GLFW_KEY_ESCAPE) { close(); return true; }
         if (k == GLFW_KEY_TAB) { if ((mods & GLFW_MOD_SHIFT) != 0) focus.previous(); else focus.next(); return true; }
         if (focus.keyPressed(k, scan, mods)) return true;   // a focused popover control (slider arrows) wins
-        if (nudgeSelected(k, mods)) return true;
-        return super.keyPressed(k, scan, mods);
+        return nudgeSelected(k, mods);
     }
 
     /** Arrow-nudge (Stage 32; hover-first + magnet since Stage 36): point at a HUD element and tap
