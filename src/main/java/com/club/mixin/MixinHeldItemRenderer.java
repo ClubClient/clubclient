@@ -15,6 +15,7 @@ import net.minecraft.util.Arm;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.RotationAxis;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -122,18 +123,30 @@ public class MixinHeldItemRenderer {
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/item/ItemStack;areEqual(Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemStack;)Z",
                     ordinal = 0))
+    private boolean club$noSwapDipOnDamage(ItemStack a, ItemStack b, Operation<Boolean> original) {
+        if (club$sameItemMidSwing(a, b)) return true;
+        return original.call(a, b);
+    }
     //?} else {
     /*@WrapOperation(
             method = "updateHeldItems",
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/client/render/item/HeldItemRenderer;shouldSkipHandAnimationOnSwap(Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemStack;)Z",
-                    ordinal = 0))*/
+                    ordinal = 0))
+    private boolean club$noSwapDipOnDamage(HeldItemRenderer self, ItemStack a, ItemStack b, Operation<Boolean> original) {
+        // The receiver is in the signature because the call we now wrap is an INSTANCE method — areEqual was
+        // static, shouldSkipHandAnimationOnSwap is not, and @WrapOperation hands the wrapper everything the
+        // original invoke consumed, receiver first. Nothing else changes.
+        if (club$sameItemMidSwing(a, b)) return true;
+        return original.call(self, a, b);
+    }*/
     //?}
-    private boolean club$noSwapDipOnDamage(ItemStack a, ItemStack b, Operation<Boolean> original) {
-        if (AnimationModule.overridesVanillaSwing()
-                && a != null && b != null && !a.isEmpty() && !b.isEmpty() && a.isOf(b.getItem()))
-            return true;
-        return original.call(a, b);
+
+    /** The decision itself, shared by both wrappers above: the same item mid-swing is not a swap. */
+    @Unique
+    private boolean club$sameItemMidSwing(ItemStack a, ItemStack b) {
+        return AnimationModule.overridesVanillaSwing()
+                && a != null && b != null && !a.isEmpty() && !b.isEmpty() && a.isOf(b.getItem());
     }
 
     /** Capture the real swing; zero it so vanilla never swings (unless Vanilla mode). */
