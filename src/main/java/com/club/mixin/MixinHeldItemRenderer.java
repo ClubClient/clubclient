@@ -75,10 +75,21 @@ public class MixinHeldItemRenderer {
      * (cooldown finished) so only our pose plays — block hits already read 1 here.
      * Item-switch equip animations are unaffected (they don't go through this call).
      */
+    //? if <1.21.11 {
     @ModifyExpressionValue(
             method = "updateHeldItems",
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/client/network/ClientPlayerEntity;getAttackCooldownProgress(F)F"))
+    //?} else {
+    /*// 1.21.11 renamed the thing this reads: updateHeldItems now asks getHandEquippingProgress, and
+    // getAttackCooldownProgress still EXISTS — it is simply no longer what drives the dip. So the name
+    // resolves, the enclosing method resolves, and the injection finds nothing. Read out of 1.21.11's own
+    // updateHeldItems bytecode, not guessed; the offline checker flagged it before anyone launched.
+    @ModifyExpressionValue(
+            method = "updateHeldItems",
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/client/network/ClientPlayerEntity;getHandEquippingProgress(F)F"))*/
+    //?}
     private float club$noCooldownDip(float original) {
         return AnimationModule.overridesVanillaSwing() ? 1.0f : original;
     }

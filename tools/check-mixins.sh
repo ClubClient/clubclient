@@ -71,8 +71,22 @@ FAILFILE=$(mktemp); trap 'rm -f "$FAILFILE"' EXIT   # a counter inside a pipe li
 
 STRIP=$(mktemp -d); trap 'rm -rf "$STRIP"' EXIT
 
+# ONLY CHECK MIXINS THIS VERSION ACTUALLY APPLIES. The config is per-version now: 1.21.11 drops
+# MixinParticleManager (renderParticles is gone — the whole particle render was restructured) and
+# WorldRendererAccessor (no entity counter exists any more). Their SOURCE still sits in src/ for the other
+# versions, and a checker reading sources instead of the config reports them broken on a version that never
+# loads them. That is crying wolf, and a checker nobody believes is worse than none — the same trap as the
+# javadoc false positive, one level up.
+CFG="versions/$MC/build/resources/main/club.mixins.json"
+[ -f "$CFG" ] || CFG="src/main/resources/club.mixins.json"
+APPLIED=$(grep -oP '^\s*"\K[A-Za-z0-9_$]+(?=",?\s*$)' "$CFG" 2>/dev/null)
+echo "config  : $CFG ($(echo "$APPLIED" | grep -c .) mixins applied)"
+echo
+
 for F0 in "$SRC"/*.java; do
     B=$(basename "$F0" .java)
+    # Not in this version's config -> not applied -> not our problem here.
+    echo "$APPLIED" | grep -qx "$B" || continue
 
     # STRIP COMMENTS FIRST, and it fixes two bugs with one cut:
     #   1. Javadoc prose. This script's first run "found" a broken getFramerateLimit — in a paragraph
