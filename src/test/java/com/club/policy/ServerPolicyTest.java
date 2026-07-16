@@ -98,11 +98,38 @@ class ServerPolicyTest {
     }
 
     // ---- the shipped table ------------------------------------------------------------------------
+    // (theShippedTableRestrictsNothingYet lived here and asserted the table was empty. Astrum's addresses
+    //  arrived, so the thing it proved stopped being true and it was deleted in the same commit — a test
+    //  kept past its truth is worse than no test.)
 
-    @Test void theShippedTableRestrictsNothingYet() {
-        // Until the owner has the addresses from the server's admins, Club's behaviour is unchanged on
-        // every server in the world. This test is the proof of that, and it is meant to be DELETED in the
-        // same commit that fills the table in.
-        assertTrue(ServerPolicy.restrictionsFor("example.ru").isEmpty());
+    @Test void astrumForbidsItemScrollOnBothItsDomains() {
+        for (String a : List.of("astrummc.net", "astrummc.su", "astrummc.net:25565", "ASTRUMMC.NET"))
+            assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.restrictionsFor(a),
+                    "Astrum forbids item scrolling, whichever door the player came through: " + a);
+    }
+
+    @Test void astrumsOwnSubdomainsAreCovered() {
+        // Both SRV records point at server.astrummc.net — this is the host the client actually dials, and
+        // it must carry the rule without being listed by hand.
+        assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.restrictionsFor("server.astrummc.net"));
+        assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.restrictionsFor("play.astrummc.su"));
+    }
+
+    @Test void aormioForbidsItemScrollOnBothZones() {
+        // The owner gave mc.aormio.ru. Looking found a second zone (mc.aormio.net) and, in both SRV
+        // records, the host the client actually dials: msk.aormio.{ru,net}. Keying the ZONES covers every
+        // one of those without listing them.
+        for (String a : List.of("aormio.ru", "aormio.net", "mc.aormio.ru", "mc.aormio.net",
+                                "msk.aormio.ru", "msk.aormio.net", "mc.aormio.ru:25565", "MC.AORMIO.RU"))
+            assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.restrictionsFor(a),
+                    "Aormio forbids item scrolling, whichever door: " + a);
+    }
+
+    @Test void theShippedTableTouchesNobodyElse() {
+        // The rule is one server's, not a default for the world. A neighbour that merely ends with the same
+        // letters is a stranger.
+        for (String a : List.of("hypixel.net", "notastrummc.net", "astrummc.net.evil.com", "mc.example.ru",
+                                "notaormio.ru", "aormio.ru.evil.com", "aormio.com"))
+            assertTrue(ServerPolicy.restrictionsFor(a).isEmpty(), "must not restrict a stranger: " + a);
     }
 }

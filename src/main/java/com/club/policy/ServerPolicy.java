@@ -56,15 +56,34 @@ public final class ServerPolicy {
      * The rules. One entry per server:
      * {@code new ServerRule(Set.of("example.ru", "203.0.113.7"), Set.of(ServerFeature.ITEM_SCROLL))}.
      *
-     * <p>EMPTY ON PURPOSE, for now: the owner is collecting the full address and IP list from the admins
-     * of the two servers that forbid item scrolling. Until it lands, the mechanism is built and tested and
-     * Club behaves exactly as it always did on every server. Filling this in is one entry per server — and
-     * delete {@code theShippedTableRestrictsNothingYet} in the test when you do.</p>
-     *
      * <p>Put EVERY address a server answers on into its entry. A missing one is a miss, and a miss is a
      * player breaking a rule they were told this client would keep for them.</p>
+     *
+     * <p><b>Astrum's numeric address is deliberately absent.</b> Both of its domains resolve to one host
+     * (their SRV records point {@code astrummc.net} and {@code astrummc.su} at {@code server.astrummc.net}),
+     * so a bare IP would only add the case where a player types the numbers by hand. It is also the one entry
+     * that could go from incomplete to WRONG: a domain is the server's name and does not go stale, an IP is
+     * only where it lives today. Let them move host and the entry stops matching; let the address be recycled
+     * and we would apply Astrum's rule to a stranger's server — silently, because there is no card left to
+     * look wrong. Domains cost us nothing and cannot rot.</p>
+     *
+     * <p>Both entries are BARE DOMAINS on purpose. The subdomain rule then covers every door each server
+     * has or will open — including the hosts their own SRV records point at, which is where the client
+     * actually dials and which nobody would think to list by hand.</p>
      */
-    private static final List<ServerRule> RULES = List.of();
+    private static final List<ServerRule> RULES = List.of(
+            // Two front doors, one server. Subdomains ride along for free: server.astrummc.net, which is
+            // where both SRV records actually point, is matched by the astrummc.net key.
+            new ServerRule(Set.of("astrummc.net", "astrummc.su"), Set.of(ServerFeature.ITEM_SCROLL)),
+
+            // Aormio. The owner supplied mc.aormio.ru; the rest is what looking actually found on
+            // 2026-07-16, and it is more than was handed over:
+            //   _minecraft._tcp.mc.aormio.ru   SRV -> msk.aormio.ru
+            //   _minecraft._tcp.mc.aormio.net  SRV -> msk.aormio.net     <- a whole second zone, live
+            // So the keys are the two ZONES, not the one address given. mc./msk./play. and anything else
+            // they add ride the subdomain rule. Listing only mc.aormio.ru would have missed msk.aormio.ru —
+            // the host the client connects to — and every .net door, silently.
+            new ServerRule(Set.of("aormio.ru", "aormio.net"), Set.of(ServerFeature.ITEM_SCROLL)));
 
     // ---- the pure rule ----------------------------------------------------------------------------
 
