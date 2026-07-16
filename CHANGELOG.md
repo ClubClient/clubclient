@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.1.4
+
+**Particles — choose what you see.** A new category holding every particle the game has, sorted into groups you
+can reason about: Combat, Blocks, Ambient, Fire & Light, Water, Explosions and Status.
+
+- Pick a group on the left, flip particles one by one on the right — or use the group's own switch to turn all
+  of it off at once. The search finds a particle across every group at the same time.
+- **Everything is on by default.** Club does not quietly take particles out of your game; the point is that the
+  switches exist. Nothing is protected, either — the potion swirls sitting in your face in a fight are yours to
+  turn off, like the rest of them.
+- A hidden particle is never created at all: not ticked, not drawn. This is a **visual** choice, not a
+  performance feature — it is about what you want to look at. Turning types off does less work, but there is no
+  number here, because the honest one depends entirely on what is on your screen at the time.
+
+**The Performance tab is gone, and the work it did simply happens.** The two culls it held — particles behind
+the camera, block entities off-screen inside a visible section — never changed a pixel, so they were never
+dials worth tuning: they are baked in and always on. **Background FPS** was the one setting there that is a
+real choice (it caps the frame rate only while the game sits behind another window — your battery and your
+fans, zero in-game FPS), so it kept its cap and moved to Misc.
+
+If you ever need to rule Club out of a suspected rendering bug, those culls still have an off switch — it lives
+in `config/club_settings.json` (`perf.cullParticles`, `perf.cullBlockEntities`), instead of a menu toggle
+pretending to be a quality setting.
+
 ## v0.1.3
 
 **Item Scrolling (beta).** Move items with the mouse instead of clicking them one slot at a time.
