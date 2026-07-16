@@ -27,8 +27,22 @@ import java.util.List;
 public final class PerfMenu {
     private PerfMenu() {}
 
-    /** Cap the frame rate while the window is behind something else. */
+    /**
+     * Cap the frame rate while the window is behind something else — or NULL from 1.21.2 on, because
+     * Minecraft does this itself now.
+     *
+     * <p>1.21.2 deleted {@code MinecraftClient.getFramerateLimit()} (the seam this rode) and added
+     * {@code InactivityFpsLimiter} in the same release: {@code MINIMIZED_FPS} plus two AFK stages. That is
+     * this card's whole job, done by the game, and done better — it notices the player walked away, not just
+     * that the window lost focus.</p>
+     *
+     * <p>So the card is gone there, rather than lit with a notice explaining itself (owner: "можем просто
+     * убирать функции которые появились в ванильном меню"). A feature the game now has is not ours standing
+     * down — it is a feature we no longer have, and an absent card says that without a word. Same rule as
+     * Item Scroll on a server that forbids it; {@code MenuContent.cards} already drops the null.</p>
+     */
     public static MenuContent.Module backgroundFps() {
+        //? if <1.21.2 {
         ClubConfig.Perf p = ClubConfig.get().perf;
         return new MenuContent.Module(
                 "Background FPS",
@@ -44,6 +58,9 @@ public final class PerfMenu {
                         // window feels broken. Not timidity — measured.
                         new MenuContent.SliderSetting("Cap", 15f, 60f, 5f,
                                 () -> p.backgroundFps, v -> { p.backgroundFps = Math.round(v); save(); })));
+        //?} else {
+        /*return null;   // Minecraft's own InactivityFpsLimiter does this from 1.21.2 — see the javadoc.*/
+        //?}
     }
 
     private static void save() { ClubConfig.save(); }

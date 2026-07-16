@@ -12,6 +12,24 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * The frame cap, and the only place vanilla asks for it.
  *
+ * <h2>Nothing is injected past 1.21.1, because Minecraft took the feature over</h2>
+ *
+ * <p>1.21.2 deleted {@code getFramerateLimit()} and added {@code InactivityFpsLimiter} in the same release
+ * — with {@code MINIMIZED_FPS} and two AFK stages. That is this module's whole job, done by the game, and
+ * done better: it notices the player has walked away, not merely that the window lost focus.</p>
+ *
+ * <p>So on 1.21.2+ the injection is simply absent, and {@code PerfMenu.backgroundFps} returns no card at all
+ * (owner: "можем просто убирать функции которые появились в ванильном меню"). Not a card with a notice
+ * explaining itself — a feature the game now has is not OUR feature standing down, it is a feature we no
+ * longer have, and an absent card states that without saying a word. Same rule as Item Scroll on a server
+ * that forbids it. Racing vanilla for the same frame cap would be two throttles fighting over one number,
+ * which is how you get a bug report about frames nobody can reproduce.</p>
+ *
+ * <p><b>This is what the compiler cannot tell you.</b> {@code @Inject(method = "getFramerateLimit")} is a
+ * STRING. The 1.21.8 build was clean, every test passed, the jar contained every class — and the client died
+ * on startup, because {@code "required": true} makes a missed target fatal. The name was measured out of the
+ * mappings afterwards: present in 1.21.1, gone in 1.21.2.</p>
+ *
  * <p>{@code getFramerateLimit()} is private with exactly ONE call site — {@code render()} — and the Max
  * Framerate slider in the options screen reads {@code GameOptions.getMaxFps()} instead, so tightening the
  * return value here throttles the game without lying to the player about what they set. (Both halves
@@ -33,6 +51,7 @@ public class MixinMinecraftClientFps {
      *  plainest thing Mixin can carry. See {@link #club$throttleInBackground}. */
     @Unique private boolean club$throttleBroken;
 
+    //? if <1.21.2 {
     @Inject(method = "getFramerateLimit", at = @At("RETURN"), cancellable = true)
     private void club$throttleInBackground(CallbackInfoReturnable<Integer> cir) {
         // FAIL OPEN TO VANILLA. This runs inside MinecraftClient.render(), every frame, and nothing up the
@@ -55,4 +74,5 @@ public class MixinMinecraftClientFps {
                     + "Please report this:", e);
         }
     }
+    //?}
 }
