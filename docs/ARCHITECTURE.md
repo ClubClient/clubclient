@@ -104,6 +104,12 @@ com.club
 │       ├── FrameStats/HudProfiler  — приборы: порядковые статистики, доля кадра, а не миллисекунды
 │       ├── DrawBoxes               — тест вместо обещания: судится КАЖДЫЙ кадр, вердикт по худшему
 │       └── PerfMenu                — карточка + ModuleNotices («Entity culling: handled by Sodium»)
+├── policy/  (2 файла)              — Club СОБЛЮДАЕТ правила сервера (не обход, а обратное)
+│   │                                 → superpowers/specs/2026-07-16-server-policy-design.md
+│   ├── ServerFeature               — что вообще бывает запрещено (пока только ITEM_SCROLL)
+│   └── ServerPolicy                — таблица правил ЗАШИТА (правило в конфиге = обход нашими
+│                                     руками); чистое ядро host/lookup — таблица ПАРАМЕТР, оттого
+│                                     тестируемо при пустой боевой таблице; + адаптер allows()
 └── mixin/  (16 штук)               — §6
 ```
 
@@ -261,6 +267,7 @@ Particles/Block Entities, которые им пользовались, вшит
 | Анимации рук + твики вида | [ANIMATIONS.md](ANIMATIONS.md) | `modules/animations/*`, `mixin/MixinHeldItemRenderer`, `mixin/MixinGameRenderer` |
 | HUD и их настройки | [HUD-LANGUAGE.md](HUD-LANGUAGE.md) | `ui/hud/*`, `hud/PixelIcons`, `hud/HudSpace`, `ClubConfig.Hud` |
 | Item Scroll (жесты, композиция кликов) | [ITEMSCROLL.md](ITEMSCROLL.md) | `modules/itemscroll/*`, `mixin/MixinHandledScreenAccessor` |
+| Правила сервера (Club отходит в сторону) | [спека](superpowers/specs/2026-07-16-server-policy-design.md) | `policy/*`, гейты в `modules/itemscroll/*` |
 | Оптимизация (что делаем и чего НЕ делаем) | [PERF.md](PERF.md) | `modules/perf/*`, четыре perf-миксина, `harness/ClubBench` |
 
 ## 11. Соглашения и правила, из-за которых PR закроют
