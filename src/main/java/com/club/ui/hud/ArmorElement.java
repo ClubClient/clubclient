@@ -8,9 +8,8 @@ import com.club.ui.UiContext;
 import com.club.ui.text.TextStyle;
 import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
+import com.club.compat.Equip;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.item.ArmorItem;
-import net.minecraft.item.ElytraItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 
@@ -79,8 +78,8 @@ public final class ArmorElement extends HudElement {
     // --- data (ported from legacy hud/ArmorHud) ---
     private static ItemStack[] pieces(MinecraftClient mc) {
         return new ItemStack[]{
-            mc.player.getInventory().getArmorStack(3), mc.player.getInventory().getArmorStack(2),
-            mc.player.getInventory().getArmorStack(1), mc.player.getInventory().getArmorStack(0),
+            Equip.armor(mc.player, 3), Equip.armor(mc.player, 2),
+            Equip.armor(mc.player, 1), Equip.armor(mc.player, 0),
         };
     }
     private static ItemStack[] sampleStacks() {
@@ -200,7 +199,7 @@ public final class ArmorElement extends HudElement {
 
     /** Slot → piece silhouette (fallback when the item texture can't bake); elytra gets its own wings. */
     private static IconGlyph icon(int slot, ItemStack st) {
-        if (st.getItem() instanceof ElytraItem) return IconGlyph.ARMOR_ELYTRA;
+        if (Equip.isGlider(st)) return IconGlyph.ARMOR_ELYTRA;
         return switch (slot) {
             case 0  -> IconGlyph.ARMOR_HELMET;
             case 1  -> IconGlyph.ARMOR_CHEST;
@@ -211,7 +210,7 @@ public final class ArmorElement extends HudElement {
 
     /** Slot → letter initial for the LEGACY fallback (see the class javadoc). */
     private static String initial(int slot, ItemStack st) {
-        if (st.getItem() instanceof ElytraItem) return "E";
+        if (Equip.isGlider(st)) return "E";
         return switch (slot) {
             case 0 -> "H"; case 1 -> "C"; case 2 -> "L";
             default -> "B";
@@ -222,9 +221,9 @@ public final class ArmorElement extends HudElement {
      *  Deliberately juicier than the raw item colors — a full set in one muted tone read as
      *  tasteless gray (owner), so every material gets a clearly voiced hue. */
     private static int materialTint(ItemStack st) {
-        if (st.getItem() instanceof ElytraItem) return 0xFFB3A6DE;          // phantom-membrane lilac
-        if (!(st.getItem() instanceof ArmorItem ai)) return 0xFFAEB9C9;
-        String m = ai.getMaterial().getKey().map(k -> k.getValue().getPath()).orElse("");
+        if (Equip.isGlider(st)) return 0xFFB3A6DE;                          // phantom-membrane lilac
+        String m = Equip.materialName(st);
+        if (m.isEmpty()) return 0xFFAEB9C9;
         return switch (m) {
             case "leather"   -> 0xFFC1976B;
             case "chainmail" -> 0xFFACB8C6;
