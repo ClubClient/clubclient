@@ -117,6 +117,18 @@ for F0 in "$SRC"/*.java; do
         fi
     done
 
+    # ---- @Accessor("field") / @Invoker("method") -------------------------------------------------
+    # The script read METHODS and never once looked at a FIELD. @Accessor("regularEntityCount") sailed
+    # through every check above and died at startup ("No candidates were found matching
+    # regularEntityCount:I") because 1.21.2 renamed the field. javac cannot see it — nothing in Java ties
+    # that string to that field — and neither could this, until now.
+    for N in $(grep -oP '@(?:Accessor|Invoker)\(\s*"\K[^"]+' "$F" | sort -u); do
+        if ! javap -p -classpath "$MCJAR" "$OWNER" 2>/dev/null | grep -qP "[ .]$N\b"; then
+            echo "  NO MEMBER    $B  ->  $OWNER :: $N (field or method behind @Accessor/@Invoker)"
+            echo x >> "$FAILFILE"
+        fi
+    done
+
     # ---- @ModifyReturnValue : the handler's return type must EQUAL the target's ------------------
     # Mixin checks this at startup and nowhere earlier: the handler is bound to its target by NAME, so
     # javac has no idea the two are related. 1.21.2 narrowed GameRenderer.getFov from double to float and

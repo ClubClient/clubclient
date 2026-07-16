@@ -134,7 +134,9 @@ public final class BlockEntityCull {
      * changed once: does this renderer draw outside its own block, and does it want the default distance.
      */
     //? if <1.21.6 {
-    private static boolean isOrdinary(BlockEntityRenderer<?> r, BlockEntity be) {
+    // Generic rather than wildcard: rendersOutsideBoundingBox takes the renderer's OWN entity type, so a
+    // BlockEntityRenderer<?> would capture it and refuse a plain BlockEntity. The caller has both as E.
+    private static <E extends BlockEntity> boolean isOrdinary(BlockEntityRenderer<E> r, E be) {
         return r.getRenderDistance() == 64 && !r.rendersOutsideBoundingBox(be);
     }
     //?} elif <1.21.9 {

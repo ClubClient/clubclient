@@ -25,6 +25,18 @@ import org.spongepowered.asm.mixin.gen.Accessor;
  */
 @Mixin(WorldRenderer.class)
 public interface WorldRendererAccessor {
+    /**
+     * 1.21.2 renamed the field to {@code renderedEntitiesCount}. Same int, same meaning, same place in the
+     * render — only the name moved, and an {@code @Accessor} value is a name in a string.
+     *
+     * <p>A FIFTH shape of the same failure, and the one the checker was blindest to: it read methods and
+     * never looked at FIELDS at all. Mixin says "No candidates were found matching regularEntityCount:I" at
+     * startup; javac says nothing, because nothing in Java connects that string to that field.</p>
+     */
+    //? if <1.21.2 {
     @Accessor("regularEntityCount")
+    //?} else {
+    /*@Accessor("renderedEntitiesCount")*/
+    //?}
     int club$entitiesRendered();
 }
