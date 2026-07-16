@@ -52,7 +52,13 @@ public final class ItemScrollHarness {
         server.execute(() -> {
             ServerPlayerEntity sp = server.getPlayerManager().getPlayer(mc.player.getUuid());
             if (sp == null) return;
+            // getServerWorld survived to 1.21.5 and went in 1.21.6 — a DIFFERENT boundary from the rest of
+            // this file's guards, measured rather than assumed. getWorld() is already typed ServerWorld here.
+            //? if <1.21.6 {
             ServerWorld world = sp.getServerWorld();
+            //?} else {
+            /*ServerWorld world = sp.getWorld();*/
+            //?}
 
             BlockPos pos = sp.getBlockPos().up(2);       // inside the chest handler's own 8-block canUse range
             world.setBlockState(pos, Blocks.CHEST.getDefaultState());

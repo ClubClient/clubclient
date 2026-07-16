@@ -136,12 +136,23 @@ public final class ClubPromo {
         /** Generate the promo world and drop into it — the vanilla "create world" path, without the screen. */
         private void createWorld() {
             log.add("CREATE " + WORLD + " (seed " + SEED + ")");
+            //? if <1.21.5 {
             LevelInfo info = new LevelInfo(WORLD, GameMode.SPECTATOR, false, Difficulty.PEACEFUL,
                     true, new GameRules(), DataConfiguration.SAFE_MODE);
+            //?} else {
+            /*LevelInfo info = new LevelInfo(WORLD, GameMode.SPECTATOR, false, Difficulty.PEACEFUL,
+                    true, new GameRules(net.minecraft.resource.featuretoggle.FeatureFlags.DEFAULT_ENABLED_FEATURES),
+                    DataConfiguration.SAFE_MODE);*/
+            //?}
             GeneratorOptions gen = new GeneratorOptions(SEED, true, false);
             mc.createIntegratedServerLoader().createAndStart(WORLD, info, gen,
+                    //? if <1.21.5 {
                     drm -> drm.get(RegistryKeys.WORLD_PRESET).getOrThrow(WorldPresets.DEFAULT)
                               .createDimensionsRegistryHolder(),
+                    //?} else {
+                    /*drm -> drm.getOrThrow(RegistryKeys.WORLD_PRESET).getOrThrow(WorldPresets.DEFAULT)
+                              .value().createDimensionsRegistryHolder(),*/
+                    //?}
                     mc.currentScreen);   // where creation returns to if it fails
         }
 
@@ -150,7 +161,11 @@ public final class ClubPromo {
 
         private void shot(String name) {
             String file = String.format("promo-%02d-%s.png", shotNo++, name);
+            //? if <1.21.5 {
             ScreenshotRecorder.saveScreenshot(mc.runDirectory, file, mc.getFramebuffer(), t -> {});
+            //?} else {
+            /*ScreenshotRecorder.saveScreenshot(mc.runDirectory, file, mc.getFramebuffer(), 1, t -> {});*/
+            //?}
             log.add("SHOT  " + file);
         }
 
@@ -338,7 +353,12 @@ public final class ClubPromo {
                 }
                 if (at == null) { at = from; log.add("MISS  " + s.name() + " — nothing within 3000 blocks, using spawn"); }
                 int y = w.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, at.getX(), at.getZ());
+                //? if <1.21.5 {
                 sp.teleport(w, at.getX() + 0.5, y + s.eyeUp(), at.getZ() + 0.5, s.yaw(), s.pitch());
+                //?} else {
+                /*sp.teleport(w, at.getX() + 0.5, y + s.eyeUp(), at.getZ() + 0.5, java.util.Set.of(),
+                        s.yaw(), s.pitch(), true);*/
+                //?}
                 purge(w);   // the teleport loaded new chunks — and new chunks come with new mobs
             }));
             // A screenshot taken before the terrain is built is a photograph of fog — which is precisely what
@@ -355,7 +375,12 @@ public final class ClubPromo {
             step(20, () -> {
                 if (mc.player == null) return;
                 mc.player.setYaw(s.yaw()); mc.player.setPitch(s.pitch());
+                // Yarn renamed these in 1.21.5 — same fields, new names, no behaviour change.
+                //? if <1.21.5 {
                 mc.player.prevYaw = s.yaw(); mc.player.prevPitch = s.pitch();   // no interpolated swing into frame
+                //?} else {
+                /*mc.player.lastYaw = s.yaw(); mc.player.lastPitch = s.pitch();*/
+                //?}
             });
             step(20, s.ui());
             step(10, () -> {});

@@ -7,9 +7,14 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
-import com.mojang.blaze3d.platform.GlDebugInfo;
 import net.minecraft.client.option.GraphicsMode;
+// ParticlesMode moved out of client.option in 1.21.5; GlDebugInfo was deleted outright — the GPU name is
+// read straight off GL below, which is what GlDebugInfo did anyway.
+//? if <1.21.5 {
 import net.minecraft.client.option.ParticlesMode;
+//?} else {
+/*import net.minecraft.particle.ParticlesMode;*/
+//?}
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.registry.RegistryKeys;
@@ -149,12 +154,25 @@ public final class ClubBench {
 
         private void createWorld() {
             report.add("CREATE " + WORLD + " (seed " + SEED + ")");
+            // 1.21.5: GameRules needs the enabled feature set, and DynamicRegistryManager.get became
+            // getOrThrow. Same world either way — vanilla features, default preset.
+            //? if <1.21.5 {
             LevelInfo info = new LevelInfo(WORLD, GameMode.SPECTATOR, false, Difficulty.EASY,
                     true, new GameRules(), DataConfiguration.SAFE_MODE);
+            //?} else {
+            /*LevelInfo info = new LevelInfo(WORLD, GameMode.SPECTATOR, false, Difficulty.EASY,
+                    true, new GameRules(net.minecraft.resource.featuretoggle.FeatureFlags.DEFAULT_ENABLED_FEATURES),
+                    DataConfiguration.SAFE_MODE);*/
+            //?}
             GeneratorOptions gen = new GeneratorOptions(SEED, false, false);   // no structures: fewer surprises
             mc.createIntegratedServerLoader().createAndStart(WORLD, info, gen,
+                    //? if <1.21.5 {
                     drm -> drm.get(RegistryKeys.WORLD_PRESET).getOrThrow(WorldPresets.DEFAULT)
                               .createDimensionsRegistryHolder(),
+                    //?} else {
+                    /*drm -> drm.getOrThrow(RegistryKeys.WORLD_PRESET).getOrThrow(WorldPresets.DEFAULT)
+                              .value().createDimensionsRegistryHolder(),*/
+                    //?}
                     mc.currentScreen);
         }
 
@@ -195,7 +213,13 @@ public final class ClubBench {
                 if (sp == null) return;
                 sp.changeGameMode(GameMode.SPECTATOR);
                 arena(w);
+                // 1.21.5 added the relative-flag set and a resetCamera boolean. Empty set = every axis
+                // absolute, which is what the old call meant.
+                //? if <1.21.5 {
                 sp.teleport(w, O.getX() + 0.5, O.getY() + 0.5, O.getZ() - 4.5, 0f, 0f);   // yaw 0 = looking +Z
+                //?} else {
+                /*sp.teleport(w, O.getX() + 0.5, O.getY() + 0.5, O.getZ() - 4.5, java.util.Set.of(), 0f, 0f, true);*/
+                //?}
             }));
             until(2400, this::serverIdle);
             until(2400, this::worldReady);
@@ -326,7 +350,12 @@ public final class ClubBench {
         }
 
         private void mob(ServerWorld w, int z, int i) {
+            // create() wants to know WHY the entity appeared since 1.21.5. The bench spawns it by fiat.
+            //? if <1.21.5 {
             ZombieEntity m = EntityType.ZOMBIE.create(w);
+            //?} else {
+            /*ZombieEntity m = EntityType.ZOMBIE.create(w, net.minecraft.entity.SpawnReason.COMMAND);*/
+            //?}
             if (m == null) return;
             m.refreshPositionAndAngles(O.getX() - 10 + (i % 21), O.getY(), z, 0f, 0f);
             m.setAiDisabled(true);
@@ -452,7 +481,12 @@ public final class ClubBench {
             hud(true);   // leave the game as we found it
             report.add("");
             report.add("== provenance ==");
-            report.add("GPU        " + GlDebugInfo.getRenderer());
+            // GlDebugInfo is gone in 1.21.5; it was a thin wrapper over exactly this call.
+            //? if <1.21.5 {
+            report.add("GPU        " + com.mojang.blaze3d.platform.GlDebugInfo.getRenderer());
+            //?} else {
+            /*report.add("GPU        " + org.lwjgl.opengl.GL11.glGetString(org.lwjgl.opengl.GL11.GL_RENDERER));*/
+            //?}
             report.add(String.format("window     %dx%d, gui scale %d, render distance %d, %s",
                     mc.getWindow().getFramebufferWidth(), mc.getWindow().getFramebufferHeight(),
                     mc.options.getGuiScale().getValue(), mc.options.getViewDistance().getValue(),

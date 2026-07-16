@@ -220,7 +220,13 @@ public final class ClubHarness {
 
         private void shot(String name) {
             String file = String.format("club-%02d-%s.png", shotNo++, name);
+            // 1.21.5 dropped the file-name argument from this overload and names the shot itself; the
+            // 5-arg form that still takes a name wants a downscale factor too. 1 = full size.
+            //? if <1.21.5 {
             ScreenshotRecorder.saveScreenshot(mc.runDirectory, file, mc.getFramebuffer(), t -> {});
+            //?} else {
+            /*ScreenshotRecorder.saveScreenshot(mc.runDirectory, file, mc.getFramebuffer(), 1, t -> {});*/
+            //?}
             report.add("SHOT  " + file);
         }
         private void key(int k) { key(k, 0); }
