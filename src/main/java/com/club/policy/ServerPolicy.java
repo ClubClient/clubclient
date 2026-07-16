@@ -72,17 +72,23 @@ public final class ServerPolicy {
      * actually dials and which nobody would think to list by hand.</p>
      */
     private static final List<ServerRule> RULES = List.of(
-            // Two front doors, one server. Subdomains ride along for free: server.astrummc.net, which is
-            // where both SRV records actually point, is matched by the astrummc.net key.
+            // Two front doors, one server — measured 2026-07-16, both SRVs naming the SAME host:
+            //   _minecraft._tcp.astrummc.net  SRV -> server.astrummc.net  -> 80.242.59.230
+            //   _minecraft._tcp.astrummc.su   SRV -> server.astrummc.net  -> 80.242.59.230
+            // Subdomains ride along for free, so the .net key already covers the host both doors open onto.
             new ServerRule(Set.of("astrummc.net", "astrummc.su"), Set.of(ServerFeature.ITEM_SCROLL)),
 
             // Aormio. The owner supplied mc.aormio.ru; the rest is what looking actually found on
             // 2026-07-16, and it is more than was handed over:
-            //   _minecraft._tcp.mc.aormio.ru   SRV -> msk.aormio.ru
-            //   _minecraft._tcp.mc.aormio.net  SRV -> msk.aormio.net     <- a whole second zone, live
-            // So the keys are the two ZONES, not the one address given. mc./msk./play. and anything else
+            //   _minecraft._tcp.mc.aormio.ru   SRV -> msk.aormio.ru   -> 46.174.53.38
+            //   _minecraft._tcp.mc.aormio.net  SRV -> msk.aormio.net  -> 46.174.53.38
+            // The same IP is what makes the second zone OURS to match and not a stranger's: a suffix rule on
+            // a name we merely recognise would hand our restriction to whoever owns that name. These two
+            // resolve to one machine, so they are one server with two doors.
+            //
+            // Hence the keys are the two ZONES, not the one address given. mc./msk./play. and anything else
             // they add ride the subdomain rule. Listing only mc.aormio.ru would have missed msk.aormio.ru —
-            // the host the client connects to — and every .net door, silently.
+            // the host the client is actually handed by the SRV — and every .net door, silently.
             new ServerRule(Set.of("aormio.ru", "aormio.net"), Set.of(ServerFeature.ITEM_SCROLL)));
 
     // ---- the pure rule ----------------------------------------------------------------------------
