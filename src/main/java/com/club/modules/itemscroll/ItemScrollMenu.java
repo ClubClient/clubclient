@@ -17,7 +17,21 @@ import java.util.List;
 public final class ItemScrollMenu {
     private ItemScrollMenu() {}
 
+    /**
+     * The card, or NULL where the server we are on forbids item scrolling.
+     *
+     * <p>Null rather than a card that is lit and inert, and rather than a card carrying an explanatory
+     * notice: on such a server this client simply IS a build without Item Scroll, which is exactly what the
+     * owner asked for — minus the second jar. An absent card states nothing, so it cannot lie; a lit card
+     * doing nothing is, in this menu's own words, how a mod earns a "broken" review.</p>
+     *
+     * <p>This is the module's FACE, not its guard. The gate that actually keeps clicks off the wire lives in
+     * {@link ItemScrollModule#active()} and {@link ItemScrollHooks#act(net.minecraft.client.gui.screen.ingame.HandledScreen,
+     * ScrollAction, net.minecraft.screen.slot.Slot, boolean)}. Hiding the card alone would be a barrier that
+     * stands only at the door — the one mistake this module has already made once.</p>
+     */
     public static MenuContent.Module card() {
+        if (!ServerPolicy.allows(ServerFeature.ITEM_SCROLL)) return null;
         ClubConfig c = ClubConfig.get();
         return new MenuContent.Module("Item Scroll", "Move items by scrolling instead of clicking them.",
                 IconGlyph.ITEM_SCROLL,
@@ -43,13 +57,13 @@ public final class ItemScrollMenu {
     }
 
     /**
-     * What the card would otherwise lie about. Three truths, in priority order: the server we are on
-     * forbids item scrolling by rule, a sibling mod owning the same gestures means we are deliberately
-     * inert (a lit card doing nothing is how a mod earns a "broken" review), and creative is not handled
-     * at all — its screen keeps fake slots behind a different click path, and a half-working creative is
-     * worse than an honest gap.
+     * What the card would otherwise lie about. Two truths, in priority order: a sibling mod owning the
+     * same gestures means we are deliberately inert (a lit card doing nothing is how a mod earns a
+     * "broken" review), and creative is not handled at all — its screen keeps fake slots behind a
+     * different click path, and a half-working creative is worse than an honest gap.
      *
-     * <p>The server rule comes first: it is the only one of the three with a consequence outside the game.</p>
+     * <p>A server that forbids item scrolling needs no line here: {@link #card()} returns null there, so
+     * there is no card to explain — see its javadoc.</p>
      *
      * <p>Both lines are written for a PLAYER, not for us. "Creative inventory: not handled" was the old
      * second line: "handled" is a word about our code, and it left the player to guess whether that meant
@@ -58,11 +72,6 @@ public final class ItemScrollMenu {
      * is why OUR card has gone quiet, which is that X already does this.</p>
      */
     public static String notice() {
-        // First, because it is the line with a consequence: the player who does not know the module is off
-        // here is the player who wonders why their scroll does nothing — and the player who does not know it
-        // is ON here is the one who breaks a server rule without meaning to.
-        if (ClubConfig.get().itemScroll.enabled && !ServerPolicy.allows(ServerFeature.ITEM_SCROLL))
-            return "Idle — not allowed on this server";
         String sibling = ItemScrollModule.sibling();
         if (sibling != null) return "Idle — " + sibling + " does this";
         return ClubConfig.get().itemScroll.enabled ? "Doesn't work in the creative inventory" : null;

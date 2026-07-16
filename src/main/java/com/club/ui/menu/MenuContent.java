@@ -25,6 +25,21 @@ public final class MenuContent {
 
     private static void save() { ClubConfig.save(); }
 
+    /**
+     * The cards of one category, minus any that are absent right now.
+     *
+     * <p>A factory returns null when its module has no business existing here at all — today that is a
+     * module the SERVER forbids by rule ({@code com.club.policy.ServerPolicy}), where Club stands down and
+     * this client is, for that session, a build without the module. Null is not "off": an off module keeps
+     * its card and its toggle. Null means there is nothing to show and nothing to explain.</p>
+     *
+     * <p>Filtering here rather than in the factories keeps the [SEAM:cards] contract intact — one line per
+     * card, calling the module's own package, no logic in this file.</p>
+     */
+    private static List<Module> cards(Module... modules) {
+        return java.util.Arrays.stream(modules).filter(java.util.Objects::nonNull).toList();
+    }
+
     /** Float getter (java.util.function has no FloatSupplier). */
     @FunctionalInterface public interface FloatGet { float get(); }
 
@@ -132,11 +147,13 @@ public final class MenuContent {
             // (perf.cullParticles / perf.cullBlockEntities) for the one thing a toggle was ever for — ruling
             // the mod out of a suspected rendering bug in one edit. The third, Background FPS, is a REAL choice
             // (battery / fans while alt-tabbed), so it survives as a lone card in Misc below.
-            new Category("Misc", IconGlyph.MISC, List.of(
+            // cards(), not List.of(): a factory may return null when the server forbids its module outright
+            // (see cards() above). List.of() throws on a null element, which would take the whole menu down.
+            new Category("Misc", IconGlyph.MISC, cards(
                 hudEditor(openHudEditor),
                 // [SEAM:cards] New module cards go here, one line each, calling a factory in the module's own
                 // package. This anchor must survive any refactor of this file (see docs/NEXT-PLAN.md).
-                com.club.modules.itemscroll.ItemScrollMenu.card(),
+                com.club.modules.itemscroll.ItemScrollMenu.card(),   // null where the server forbids it
                 com.club.modules.perf.PerfMenu.backgroundFps(),
                 flag("Hide Effects", "Hide Minecraft's own potion icons.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
         );
