@@ -37,8 +37,31 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(HeldItemRenderer.class)
 public class MixinHeldItemRenderer {
 
+    /**
+     * The call our pose brackets. Two independent changes hide in this one string, and BOTH are invisible to
+     * the compiler — an {@code @At} target is text, and text does not fail to build. It fails at startup, and
+     * {@code "required": true} makes that fatal (owner's 1.21.8 run: "Scanned 0 target(s)").
+     *
+     * <p>Measured out of the mappings, because the class moved AND was renamed, at different releases:</p>
+     * <table>
+     *   <tr><td>1.21.1</td><td>{@code client/render/model/json/ModelTransformationMode}</td><td>+ boolean</td></tr>
+     *   <tr><td>1.21.2 – 1.21.4</td><td>{@code item/ModelTransformationMode} (moved)</td><td>+ boolean</td></tr>
+     *   <tr><td>1.21.5 +</td><td>{@code item/ItemDisplayContext} (renamed)</td><td>boolean dropped</td></tr>
+     * </table>
+     *
+     * <p>A single guess would have been wrong on two of the three rows, and silently: this reads as "the
+     * sword animation just doesn't play" long before anyone suspects a string.</p>
+     */
+    //? if <1.21.2 {
     private static final String RENDER_ITEM =
             "Lnet/minecraft/client/render/item/HeldItemRenderer;renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/client/render/model/json/ModelTransformationMode;ZLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V";
+    //?} elif <1.21.5 {
+    /*private static final String RENDER_ITEM =
+            "Lnet/minecraft/client/render/item/HeldItemRenderer;renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ModelTransformationMode;ZLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V";*/
+    //?} else {
+    /*private static final String RENDER_ITEM =
+            "Lnet/minecraft/client/render/item/HeldItemRenderer;renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V";*/
+    //?}
 
     private float club$swing;
     private final Pose club$pose = new Pose();   // out-param, reused — no per-frame allocation
