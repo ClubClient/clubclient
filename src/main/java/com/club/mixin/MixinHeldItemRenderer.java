@@ -100,11 +100,35 @@ public class MixinHeldItemRenderer {
      * equip animation — which is correct. Main hand only (ordinal 0): the report is the sword, and the
      * off-hand does not carry our attack pose.
      */
+    /**
+     * <b>1.21.4 moved the call this wraps one level down.</b> {@code updateHeldItems} no longer asks
+     * {@code ItemStack.areEqual} itself — it asks its own {@code shouldSkipHandAnimationOnSwap(a, b)}, which
+     * asks {@code areEqual} and then falls back to whether the item's MODEL declares a swap animation:
+     *
+     * <pre>{@code if (ItemStack.areEqual(a, b)) return true;
+     * return !itemModelManager.hasHandAnimationOnSwap(b);}</pre>
+     *
+     * <p>So the injection point vanished while the method it lived in stayed put, and the mod compiled and
+     * died at startup with "Scanned 0 target(s)" — the same shape of failure as the held-item target above,
+     * for a completely different reason. Measured: absent in 1.21.3, present from 1.21.4.</p>
+     *
+     * <p>The wrap simply moves down with it. The new method takes the SAME two stacks and means the same
+     * thing — true = do not play the swap animation — so the body below is unchanged, and on both sides of
+     * the boundary we are answering exactly the question the dip is decided by.</p>
+     */
+    //? if <1.21.4 {
     @WrapOperation(
             method = "updateHeldItems",
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/item/ItemStack;areEqual(Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemStack;)Z",
                     ordinal = 0))
+    //?} else {
+    /*@WrapOperation(
+            method = "updateHeldItems",
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/client/render/item/HeldItemRenderer;shouldSkipHandAnimationOnSwap(Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemStack;)Z",
+                    ordinal = 0))*/
+    //?}
     private boolean club$noSwapDipOnDamage(ItemStack a, ItemStack b, Operation<Boolean> original) {
         if (AnimationModule.overridesVanillaSwing()
                 && a != null && b != null && !a.isEmpty() && !b.isEmpty() && a.isOf(b.getItem()))
