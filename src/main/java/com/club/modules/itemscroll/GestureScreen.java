@@ -172,8 +172,35 @@ public final class GestureScreen extends Screen {
     }
 
     // ---- input ------------------------------------------------------------------------------------
+    //
+    // 1.21.9 rewrote Element's input: (x, y, button) became a Click record, (key, scancode, mods) a KeyInput.
+    // Club's OWN component tree keeps the old shape — it is our interface, not Minecraft's — so the change
+    // stops at this boundary. Each handler below is Club's, with the vanilla signature adapted on top of it.
+    // The order is unchanged: our logic first, super last, exactly as when the two were one method.
 
+    //? if <1.21.9 {
     @Override public boolean mouseClicked(double mxMc, double myMc, int button) {
+        return onMouseClicked(mxMc, myMc, button) || super.mouseClicked(mxMc, myMc, button);
+    }
+    @Override public boolean mouseReleased(double mxMc, double myMc, int button) {
+        return onMouseReleased(mxMc, myMc, button) || super.mouseReleased(mxMc, myMc, button);
+    }
+    @Override public boolean keyPressed(int key, int scancode, int modifiers) {
+        return onKeyPressed(key) || super.keyPressed(key, scancode, modifiers);
+    }
+    //?} else {
+    /*@Override public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean doubled) {
+        return onMouseClicked(click.x(), click.y(), click.button()) || super.mouseClicked(click, doubled);
+    }
+    @Override public boolean mouseReleased(net.minecraft.client.gui.Click click) {
+        return onMouseReleased(click.x(), click.y(), click.button()) || super.mouseReleased(click);
+    }
+    @Override public boolean keyPressed(net.minecraft.client.input.KeyInput input) {
+        return onKeyPressed(input.key()) || super.keyPressed(input);
+    }*/
+    //?}
+
+    private boolean onMouseClicked(double mxMc, double myMc, int button) {
         double mx = cx(mxMc), my = cx(myMc);
 
         if (capturing != null) {
@@ -189,13 +216,12 @@ public final class GestureScreen extends Screen {
         }
 
         focus.clickFocus(mx, my);
-        if (rows.mouseClicked(mx, my, button)) return true;
-        return super.mouseClicked(mxMc, myMc, button);
+        return rows.mouseClicked(mx, my, button);
     }
 
-    @Override public boolean mouseReleased(double mxMc, double myMc, int button) {
+    private boolean onMouseReleased(double mxMc, double myMc, int button) {
         if (swallowRelease) { swallowRelease = false; return true; }
-        return rows.mouseReleased(cx(mxMc), cx(myMc), button) || super.mouseReleased(mxMc, myMc, button);
+        return rows.mouseReleased(cx(mxMc), cx(myMc), button);
     }
 
     @Override public boolean mouseScrolled(double mxMc, double myMc, double horizontal, double vertical) {
@@ -206,7 +232,7 @@ public final class GestureScreen extends Screen {
         return super.mouseScrolled(mxMc, myMc, horizontal, vertical);
     }
 
-    @Override public boolean keyPressed(int key, int scancode, int modifiers) {
+    private boolean onKeyPressed(int key) {
         if (capturing != null) {
             if (key == GLFW_KEY_ESCAPE) { disarm(); return true; }
             if (key == GLFW_KEY_DELETE || key == GLFW_KEY_BACKSPACE) {
@@ -217,7 +243,7 @@ public final class GestureScreen extends Screen {
             return true;   // while armed, the keyboard is not driving anything else
         }
         if (key == GLFW_KEY_ESCAPE) { close(); return true; }
-        return super.keyPressed(key, scancode, modifiers);
+        return false;
     }
 
     @Override public void close() {
