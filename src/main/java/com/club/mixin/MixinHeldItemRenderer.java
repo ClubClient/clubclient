@@ -160,10 +160,27 @@ public class MixinHeldItemRenderer {
                 && a != null && b != null && !a.isEmpty() && !b.isEmpty() && a.isOf(b.getItem());
     }
 
-    /** Capture the real swing; zero it so vanilla never swings (unless Vanilla mode). */
+    /**
+     * Capture the real swing; zero it so vanilla never swings (unless Vanilla mode).
+     *
+     * <p>The DESCRIPTOR is the version-specific part, not the name: 1.21.9 swapped this overload's
+     * {@code VertexConsumerProvider.Immediate} for an {@code OrderedRenderCommandQueue}. {@code renderItem}
+     * still exists, {@code getHandSwingProgress} is still called inside it — only the parameter type moved,
+     * so the selector matches nothing and mixin kills the client at startup.</p>
+     *
+     * <p>The offline checker walked straight past this: it pulled the NAME out of {@code method = "..."} and
+     * never read the descriptor after it, so an overload that exists satisfied a selector that does not.
+     * Sixth shape of the same failure, sixth piece of the signature it was not reading. Fixed there too.</p>
+     */
+    //? if <1.21.9 {
     @ModifyExpressionValue(
             method = "renderItem(FLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider$Immediate;Lnet/minecraft/client/network/ClientPlayerEntity;I)V",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayerEntity;getHandSwingProgress(F)F"))
+    //?} else {
+    /*@ModifyExpressionValue(
+            method = "renderItem(FLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;Lnet/minecraft/client/network/ClientPlayerEntity;I)V",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayerEntity;getHandSwingProgress(F)F"))*/
+    //?}
     private float club$captureSwing(float original) {
         club$swing = original;
         return AnimationModule.overridesVanillaSwing() ? 0f : original;

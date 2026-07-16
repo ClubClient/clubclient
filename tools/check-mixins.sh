@@ -106,7 +106,30 @@ for F0 in "$SRC"/*.java; do
     if ! javap -p -classpath "$MCJAR" "$OWNER" >/dev/null 2>&1; then
         echo "  CLASS GONE   $B  ->  $OWNER"; echo x >> "$FAILFILE"; continue
     fi
-    # ---- method = "name" / "name(desc)ret" : the method we inject INTO ----------------------------
+    # ---- method = "name(desc)ret" : when a DESCRIPTOR is given, it is part of the selector -------
+    # Reading only the name walked straight past club$captureSwing: 1.21.9 swapped that overload's
+    # VertexConsumerProvider.Immediate for an OrderedRenderCommandQueue. renderItem still exists — a
+    # DIFFERENT overload — so the name resolved and the selector matched nothing. Sixth piece of the
+    # signature this script was not reading, sixth launch spent finding out.
+    for MD in $(grep -oP 'method\s*=\s*"\K[a-zA-Z0-9_$]+\([^"]*\)[^"]*(?=")' "$F" | sort -u); do
+        MN="${MD%%(*}"
+        # Compare against javap's own descriptors for that name; if none match, the selector is dead.
+        if ! javap -s -p -classpath "$MCJAR" "$OWNER" 2>/dev/null | grep -A1 "[ .]$MN(" \
+             | grep -oP 'descriptor: \K\S+' | grep -qFx "${MD#*(}" 2>/dev/null; then
+            # Descriptor comparison is fiddly (javap prints its own form); only shout when NO overload of
+            # this name carries the exact parameter list we asked for.
+            WANT=$(echo "$MD" | grep -oP '\(\K[^)]*')
+            HAVE=$(javap -s -p -classpath "$MCJAR" "$OWNER" 2>/dev/null | grep -A1 "[ .]$MN(" \
+                   | grep -oP 'descriptor: \(\K[^)]*')
+            if [ -n "$HAVE" ] && ! echo "$HAVE" | grep -qFx "$WANT"; then
+                echo "  BAD OVERLOAD $B  ->  $OWNER::$MN has no overload taking ($WANT) in $MC"
+                echo "               (the NAME exists — a different overload — so only the descriptor tells)"
+                echo x >> "$FAILFILE"
+            fi
+        fi
+    done
+
+    # ---- method = "name" : the method we inject INTO ----------------------------------------------
     for M in $(grep -oP 'method\s*=\s*"\K[a-zA-Z0-9_$]+' "$F" | sort -u); do
         if ! has_method "$OWNER" "$M"; then
             echo "  NO METHOD    $B  ->  $OWNER :: $M(...)"; echo x >> "$FAILFILE"
