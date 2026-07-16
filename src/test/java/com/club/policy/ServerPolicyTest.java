@@ -115,10 +115,21 @@ class ServerPolicyTest {
         assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.restrictionsFor("play.astrummc.su"));
     }
 
+    @Test void aormioForbidsItemScrollOnBothZones() {
+        // The owner gave mc.aormio.ru. Looking found a second zone (mc.aormio.net) and, in both SRV
+        // records, the host the client actually dials: msk.aormio.{ru,net}. Keying the ZONES covers every
+        // one of those without listing them.
+        for (String a : List.of("aormio.ru", "aormio.net", "mc.aormio.ru", "mc.aormio.net",
+                                "msk.aormio.ru", "msk.aormio.net", "mc.aormio.ru:25565", "MC.AORMIO.RU"))
+            assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.restrictionsFor(a),
+                    "Aormio forbids item scrolling, whichever door: " + a);
+    }
+
     @Test void theShippedTableTouchesNobodyElse() {
         // The rule is one server's, not a default for the world. A neighbour that merely ends with the same
         // letters is a stranger.
-        for (String a : List.of("hypixel.net", "notastrummc.net", "astrummc.net.evil.com", "mc.example.ru"))
+        for (String a : List.of("hypixel.net", "notastrummc.net", "astrummc.net.evil.com", "mc.example.ru",
+                                "notaormio.ru", "aormio.ru.evil.com", "aormio.com"))
             assertTrue(ServerPolicy.restrictionsFor(a).isEmpty(), "must not restrict a stranger: " + a);
     }
 }

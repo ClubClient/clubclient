@@ -67,12 +67,23 @@ public final class ServerPolicy {
      * and we would apply Astrum's rule to a stranger's server — silently, because there is no card left to
      * look wrong. Domains cost us nothing and cannot rot.</p>
      *
-     * <p>Aormio's admins have not answered yet; their entry comes when they do.</p>
+     * <p>Both entries are BARE DOMAINS on purpose. The subdomain rule then covers every door each server
+     * has or will open — including the hosts their own SRV records point at, which is where the client
+     * actually dials and which nobody would think to list by hand.</p>
      */
     private static final List<ServerRule> RULES = List.of(
             // Two front doors, one server. Subdomains ride along for free: server.astrummc.net, which is
             // where both SRV records actually point, is matched by the astrummc.net key.
-            new ServerRule(Set.of("astrummc.net", "astrummc.su"), Set.of(ServerFeature.ITEM_SCROLL)));
+            new ServerRule(Set.of("astrummc.net", "astrummc.su"), Set.of(ServerFeature.ITEM_SCROLL)),
+
+            // Aormio. The owner supplied mc.aormio.ru; the rest is what looking actually found on
+            // 2026-07-16, and it is more than was handed over:
+            //   _minecraft._tcp.mc.aormio.ru   SRV -> msk.aormio.ru
+            //   _minecraft._tcp.mc.aormio.net  SRV -> msk.aormio.net     <- a whole second zone, live
+            // So the keys are the two ZONES, not the one address given. mc./msk./play. and anything else
+            // they add ride the subdomain rule. Listing only mc.aormio.ru would have missed msk.aormio.ru —
+            // the host the client connects to — and every .net door, silently.
+            new ServerRule(Set.of("aormio.ru", "aormio.net"), Set.of(ServerFeature.ITEM_SCROLL)));
 
     // ---- the pure rule ----------------------------------------------------------------------------
 
