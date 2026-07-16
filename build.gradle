@@ -77,9 +77,13 @@ if (!stonecutter.eval(stonecutter.current.version, "<1.21.5")) {
 
 processResources {
 	inputs.property "version", project.version
+	// The Minecraft dependency range is per NODE, not per project: a jar built against 1.21.8 that still
+	// claims ">=1.21.1 <1.21.2" is a jar Fabric refuses to load, and it refuses at the player's launcher
+	// with a message about OUR mod. Hardcoding it here is how that ships.
+	inputs.property "minecraft_range", project.minecraft_range
 	filteringCharset "UTF-8"
 	filesMatching("fabric.mod.json") {
-		expand "version": project.version
+		expand "version": project.version, "minecraft_range": project.minecraft_range
 	}
 }
 
