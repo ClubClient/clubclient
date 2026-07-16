@@ -108,7 +108,6 @@ public final class ModuleBinds {
         Map<String, String> binds = ClubConfig.get().moduleBinds;
         if (binds.isEmpty()) { down.clear(); return; }
         boolean screen = mc.currentScreen != null;
-        long handle = mc.getWindow().getHandle();
         boolean healed = false;
         for (MenuContent.Module m : modules) {
             String t = binds.get(m.name());
@@ -119,7 +118,7 @@ public final class ModuleBinds {
             // A key a HOLD module is using never toggles as well: vanilla's Controls screen can rebind
             // zoom/freelook onto a key a toggle bind owns, behind the popover's back (Stage 58).
             if (HoldKeys.usesKey(t)) { down.remove(m.name()); continue; }
-            boolean isDown = InputUtil.isKeyPressed(handle, key.getCode());
+            boolean isDown = com.club.compat.Kbd.pressed(key.getCode());
             boolean was = down.contains(m.name());
             if (isDown && !was && !screen) m.setEnabled(!m.enabled());   // module setters save + sync mirrors
             if (isDown) down.add(m.name()); else down.remove(m.name());

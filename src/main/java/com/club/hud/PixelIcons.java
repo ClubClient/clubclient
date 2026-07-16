@@ -95,12 +95,9 @@ public final class PixelIcons {
         if (atlasImg == null) {
             atlasImg = new NativeImage(ATLAS, ATLAS, true);
             for (int y = 0; y < ATLAS; y++) for (int x = 0; x < ATLAS; x++) com.club.compat.Img.setAbgr(atlasImg, x, y, 0);
-            //? if <1.21.5 {
-            atlasTex = new NativeImageBackedTexture(atlasImg);
-            //?} else {
-            /*atlasTex = new NativeImageBackedTexture(() -> "club/pixel-atlas", atlasImg);*/
-            //?}
-            atlasTex.setFilter(false, false);   // NEAREST, like the per-sprite textures — pixel art stays crisp
+            // NEAREST, like the per-sprite textures — pixel art stays crisp. The constructor's debug label
+            // (1.21.5) and the death of setFilter (1.21.11) both live behind Tex.
+            atlasTex = com.club.compat.Tex.nearest(() -> "club/pixel-atlas", atlasImg);
             atlasId = Identifier.of("club", "pixel/atlas");
             MinecraftClient.getInstance().getTextureManager().registerTexture(atlasId, atlasTex);
             shelfX = shelfY = shelfH = 0;
@@ -245,12 +242,8 @@ public final class PixelIcons {
             // costing what it always cost.
             float[] uv = pack(out);
 
-            //? if <1.21.5 {
-            NativeImageBackedTexture tex = new NativeImageBackedTexture(out);
-            //?} else {
-            /*NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "club/pixel-sprite", out);*/
-            //?}
-            tex.setFilter(false, false);   // NEAREST both ways — crisp pixels at any HUD scale
+            // NEAREST both ways — crisp pixels at any HUD scale
+            NativeImageBackedTexture tex = com.club.compat.Tex.nearest(() -> "club/pixel-sprite", out);
             Identifier id = Identifier.of("club",
                     "pixel/" + src.getNamespace() + "/" + src.getPath().replace(".png", "").replace('/', '_'));
             mc.getTextureManager().registerTexture(id, tex);

@@ -28,8 +28,9 @@ public final class Keys {
         InputUtil.Key key = CACHE.computeIfAbsent(kb.getBoundKeyTranslationKey(), InputUtil::fromTranslationKey);
         long h = mc.getWindow().getHandle();
         if (key.getCategory() == InputUtil.Type.KEYSYM) {
-            int code = key.getCode();
-            return code != GLFW_KEY_UNKNOWN && InputUtil.isKeyPressed(h, code);
+            // Kbd, not InputUtil: 1.21.9 changed isKeyPressed from taking the window HANDLE to taking the
+            // Window object. The mouse branch below still wants the raw handle — GLFW takes what GLFW takes.
+            return com.club.compat.Kbd.pressed(key.getCode());
         }
         if (key.getCategory() == InputUtil.Type.MOUSE) {
             return glfwGetMouseButton(h, key.getCode()) == GLFW_PRESS;

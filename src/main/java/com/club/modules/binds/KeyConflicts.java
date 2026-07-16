@@ -113,7 +113,7 @@ public final class KeyConflicts {
         if (mc == null || mc.options == null || mc.options.allKeys == null) return null;
         for (KeyBinding kb : mc.options.allKeys) {
             if (kb == null || kb.isUnbound()) continue;
-            if (kb.getTranslationKey().startsWith(CLUB_PREFIX)) continue;
+            if (id(kb).startsWith(CLUB_PREFIX)) continue;
             if (boundTranslationKey.equals(kb.getBoundKeyTranslationKey())) return name(kb);
         }
         return null;
@@ -132,8 +132,27 @@ public final class KeyConflicts {
      * owns.</p>
      */
     private static String name(KeyBinding kb) {
-        String en = VANILLA_EN.get(kb.getTranslationKey());
-        return en != null ? en : Text.translatable(kb.getTranslationKey()).getString();
+        String en = VANILLA_EN.get(id(kb));
+        return en != null ? en : Text.translatable(id(kb)).getString();
+    }
+
+    /**
+     * A binding's identifying translation key ("key.jump", "key.club.zoom").
+     *
+     * <p>1.21.9 renamed {@code KeyBinding.getTranslationKey()} to {@code getId()} — the same method
+     * ({@code method_1431} in both), renamed rather than replaced, measured across all eleven mappings
+     * 1.21.1..1.21.11. The STRING is unchanged, which is what matters here: {@link #VANILLA_EN} is keyed on
+     * these values and {@link #CLUB_PREFIX} is matched against them, so both keep working untouched.
+     *
+     * <p>Note this is {@code KeyBinding}'s method, not {@code InputUtil.Key}'s — {@code Key.getTranslationKey}
+     * ("key.keyboard.k") was not touched by that rename and is still called by its own name above.
+     */
+    private static String id(KeyBinding kb) {
+        //? if <1.21.9 {
+        return kb.getTranslationKey();
+        //?} else {
+        /*return kb.getId();*/
+        //?}
     }
 
     /** Harness seam: the transcribed table, so a test can prove it still matches vanilla's live en_us. */

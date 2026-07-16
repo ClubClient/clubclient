@@ -117,6 +117,35 @@ for F0 in "$SRC"/*.java; do
         fi
     done
 
+    # ---- @ModifyReturnValue : the handler's return type must EQUAL the target's ------------------
+    # Mixin checks this at startup and nowhere earlier: the handler is bound to its target by NAME, so
+    # javac has no idea the two are related. 1.21.2 narrowed GameRenderer.getFov from double to float and
+    # our zoom kept returning double — clean build, clean tests, dead client
+    # ("Found unexpected return type double, expected float"). Third class of failure this script missed
+    # after names and call sites: first modifiers, now types. Same root every time — the contract between
+    # handler and target is a whole SIGNATURE, and only part of it was ever being read.
+    perl -0ne 'while (/\@ModifyReturnValue\s*\((.*?)\)\s*\n\s*(?:private|public|protected)\s+(?:static\s+)?(\S+)\s+(\w+\$\w+)/gs) {
+                   my ($a, $ret, $h) = ($1, $2, $3);
+                   my ($m) = $a =~ /method\s*=\s*"([a-zA-Z0-9_\$]+)/;
+                   print "$m\t$ret\t$h\n" if $m;
+               }' "$F" | sort -u |
+    while IFS=$'\t' read -r M RET H; do
+        # javap prints the declared return type in the signature line.
+        TRET=$(javap -p -classpath "$MCJAR" "$OWNER" 2>/dev/null | grep -m1 "[ .]$M(" \
+               | sed 's/^ *//; s/^\(public\|private|protected\|static\| \)*//' | awk '{for(i=1;i<=NF;i++) if($i ~ /'"$M"'\(/) {print $(i-1); exit}}')
+        # Compare only the simple name — javap prints fully-qualified types, the source may import them.
+        TSHORT="${TRET##*.}"; RSHORT="${RET##*.}"; RSHORT="${RSHORT%%<*}"
+        # A TYPE VARIABLE (T, E, ...) erases to Object, and a handler returning Object is then correct.
+        # Without this the script called MixinSimpleOption broken on the SHIPPING 1.21.1 build — the third
+        # false positive calibration has caught, and the reason 1.21.1 is run first every single time.
+        if echo "$TSHORT" | grep -qE '^[A-Z][0-9]?$'; then continue; fi
+        if [ -n "$TSHORT" ] && [ -n "$RSHORT" ] && [ "$TSHORT" != "$RSHORT" ]; then
+            echo "  RETURN TYPE  $B  ->  $H returns $RSHORT; $OWNER::$M returns $TSHORT in $MC"
+            echo "               (@ModifyReturnValue must match exactly — mixin rejects this at STARTUP)"
+            echo x >> "$FAILFILE"
+        fi
+    done
+
     # ---- @At(target = "Lowner;name(desc)ret") : the call we inject AT -----------------------------
     # [A-Za-z...] — a NAMED class path has capitals in it (ClientPlayerEntity). A lowercase-only class made
     # every target silently unmatchable, and the script reported "all clear" over a file it never parsed.

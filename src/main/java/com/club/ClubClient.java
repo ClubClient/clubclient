@@ -26,6 +26,51 @@ public class ClubClient implements ClientModInitializer {
     /** Raw-poll edge for the menu key (see the tick below) — a press, not a hold, opens the menu. */
     private static boolean menuKeyWas;
 
+    //? if >=1.21.9 {
+    /*/^*
+     * Club's keybind category, created ONCE.
+     *
+     * <p>1.21.9 turned a KeyBinding's category from a translation-key STRING into a
+     * {@code KeyBinding.Category} object, and {@code Category.create} appends to a static registry and
+     * <b>throws {@code IllegalArgumentException("Category '%s' is already registered.")} on a duplicate id</b>
+     * (read out of the 1.21.11 bytecode, not assumed). Club registers three keybinds. Creating the category
+     * at each construction site would compile perfectly and crash the client on startup, every launch, for
+     * everyone — so there is one instance, and {@link #clubKey} is the only thing that reads it.
+     *^/
+    private static final net.minecraft.client.option.KeyBinding.Category CLUB_CATEGORY =
+            net.minecraft.client.option.KeyBinding.Category.create(Identifier.of("club", "club"));*/
+    //?}
+
+    /**
+     * One of Club's KEYSYM keybinds, in Club's category.
+     *
+     * <p>The category argument is the whole reason this method exists: a {@code String} translation key
+     * through 1.21.8, a {@code KeyBinding.Category} from 1.21.9 on (measured across all eleven mappings
+     * 1.21.1..1.21.11 — the same release that renamed {@code getTranslationKey} to {@code getId} and moved
+     * {@code isKeyPressed} onto {@code Window}). Folding it here keeps one guard instead of three.
+     *
+     * <p><b>The label is a different string on either side, and both are shipped.</b> Through 1.21.8 the
+     * String IS the translation key, so the menu reads {@code key.category.club}. From 1.21.9 the label is
+     * derived — {@code Category.getLabel()} is {@code Text.translatable(id.toTranslationKey("key.category"))},
+     * i.e. {@code key.category.<namespace>.<path>} — so {@code club:club} reads {@code key.category.club.club}
+     * instead. That is not a guess: 1.21.11's own en_us.json carries {@code key.category.minecraft.movement}
+     * next to the legacy {@code key.categories.movement}, which is the rule stated in vanilla's own data. Both
+     * keys are therefore present in our lang files; each version reads the one it asks for, and neither can
+     * fall back to showing a raw translation key in the Controls screen.
+     */
+    private static KeyBinding clubKey(String translationKey, int glfwCode) {
+        return new KeyBinding(
+                translationKey,
+                InputUtil.Type.KEYSYM,
+                glfwCode,
+                //? if <1.21.9 {
+                "key.category.club"
+                //?} else {
+                /*CLUB_CATEGORY*/
+                //?}
+        );
+    }
+
     @Override
     public void onInitializeClient() {
         // Register the new UI render stack's core shaders (SDF/MSDF) at client init — this is the
@@ -50,28 +95,13 @@ public class ClubClient implements ClientModInitializer {
                 });
 
         // keybind: Open Club Menu (default RIGHT SHIFT), category "Club"
-        openMenuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.club.open_menu",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_RIGHT_SHIFT,
-                "key.category.club"
-        ));
+        openMenuKey = KeyBindingHelper.registerKeyBinding(clubKey("key.club.open_menu", GLFW.GLFW_KEY_RIGHT_SHIFT));
 
         // keybind: Zoom (hold; default C, the OptiFine muscle-memory spot)
-        zoomKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.club.zoom",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_C,
-                "key.category.club"
-        ));
+        zoomKey = KeyBindingHelper.registerKeyBinding(clubKey("key.club.zoom", GLFW.GLFW_KEY_C));
 
         // keybind: Freelook (hold; default LEFT ALT)
-        freelookKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.club.freelook",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_LEFT_ALT,
-                "key.category.club"
-        ));
+        freelookKey = KeyBindingHelper.registerKeyBinding(clubKey("key.club.freelook", GLFW.GLFW_KEY_LEFT_ALT));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             // The key that OPENS the mod is raw-polled, not read through KeyBinding.wasPressed() (Stage 62).

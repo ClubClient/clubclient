@@ -3,7 +3,12 @@ package com.club.modules.perf;
 import com.club.config.ClubConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Frustum;
+//? if <1.21.9 {
 import net.minecraft.client.render.block.entity.BlockEntityRenderDispatcher;
+//?} else {
+/*import net.minecraft.client.render.block.entity.BlockEntityRenderManager;
+import net.minecraft.client.render.block.entity.state.BlockEntityRenderState;*/
+//?}
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.BlockEntityType;
@@ -107,15 +112,47 @@ public final class BlockEntityCull {
      *  put ITS renderer behind a VANILLA type, and that renderer is then free to draw a hologram over an
      *  ordinary chest while declaring nothing unusual. We ask who is holding the brush, not what is being
      *  painted. */
+    //? if <1.21.9 {
     private static boolean isVanillaRenderer(BlockEntityRenderer<?> r) {
         return VANILLA_RENDERER.computeIfAbsent(r.getClass(), c -> c.getName().startsWith("net.minecraft."));
     }
+    //?} else {
+    /*private static boolean isVanillaRenderer(BlockEntityRenderer<?, ?> r) {
+        return VANILLA_RENDERER.computeIfAbsent(r.getClass(), c -> c.getName().startsWith("net.minecraft."));
+    }*/
+    //?}
+
+    /**
+     * Is this an ordinary, inside-its-own-block, 64-metre renderer? Hands off anything that says otherwise —
+     * see the class javadoc for why this test, and not a distance clamp, is what keeps the beacon.
+     *
+     * <p>Two boundaries meet in this one predicate, and they are three releases apart.
+     * {@code rendersOutsideBoundingBox} dropped its {@code BlockEntity} argument in <b>1.21.6</b> (measured:
+     * 1.21.5 still takes it), which is why the earliest branch needs a {@code be} the others do not.
+     * {@code BlockEntityRenderer} then gained a SECOND type parameter in <b>1.21.9</b> — {@code <T, S>}, the
+     * render state — so the newest branch spells the same type differently. The question asked has not
+     * changed once: does this renderer draw outside its own block, and does it want the default distance.
+     */
+    //? if <1.21.6 {
+    private static boolean isOrdinary(BlockEntityRenderer<?> r, BlockEntity be) {
+        return r.getRenderDistance() == 64 && !r.rendersOutsideBoundingBox(be);
+    }
+    //?} elif <1.21.9 {
+    /*private static boolean isOrdinary(BlockEntityRenderer<?> r, BlockEntity be) {
+        return r.getRenderDistance() == 64 && !r.rendersOutsideBoundingBox();
+    }*/
+    //?} else {
+    /*private static boolean isOrdinary(BlockEntityRenderer<?, ?> r) {
+        return r.getRenderDistance() == 64 && !r.rendersOutsideBoundingBox();
+    }*/
+    //?}
 
     public static boolean enabled() {
         ClubConfig.Perf p = ClubConfig.get().perf;
         return p != null && p.cullBlockEntities && !forceOff;
     }
 
+    //? if <1.21.9 {
     public static <E extends BlockEntity> boolean skip(BlockEntityRenderDispatcher dispatcher, E be) {
         if (!enabled()) return false;
         if (IrisCompat.inShadowPass()) return false;   // the sun's view is not the player's
@@ -129,24 +166,58 @@ public final class BlockEntityCull {
         // A modded BER can draw a beam to the sky while leaving both methods below at their defaults, and the
         // predicate under this one would never know — and it can do that behind a vanilla type. See class javadoc.
         if (!isVanillaType(be.getType()) || !isVanillaRenderer(r)) return false;
+        if (!isOrdinary(r, be)) return false;
 
-        // Hands off anything that is not an ordinary, inside-its-own-block, 64-metre renderer.
-        // rendersOutsideBoundingBox dropped its argument in 1.21.6 (measured: 1.21.5 still takes the
-        // BlockEntity). The question is the same one — does this renderer draw outside its own block.
-        //? if <1.21.6 {
-        if (r.getRenderDistance() != 64 || r.rendersOutsideBoundingBox(be)) return false;
-        //?} else {
-        /*if (r.getRenderDistance() != 64 || r.rendersOutsideBoundingBox()) return false;*/
-        //?}
+        return offscreen(be.getPos());
+    }
+    //?} else {
+    /*/^*
+     * The same decision, asked of a RENDER STATE.
+     *
+     * <p>1.21.9 rebuilt the block-entity pipeline the way 1.21.2 rebuilt the entity one: the dispatcher became
+     * {@code BlockEntityRenderManager}, {@code BlockEntityRenderer} grew a second type parameter, and
+     * {@code render} stopped taking the BlockEntity — it takes a {@code BlockEntityRenderState} built earlier
+     * in the frame by {@code getRenderState}. So the mixin has no BlockEntity to hand us any more.
+     *
+     * <p>It does not need one. Every predicate this class relies on survives verbatim, because the state
+     * carries exactly what we ask about: {@code state.type} is the {@code BlockEntityType} the namespace test
+     * wants, {@code state.pos} is the {@code BlockPos} the frustum test wants, and {@code getByRenderState}
+     * hands back the very renderer {@code get(be)} used to. Not one of the two predicates in the class javadoc
+     * is weakened here — a vanilla type drawn by a vanilla renderer, and nothing unusual declared.
+     *
+     * <p><b>What DID change is what the cancel saves, and this is an honest caveat, not a footnote.</b>
+     * Through 1.21.8 the cancel skipped the whole of the work. From 1.21.9 the render state is built BEFORE
+     * render is called, so cancelling skips the draw and not the state build. The draw is the dominant cost
+     * and the cull is still worth having — but the -5.3% / -8.1% in HANDOFF.md were measured on 1.21.1 and
+     * they do NOT transfer to this branch. Nobody has run the bench here. Until someone does, this module
+     * makes no numeric claim on 1.21.9+.
+     *^/
+    public static boolean skip(BlockEntityRenderManager manager, BlockEntityRenderState state) {
+        if (!enabled()) return false;
+        if (IrisCompat.inShadowPass()) return false;   // the sun's view is not the player's
 
+        BlockEntityRenderer<?, ?> r = manager.getByRenderState(state);
+        if (r == null) return false;
+
+        considered++;
+
+        if (!isVanillaType(state.type) || !isVanillaRenderer(r)) return false;
+        if (!isOrdinary(r)) return false;
+
+        return offscreen(state.pos);
+    }*/
+    //?}
+
+    /** Is the block at {@code p} outside the main camera's frustum? The tail both branches share — the only
+     *  part of this class that was ever about geometry rather than about who is holding the brush. */
+    private static boolean offscreen(BlockPos p) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.gameRenderer == null || mc.gameRenderer.getCamera() == null) return false;
-        Vec3d camPos = mc.gameRenderer.getCamera().getPos();
+        Vec3d camPos = com.club.compat.Cam.pos(mc.gameRenderer.getCamera());
 
         Frustum f = MainFrustum.current(camPos);
         if (f == null) return false;   // no trustworthy frustum this frame → cull nothing. Fail open.
 
-        BlockPos p = be.getPos();
         // The block's own box, with a little slack: a chest lid swings, a sign's text sits proud of the post.
         Box box = new Box(p.getX() - 0.5, p.getY() - 0.5, p.getZ() - 0.5,
                           p.getX() + 1.5, p.getY() + 1.5, p.getZ() + 1.5);

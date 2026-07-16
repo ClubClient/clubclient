@@ -36,7 +36,15 @@ public final class TargetHud {
      *  lays out / renders, with the frame's real tick delta. */
     public static void frame(MinecraftClient mc, float tickDelta) {
         // a target from another world is never valid (dimension change / respawn) — drop it immediately
+        // Entity.getWorld() was deleted in 1.21.9 and getEntityWorld() took over — and NOT as a rename:
+        // getEntityWorld existed on Entity through 1.21.5, was GONE for 1.21.6..1.21.8, then came back in
+        // 1.21.9 from a new interface (HeldItemContext) with a different intermediary. Neither name spans
+        // every version, so this is a real fork, measured across all eleven mappings.
+        //? if <1.21.9 {
         if (current != null && (mc.world == null || current.getWorld() != mc.world)) current = null;
+        //?} else {
+        /*if (current != null && (mc.world == null || current.getEntityWorld() != mc.world)) current = null;*/
+        //?}
         // Nobody is watching: don't ray the world. This ran every frame regardless of whether the Target
         // chip was even switched on — a world raycast + entity-box sweep that no one was going to read
         // (Stage 59). A player who turns the chip off now pays nothing for it.

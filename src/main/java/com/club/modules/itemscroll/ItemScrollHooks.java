@@ -47,8 +47,20 @@ public final class ItemScrollHooks {
             if (screen instanceof CreativeInventoryScreen) return;
 
             ScreenMouseEvents.allowMouseScroll(screen).register(ItemScrollHooks::onScroll);
+            // 1.21.9 folded the mouse event's (x, y, button) into a single Click record, and Fabric's
+            // AllowMouseClick/AllowMouseRelease followed it — allowMouseScroll did NOT change, which is why
+            // it is registered plainly above. Only the ADAPTER differs per version: onClick/onRelease keep
+            // their own signature and stay version-blind, so the module's logic is written once.
+            // (Click here is net.minecraft.client.gui.Click, inferred — not this package's own Click record.)
+            //? if <1.21.9 {
             ScreenMouseEvents.allowMouseClick(screen).register(ItemScrollHooks::onClick);
             ScreenMouseEvents.allowMouseRelease(screen).register(ItemScrollHooks::onRelease);
+            //?} else {
+            /*ScreenMouseEvents.allowMouseClick(screen).register(
+                    (s, click) -> onClick(s, click.x(), click.y(), click.button()));
+            ScreenMouseEvents.allowMouseRelease(screen).register(
+                    (s, click) -> onRelease(s, click.x(), click.y(), click.button()));*/
+            //?}
             ScreenEvents.afterRender(screen).register((s, ctx, mouseX, mouseY, delta) -> onFrame(s, mouseX, mouseY));
             ScreenEvents.remove(screen).register(s -> endDrag());
         });
@@ -200,8 +212,17 @@ public final class ItemScrollHooks {
         };
     }
 
+    /**
+     * The modifier keys held right now.
+     *
+     * <p>1.21.9 deleted {@code Screen.hasShiftDown()} and its two siblings, moving the modifier state onto the
+     * event objects. That does not serve this caller: {@link #onScroll} still receives no event object, so
+     * there is nothing to read the modifiers off. {@link com.club.compat.Kbd} asks the keyboard instead, and
+     * reproduces vanilla's semantics exactly — including that Control means COMMAND on macOS, which is what
+     * {@code hasControlDown()} has always done and what a symmetric rewrite would have silently lost.
+     */
     private static int mods() {
-        return Gesture.mods(Screen.hasShiftDown(), Screen.hasControlDown(), Screen.hasAltDown());
+        return Gesture.mods(com.club.compat.Kbd.shift(), com.club.compat.Kbd.ctrl(), com.club.compat.Kbd.alt());
     }
 
     /** Is the player already carrying something on the cursor? Then this gesture is not ours to take. */

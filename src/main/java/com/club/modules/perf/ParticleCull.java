@@ -101,8 +101,11 @@ public final class ParticleCull {
         Box box = p.getBoundingBox();
         double slack = bp.getSize(tickDelta) + MARGIN;
 
-        Vec3d eye = cam.getPos();
-        org.joml.Vector3f look = cam.getHorizontalPlane();   // the look vector, cached by Camera — no allocation
+        Vec3d eye = com.club.compat.Cam.pos(cam);
+        // Vector3fc, not Vector3f: 1.21.11 narrowed the return type to the read-only interface. Vector3f
+        // implements it in every JOML the game has shipped, so this one declaration compiles on every
+        // version and needs no guard — we only ever read x()/y()/z() anyway.
+        org.joml.Vector3fc look = cam.getHorizontalPlane();   // the look vector, cached by Camera — no allocation
         double dx = (box.minX + box.maxX) * 0.5 - eye.x;
         double dy = (box.minY + box.maxY) * 0.5 - eye.y;
         double dz = (box.minZ + box.maxZ) * 0.5 - eye.z;

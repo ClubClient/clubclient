@@ -46,14 +46,31 @@ public class MixinGameRenderer {
         }
     }
 
-    /** Zoom (Stage 39): divide the WORLD fov by the eased zoom divisor. Only the changingFov pass
-     *  (world render) zooms — the hand pass keeps its FOV, so the viewmodel doesn't balloon. */
+    /**
+     * Zoom (Stage 39): divide the WORLD fov by the eased zoom divisor. Only the changingFov pass
+     * (world render) zooms — the hand pass keeps its FOV, so the viewmodel doesn't balloon.
+     *
+     * <p>1.21.2 narrowed {@code getFov} from double to float, and a {@code @ModifyReturnValue} handler must
+     * match its target's return type exactly. Measured: {@code (Camera;FZ)D} in 1.21.1, {@code …)F} from
+     * 1.21.2 on. The compiler cannot see this — the handler is only ever wired to its target by NAME — so it
+     * builds clean and mixin refuses it at startup ("Found unexpected return type double, expected float").
+     * The maths is identical on both sides; only the width of the number differs.</p>
+     */
+    //? if <1.21.2 {
     @ModifyReturnValue(method = "getFov", at = @At("RETURN"))
     private double club$zoom(double fov, Camera camera, float tickDelta, boolean changingFov) {
         if (!changingFov) return fov;
         float d = ZoomModule.fovDivisor();   // also advances the ease + release-persist state
         return d > 1.0005f ? fov / d : fov;
     }
+    //?} else {
+    /*@ModifyReturnValue(method = "getFov", at = @At("RETURN"))
+    private float club$zoom(float fov, Camera camera, float tickDelta, boolean changingFov) {
+        if (!changingFov) return fov;
+        float d = ZoomModule.fovDivisor();   // also advances the ease + release-persist state
+        return d > 1.0005f ? fov / d : fov;
+    }*/
+    //?}
 
     /** ScreenStretch: scale the world projection horizontally to fake an aspect ratio. */
     @ModifyReturnValue(method = "getBasicProjectionMatrix", at = @At("RETURN"))
