@@ -1,7 +1,6 @@
 package com.club.ui;
 
 import com.club.ui.backend.Backends;
-import com.club.ui.backend.UiShaders;
 import net.minecraft.client.gui.DrawContext;
 
 public final class Ui {
@@ -9,8 +8,13 @@ public final class Ui {
     public enum Backend { MODERN, LEGACY }
     private static Backend forced = null; // null = auto
 
-    /** Call once at client init (registers shaders). */
-    public static void init() { UiShaders.register(); }
+    /** Call once at client init (registers shaders). No-op where the shader path is not built — see
+     *  {@link Backends}. */
+    public static void init() {
+        //? if <1.21.5 {
+        com.club.ui.backend.UiShaders.register();
+        //?}
+    }
 
     /** Call at the start of every screen/HUD render pass (drawing in Minecraft's GUI units). */
     public static void beginFrame(DrawContext ctx) { beginFrame(ctx, 1f); }
@@ -25,7 +29,9 @@ public final class Ui {
      */
     public static void beginFrame(DrawContext ctx, float k) {
         Backends.begin(ctx);
+        //? if <1.21.5 {
         Backends.MODERN_R.unitScale(k);
+        //?}
         Backends.LEGACY_R.unitScale(k);
     }
 
@@ -35,9 +41,11 @@ public final class Ui {
      * such point — miss it and the frame's final shapes are simply never drawn. Cheap and idempotent.
      */
     public static void endFrame() {
+        //? if <1.21.5 {
         Backends.MODERN_R.flush();
         Backends.MODERN_T.flush();
         com.club.ui.backend.IconBatch.flush();
+        //?}
     }
 
     /**
@@ -53,9 +61,21 @@ public final class Ui {
      * <p>So {@code HudCanvas} calls this between elements. Inside an element the reorder is proved harmless;
      * across elements the order is not reordered at all.
      */
-    public static void flushIcons() { com.club.ui.backend.IconBatch.flush(); }
+    public static void flushIcons() {
+        //? if <1.21.5 {
+        com.club.ui.backend.IconBatch.flush();
+        //?}
+    }
 
-    public static boolean modernAvailable() { return UiShaders.ready() && Backends.MODERN_T.healthy() && Backends.MODERN_R.healthy(); }
+    /** False wherever the shader path is not built (1.21.5+, until it is rewritten on RenderPipeline) —
+     *  which sends {@link #backend()} down the LEGACY road it already takes when a shader fails to load. */
+    public static boolean modernAvailable() {
+        //? if <1.21.5 {
+        return com.club.ui.backend.UiShaders.ready() && Backends.MODERN_T.healthy() && Backends.MODERN_R.healthy();
+        //?} else {
+        /*return false;*/
+        //?}
+    }
     public static Backend backend() {
         if (forced != null) return forced;
         return modernAvailable() ? Backend.MODERN : Backend.LEGACY;
@@ -63,6 +83,11 @@ public final class Ui {
     public static void setBackend(Backend b) { forced = b; }
     public static void setAuto() { forced = null; }
 
+    //? if <1.21.5 {
     public static UiRenderer renderer() { return backend() == Backend.MODERN ? Backends.MODERN_R : Backends.LEGACY_R; }
     public static UiText text() { return backend() == Backend.MODERN ? Backends.MODERN_T : Backends.LEGACY_T; }
+    //?} else {
+    /*public static UiRenderer renderer() { return Backends.LEGACY_R; }
+    public static UiText text() { return Backends.LEGACY_T; }*/
+    //?}
 }

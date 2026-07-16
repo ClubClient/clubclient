@@ -52,6 +52,29 @@ dependencies {
 	}
 }
 
+// ---- the shader path is not built past 1.21.4 (yet) ---------------------------------------------
+// Minecraft deleted the immediate-mode render API in 1.21.5 — BufferRenderer, VertexFormat and most of
+// RenderSystem went at once, and Fabric's CoreShaderRegistrationCallback with them. These four files ARE
+// that API: they are not a few renamed calls but the SDF/MSDF renderer built on it, and porting them to
+// RenderPipeline is its own piece of work.
+//
+// Until then the newer versions build the LEGACY backend only. That is not a hack bolted on for the port:
+// Ui.backend() has always read `modernAvailable() ? MODERN : LEGACY`, because a shader that fails to load
+// must cost the player their rounded corners, not their client. Here modernAvailable() is false by
+// construction, so the same road is taken for the same reason.
+//
+// Excluded rather than stubbed: a stub would be four dead classes pretending to be a renderer, and the day
+// someone asks "why is the menu flat on 1.21.8" the answer should be an absent file, not a lying one.
+// The //? guards in Backends/Ui/PixelIcons/HudManager keep the callers honest on the same boundary.
+if (!stonecutter.eval(stonecutter.current.version, "<1.21.5")) {
+	sourceSets.main.java {
+		exclude "com/club/ui/backend/ModernBackend.java"
+		exclude "com/club/ui/backend/ModernText.java"
+		exclude "com/club/ui/backend/IconBatch.java"
+		exclude "com/club/ui/backend/UiShaders.java"
+	}
+}
+
 processResources {
 	inputs.property "version", project.version
 	filteringCharset "UTF-8"

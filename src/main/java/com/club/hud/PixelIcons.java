@@ -94,8 +94,12 @@ public final class PixelIcons {
         if (w > ATLAS || h > ATLAS) return null;
         if (atlasImg == null) {
             atlasImg = new NativeImage(ATLAS, ATLAS, true);
-            for (int y = 0; y < ATLAS; y++) for (int x = 0; x < ATLAS; x++) atlasImg.setColor(x, y, 0);
+            for (int y = 0; y < ATLAS; y++) for (int x = 0; x < ATLAS; x++) com.club.compat.Img.setAbgr(atlasImg, x, y, 0);
+            //? if <1.21.5 {
             atlasTex = new NativeImageBackedTexture(atlasImg);
+            //?} else {
+            /*atlasTex = new NativeImageBackedTexture(() -> "club/pixel-atlas", atlasImg);*/
+            //?}
             atlasTex.setFilter(false, false);   // NEAREST, like the per-sprite textures — pixel art stays crisp
             atlasId = Identifier.of("club", "pixel/atlas");
             MinecraftClient.getInstance().getTextureManager().registerTexture(atlasId, atlasTex);
@@ -105,7 +109,7 @@ public final class PixelIcons {
         if (shelfY + h > ATLAS) return null;                                          // atlas full
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
-                atlasImg.setColor(shelfX + x, shelfY + y, img.getColor(x, y));
+                com.club.compat.Img.setAbgr(atlasImg, shelfX + x, shelfY + y, com.club.compat.Img.abgr(img, x, y));
         float[] uv = { shelfX / (float) ATLAS, shelfY / (float) ATLAS,
                        (shelfX + w) / (float) ATLAS, (shelfY + h) / (float) ATLAS };
         shelfX += w + PAD;
@@ -146,6 +150,10 @@ public final class PixelIcons {
         // the RAW byte and ui_icon.fsh does the lift and clamp — the same float math, not a rounded copy of
         // it. Falls back to the per-sprite path below for anything the atlas could not take, or if the icon
         // shader never loaded: a missing shader must cost frames, never pixels.
+        // The batch rides the icon SHADER, so it exists only where the shader path is built (<1.21.5 —
+        // see com.club.ui.backend.Backends). Past that the per-sprite path below draws the same icons,
+        // one draw each: slower, identical pixels.
+        //? if <1.21.5 {
         if (batchEnabled && bk.u1() > 0f && com.club.ui.backend.IconBatch.ready()) {
             int argb = ((int) (alpha * 255f + 0.5f) << 24) | (tint & 0xFFFFFF);
             com.club.ui.backend.IconBatch.quad(atlasId, com.club.compat.Mtx.model(dc),
@@ -153,12 +161,18 @@ public final class PixelIcons {
                     bk.u0(), bk.v0(), bk.u1(), bk.v1(), argb);
             return true;
         }
+        //?}
 
         // clamp(tint·LIFT): the mask's white level is 1/LIFT, so highlight = tint·LIFT, base = tint,
         // shadow/outline scale down — the exact tones of the approved board (same per-channel clamp).
         float r = PixelMath.shaderChannel((tint >> 16) & 0xFF);
         float g = PixelMath.shaderChannel((tint >> 8) & 0xFF);
         float b = PixelMath.shaderChannel(tint & 0xFF);
+        // 1.21.5 took RenderSystem.setShaderColor away and gave DrawContext.drawTexture a pipeline and a
+        // colour argument instead — the tint stops being global state and rides the call, which is a better
+        // shape. The tones are the same board: shaderChannel already clamps to [0,1], so packing to a byte
+        // costs under 1/255 per channel, and the value came in as a byte to begin with.
+        //? if <1.21.5 {
         RenderSystem.setShaderColor(r, g, b, alpha);
         com.club.compat.Mtx.push(dc);
         com.club.compat.Mtx.translate(dc, ox, oy);
@@ -166,6 +180,16 @@ public final class PixelIcons {
         dc.drawTexture(bk.tex(), 0, 0, 0f, 0f, srcSize, srcSize, srcSize, srcSize);
         com.club.compat.Mtx.pop(dc);
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        //?} else {
+        /*int argbTint = ((int) (alpha * 255f + 0.5f) << 24) | ((int) (r * 255f + 0.5f) << 16)
+                | ((int) (g * 255f + 0.5f) << 8) | (int) (b * 255f + 0.5f);
+        com.club.compat.Mtx.push(dc);
+        com.club.compat.Mtx.translate(dc, ox, oy);
+        com.club.compat.Mtx.scale(dc, k);
+        dc.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED, bk.tex(), 0, 0, 0f, 0f,
+                srcSize, srcSize, srcSize, srcSize, argbTint);
+        com.club.compat.Mtx.pop(dc);*/
+        //?}
         DRAWS++;
         var mat = com.club.compat.Mtx.model(dc);
         com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.ICON,
@@ -192,7 +216,7 @@ public final class PixelIcons {
             int minX = w, minY = hgt, maxX = -1, maxY = -1;   // the art's tight bounds
             for (int py = 0; py < hgt; py++)
                 for (int px = 0; px < w; px++) {
-                    int abgr = img.getColor(px, py);
+                    int abgr = com.club.compat.Img.abgr(img, px, py);
                     if (((abgr >>> 24) & 0xFF) < 96) continue;
                     hist[PixelMath.lum(abgr)]++; opaque++;
                     if (px < minX) minX = px; if (px > maxX) maxX = px;
@@ -205,13 +229,14 @@ public final class PixelIcons {
             NativeImage out = new NativeImage(w, hgt, true);
             for (int py = 0; py < hgt; py++) {
                 for (int px = 0; px < w; px++) {
-                    int abgr = img.getColor(px, py);
+                    int abgr = com.club.compat.Img.abgr(img, px, py);
                     int a = (abgr >>> 24) & 0xFF;
-                    if (a < 96) { out.setColor(px, py, 0); continue; }
+                    if (a < 96) { com.club.compat.Img.setAbgr(out, px, py, 0); continue; }
                     // quadtone: the darkest band becomes crisp OUTLINE linework (flat sprite → base only)
                     float f = flat ? 1f : PixelMath.quadFactor(PixelMath.normLum(PixelMath.lum(abgr), lo, hi));
                     int level = PixelMath.maskLevel(f);
-                    out.setColor(px, py, (a << 24) | (level << 16) | (level << 8) | level);
+                    // grey: r = g = b, so this one is the same number in either byte order.
+                    com.club.compat.Img.setAbgr(out, px, py, (a << 24) | (level << 16) | (level << 8) | level);
                 }
             }
             img.close();
@@ -220,7 +245,11 @@ public final class PixelIcons {
             // costing what it always cost.
             float[] uv = pack(out);
 
+            //? if <1.21.5 {
             NativeImageBackedTexture tex = new NativeImageBackedTexture(out);
+            //?} else {
+            /*NativeImageBackedTexture tex = new NativeImageBackedTexture(() -> "club/pixel-sprite", out);*/
+            //?}
             tex.setFilter(false, false);   // NEAREST both ways — crisp pixels at any HUD scale
             Identifier id = Identifier.of("club",
                     "pixel/" + src.getNamespace() + "/" + src.getPath().replace(".png", "").replace('/', '_'));

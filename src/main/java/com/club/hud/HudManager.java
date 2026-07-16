@@ -134,6 +134,12 @@ public final class HudManager {
             }
 
             // A frame that threw has stamps that never happened — do not feed it to the profiler as data.
+            //
+            // The draw counters come out of the shader path, which is not built past 1.21.4 yet (see
+            // com.club.ui.backend.Backends). Rather than report zeros there — a zero is a NUMBER, and this
+            // project has published numbers it could not reproduce three times — the profiler is simply not
+            // fed on those versions. It is a dev instrument; it comes back with the shaders.
+            //? if <1.21.5 {
             if (prof && !failed)
                 HudProfiler.frame(t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3,
                         com.club.ui.backend.ModernBackend.SHAPE_DRAWS,
@@ -145,6 +151,7 @@ public final class HudManager {
             com.club.ui.backend.ModernBackend.SHAPE_DRAWS = 0;
             com.club.ui.backend.ModernBackend.TEXT_DRAWS = 0;
             com.club.ui.backend.IconBatch.DRAWS = 0;
+            //?}
             PixelIcons.DRAWS = 0;
         });
     }
