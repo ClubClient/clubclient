@@ -2,7 +2,7 @@ package com.club.policy;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ServerPolicyTest {
 
-    private static final Map<String, Set<ServerFeature>> RULES =
-            Map.of("example.ru", Set.of(ServerFeature.ITEM_SCROLL));
+    private static final List<ServerPolicy.ServerRule> RULES = List.of(
+            new ServerPolicy.ServerRule(Set.of("example.ru"), Set.of(ServerFeature.ITEM_SCROLL)));
 
     private static Set<ServerFeature> at(String address) { return ServerPolicy.lookup(RULES, address); }
 
@@ -69,9 +69,32 @@ class ServerPolicyTest {
     }
 
     @Test void aBareIpIsMatchedExactlyWhenListed() {
-        Map<String, Set<ServerFeature>> byIp = Map.of("203.0.113.7", Set.of(ServerFeature.ITEM_SCROLL));
+        List<ServerPolicy.ServerRule> byIp = List.of(
+                new ServerPolicy.ServerRule(Set.of("203.0.113.7"), Set.of(ServerFeature.ITEM_SCROLL)));
         assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.lookup(byIp, "203.0.113.7:25565"));
         assertTrue(ServerPolicy.lookup(byIp, "203.0.113.8").isEmpty());
+    }
+
+    // ---- one server has many addresses; there is more than one server ------------------------------
+
+    @Test void everyAddressOfOneServerCarriesTheSameRule() {
+        // The real shape of the data: one server answers on a domain AND a pile of bare IPs, and they are
+        // ONE rule. Keyed by address, the feature set would be copy-pasted per IP — and a copy that drifts
+        // is a rule that half-applies, silently, which is the failure this whole file exists to avoid.
+        ServerPolicy.ServerRule one = new ServerPolicy.ServerRule(
+                Set.of("example.ru", "203.0.113.7", "203.0.113.8"), Set.of(ServerFeature.ITEM_SCROLL));
+        for (String a : List.of("example.ru", "play.example.ru", "203.0.113.7", "203.0.113.8:25565"))
+            assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.lookup(List.of(one), a),
+                    "every address of the server must carry its rule: " + a);
+    }
+
+    @Test void twoServersKeepTheirOwnRules() {
+        ServerPolicy.ServerRule a = new ServerPolicy.ServerRule(Set.of("aaa.ru"), Set.of(ServerFeature.ITEM_SCROLL));
+        ServerPolicy.ServerRule b = new ServerPolicy.ServerRule(Set.of("bbb.ru"), Set.of());
+        List<ServerPolicy.ServerRule> both = List.of(a, b);
+        assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.lookup(both, "aaa.ru"));
+        assertTrue(ServerPolicy.lookup(both, "bbb.ru").isEmpty());
+        assertTrue(ServerPolicy.lookup(both, "ccc.ru").isEmpty());
     }
 
     // ---- the shipped table ------------------------------------------------------------------------

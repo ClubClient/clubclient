@@ -532,12 +532,17 @@ EOF
 
 Not part of this plan's tasks — this is the handover note for the session that gets the data.
 
-1. Fill `ServerPolicy.RULES` — one line per address, domains and bare IPs both:
+1. Fill `ServerPolicy.RULES` — **one entry per SERVER**, holding every address that server answers on
+   (domain, subdomains are implicit, and every bare IP). Two servers forbid item scrolling as of
+   2026-07-16; the owner is collecting both address lists.
    ```java
-   private static final Map<String, Set<ServerFeature>> RULES = Map.of(
-           "example.ru",  Set.of(ServerFeature.ITEM_SCROLL),
-           "203.0.113.7", Set.of(ServerFeature.ITEM_SCROLL));
+   private static final List<ServerRule> RULES = List.of(
+           new ServerRule(Set.of("example.ru", "203.0.113.7", "203.0.113.8"),
+                          Set.of(ServerFeature.ITEM_SCROLL)),
+           new ServerRule(Set.of("astrum.example", "198.51.100.4"),
+                          Set.of(ServerFeature.ITEM_SCROLL)));
    ```
+   A missing address is a silent miss — there is no card left to look wrong. Put them all in.
 2. Delete `theShippedTableRestrictsNothingYet` from `ServerPolicyTest` — it asserts the table is empty and it is meant to die here.
 3. Add a test pinning the real table: the listed host and its subdomains restrict `ITEM_SCROLL`, a neighbouring host does not.
 4. Any feature beyond Item Scroll: add the enum constant, then gate its module the same way — **door, act, visibility**. Never the door alone.

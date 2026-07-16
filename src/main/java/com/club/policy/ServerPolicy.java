@@ -3,8 +3,8 @@ package com.club.policy;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ServerInfo;
 
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -40,15 +40,31 @@ public final class ServerPolicy {
     private ServerPolicy() {}
 
     /**
-     * The rules. One line per server: {@code "example.ru", Set.of(ServerFeature.ITEM_SCROLL)}.
-     * A key matches that host exactly, or any subdomain of it, or a bare IP written out in full.
+     * One server: every address it answers on, and what it forbids there.
      *
-     * <p>EMPTY ON PURPOSE, for now: the owner is collecting the full address and IP list from the
-     * server's admins. Until it lands, the mechanism is built and tested and Club behaves exactly as it
-     * did on every server. Filling this in is a one-line edit — and delete
-     * {@code theShippedTableRestrictsNothingYet} in the test when you do.</p>
+     * <p>Grouped by SERVER, not by address. A server hands out a domain, its subdomains and a pile of bare
+     * IPs, and all of them are ONE rule. Keyed by address instead, the feature set would be copy-pasted
+     * once per IP — and the day one copy drifts is the day the rule half-applies. Nobody would notice,
+     * because a miss here is silent (there is no card left to look wrong).</p>
+     *
+     * <p>An address matches that host exactly, or any subdomain of it. Bare IPs match exactly — they have
+     * no subdomains.</p>
      */
-    private static final Map<String, Set<ServerFeature>> RULES = Map.of();
+    public record ServerRule(Set<String> addresses, Set<ServerFeature> forbids) {}
+
+    /**
+     * The rules. One entry per server:
+     * {@code new ServerRule(Set.of("example.ru", "203.0.113.7"), Set.of(ServerFeature.ITEM_SCROLL))}.
+     *
+     * <p>EMPTY ON PURPOSE, for now: the owner is collecting the full address and IP list from the admins
+     * of the two servers that forbid item scrolling. Until it lands, the mechanism is built and tested and
+     * Club behaves exactly as it always did on every server. Filling this in is one entry per server — and
+     * delete {@code theShippedTableRestrictsNothingYet} in the test when you do.</p>
+     *
+     * <p>Put EVERY address a server answers on into its entry. A missing one is a miss, and a miss is a
+     * player breaking a rule they were told this client would keep for them.</p>
+     */
+    private static final List<ServerRule> RULES = List.of();
 
     // ---- the pure rule ----------------------------------------------------------------------------
 
@@ -80,17 +96,15 @@ public final class ServerPolicy {
      * What {@code rules} forbid at {@code address}. Pure — the table is a parameter so the rule can be
      * tested while the shipped table is still empty.
      */
-    static Set<ServerFeature> lookup(Map<String, Set<ServerFeature>> rules, String address) {
+    static Set<ServerFeature> lookup(List<ServerRule> rules, String address) {
         String host = host(address);
         if (host == null) return Set.of();
 
-        Set<ServerFeature> exact = rules.get(host);
-        if (exact != null) return exact;
-
-        for (Map.Entry<String, Set<ServerFeature>> e : rules.entrySet())
-            // "." + key, never bare endsWith: the bare form makes notexample.ru a match for example.ru,
-            // which would apply one server's rule to a stranger's.
-            if (host.endsWith("." + e.getKey())) return e.getValue();
+        for (ServerRule rule : rules)
+            for (String key : rule.addresses())
+                // "." + key, never a bare endsWith: the bare form makes notexample.ru a match for
+                // example.ru, which would apply one server's rule to a stranger's.
+                if (host.equals(key) || host.endsWith("." + key)) return rule.forbids();
 
         return Set.of();
     }
