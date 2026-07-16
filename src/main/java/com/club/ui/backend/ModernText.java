@@ -259,7 +259,7 @@ public final class ModernText implements UiText {
 
         if (batch.count == 0) return x + advance;
 
-        Matrix4f mat = ctx.getMatrices().peek().getPositionMatrix();
+        Matrix4f mat = com.club.compat.Mtx.model(ctx);
         int r = batch.r, g = batch.g, b = batch.b, al = batch.al;
         float[] d = batch.data;
 

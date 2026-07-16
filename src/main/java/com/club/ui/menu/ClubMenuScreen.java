@@ -1169,14 +1169,14 @@ public final class ClubMenuScreen extends Screen {
         // Everything below is in CLUB units: one matrix scale maps them to the screen, so the menu is
         // always the size it was designed at, whatever the player's GUI Scale is (Stage 60). Mouse
         // coordinates arrive in MC units and are converted at each input entry point (cx/cy).
-        dc.getMatrices().push();
-        dc.getMatrices().scale(canvasK, canvasK, 1f);
+        com.club.compat.Mtx.push(dc);
+        com.club.compat.Mtx.scale(dc, canvasK);
         Ui.beginFrame(dc, canvasK);
         try {
             renderCanvas(dc, (float) cx(mouseX), (float) cy(mouseY));
         } finally {
             Ui.endFrame();           // submit the batched shapes while the canvas matrix is still up
-            dc.getMatrices().pop();
+            com.club.compat.Mtx.pop(dc);
             Ui.beginFrame(dc, 1f);   // hand the units back — the HUD and every other screen draw in MC units
         }
     }

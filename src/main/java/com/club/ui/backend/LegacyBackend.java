@@ -48,15 +48,14 @@ public final class LegacyBackend implements UiRenderer {
         float dx = x2 - x1, dy = y2 - y1;
         float len = (float) Math.sqrt(dx * dx + dy * dy);
         float mx = (x1 + x2) * 0.5f, my = (y1 + y2) * 0.5f;
-        var ms = ctx.getMatrices();
-        ms.push();
+        com.club.compat.Mtx.push(ctx);
         try {
-            ms.translate(mx, my, 0f);
-            ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotation((float) Math.atan2(dy, dx)));
-            ms.translate(-mx, -my, 0f);
+            com.club.compat.Mtx.translate(ctx, mx, my);
+            com.club.compat.Mtx.rotateZ(ctx, (float) Math.atan2(dy, dx));
+            com.club.compat.Mtx.translate(ctx, -mx, -my);
             rect(mx - len * 0.5f, my - th * 0.5f, len, th, c);
         } finally {
-            ms.pop();   // ALWAYS balance the stack, even if fill throws
+            com.club.compat.Mtx.pop(ctx);   // ALWAYS balance the stack, even if fill throws
         }
     }
     @Override public void circle(float cx, float cy, float r, int c) { rect(cx - r, cy - r, r * 2, r * 2, c); }

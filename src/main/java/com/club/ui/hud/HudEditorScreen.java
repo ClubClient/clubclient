@@ -261,8 +261,8 @@ public final class HudEditorScreen extends Screen {
         canvasH = com.club.ui.ClubCanvas.HEIGHT;
         int mx = (int) Math.round(mxMc / canvasK), my = (int) Math.round(myMc / canvasK);
 
-        dc.getMatrices().push();
-        dc.getMatrices().scale(canvasK, canvasK, 1f);
+        com.club.compat.Mtx.push(dc);
+        com.club.compat.Mtx.scale(dc, canvasK);
         Ui.beginFrame(dc, canvasK);
         try {
         com.club.hud.PixelIcons.set(dc);   // duotone icons draw through this DrawContext
@@ -344,7 +344,7 @@ public final class HudEditorScreen extends Screen {
         }
         } finally {
             Ui.endFrame();   // submit the batched shapes — nothing else will (Stage 61)
-            dc.getMatrices().pop();
+            com.club.compat.Mtx.pop(dc);
         }
     }
 

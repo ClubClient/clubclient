@@ -148,7 +148,7 @@ public final class PixelIcons {
         // shader never loaded: a missing shader must cost frames, never pixels.
         if (batchEnabled && bk.u1() > 0f && com.club.ui.backend.IconBatch.ready()) {
             int argb = ((int) (alpha * 255f + 0.5f) << 24) | (tint & 0xFFFFFF);
-            com.club.ui.backend.IconBatch.quad(atlasId, dc.getMatrices().peek().getPositionMatrix(),
+            com.club.ui.backend.IconBatch.quad(atlasId, com.club.compat.Mtx.model(dc),
                     ox, oy, ox + srcSize * k, oy + srcSize * k,
                     bk.u0(), bk.v0(), bk.u1(), bk.v1(), argb);
             return true;
@@ -160,15 +160,14 @@ public final class PixelIcons {
         float g = PixelMath.shaderChannel((tint >> 8) & 0xFF);
         float b = PixelMath.shaderChannel(tint & 0xFF);
         RenderSystem.setShaderColor(r, g, b, alpha);
-        var m = dc.getMatrices();
-        m.push();
-        m.translate(ox, oy, 0f);
-        m.scale(k, k, 1f);
+        com.club.compat.Mtx.push(dc);
+        com.club.compat.Mtx.translate(dc, ox, oy);
+        com.club.compat.Mtx.scale(dc, k);
         dc.drawTexture(bk.tex(), 0, 0, 0f, 0f, srcSize, srcSize, srcSize, srcSize);
-        m.pop();
+        com.club.compat.Mtx.pop(dc);
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         DRAWS++;
-        var mat = dc.getMatrices().peek().getPositionMatrix();
+        var mat = com.club.compat.Mtx.model(dc);
         com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.ICON,
                 mat.m00() * ox + mat.m10() * oy + mat.m30(), mat.m01() * ox + mat.m11() * oy + mat.m31(),
                 mat.m00() * (ox + srcSize * k) + mat.m10() * (oy + srcSize * k) + mat.m30(),

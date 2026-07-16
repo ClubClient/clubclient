@@ -38,11 +38,11 @@ public final class LegacyText implements UiText {
         float w = width(s, st.weight, st.size);
         if (st.align == Align.CENTER) x -= w / 2f;
         else if (st.align == Align.RIGHT) x -= w;
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(x, y, 0);
-        ctx.getMatrices().scale(sc, sc, 1f);
+        com.club.compat.Mtx.push(ctx);
+        com.club.compat.Mtx.translate(ctx, x, y);
+        com.club.compat.Mtx.scale(ctx, sc);
         ctx.drawText(tr(), s, 0, 0, st.color, false);
-        ctx.getMatrices().pop();
+        com.club.compat.Mtx.pop(ctx);
         return origX + w;
     }
     @Override public void drawWrapped(String s, float x, float y, float maxWidth, TextStyle st) {

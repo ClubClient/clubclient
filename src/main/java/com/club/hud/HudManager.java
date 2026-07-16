@@ -86,14 +86,14 @@ public final class HudManager {
             // and the screen resolution can change that. (The letterbox above is NOT in this space — it masks
             // the world, so it stays in Minecraft's.)
             float k = com.club.ui.ClubCanvas.scale(mc);
-            ctx.getMatrices().push();
+            com.club.compat.Mtx.push(ctx);
             // GUARDED. Nothing up the chain catches an exception out of the HUD callback, and one thrown
             // between this push() and its pop() would leave the matrix stack one deep forever: every
             // matrix VANILLA pushes for the rest of the frame would ride our canvas scale, and the
             // screenshot that reaches us would look like a vanilla bug. The happy path is the same calls
             // in the same order — the picture does not change by a pixel.
             try {
-                ctx.getMatrices().scale(k, k, 1f);
+                com.club.compat.Mtx.scale(ctx, k);
                 try {
                     Ui.beginFrame(ctx, k);
                     PixelIcons.set(ctx);   // duotone icons draw through this DrawContext
@@ -124,7 +124,7 @@ public final class HudManager {
             } catch (Exception e) {
                 hudFailed(e);
             } finally {
-                ctx.getMatrices().pop();
+                com.club.compat.Mtx.pop(ctx);
             }
 
             // A frame that threw has stamps that never happened — do not feed it to the profiler as data.

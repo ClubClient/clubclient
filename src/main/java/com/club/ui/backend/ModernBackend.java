@@ -211,17 +211,16 @@ public final class ModernBackend implements UiRenderer {
         float len = (float) Math.sqrt(dx * dx + dy * dy);
         if (len < 1e-4f) return;
         float mx = (x1 + x2) * 0.5f, my = (y1 + y2) * 0.5f, rad = thickness * 0.5f;
-        var ms = ctx.getMatrices();
-        ms.push();
+        com.club.compat.Mtx.push(ctx);
         try {
-            ms.translate(mx, my, 0f);
-            ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotation((float) Math.atan2(dy, dx)));
-            ms.translate(-mx, -my, 0f);
+            com.club.compat.Mtx.translate(ctx, mx, my);
+            com.club.compat.Mtx.rotateZ(ctx, (float) Math.atan2(dy, dx));
+            com.club.compat.Mtx.translate(ctx, -mx, -my);
             // A batched quad bakes the CURRENT matrix into its vertices at emit, so the rotation is captured
             // here and the pop below can't undo it.
             roundedRect(mx - (len + thickness) * 0.5f, my - rad, len + thickness, thickness, rad, color);
         } finally {
-            ms.pop();   // ALWAYS balance the stack — a throw here would otherwise corrupt every later draw
+            com.club.compat.Mtx.pop(ctx);   // ALWAYS balance the stack — a throw here would otherwise corrupt every later draw
         }
     }
 
@@ -356,7 +355,7 @@ public final class ModernBackend implements UiRenderer {
         // Order proof (Stage 67): the SHAPE's own rect, not the padded quad — the padding is glow falloff
         // and draws nothing. Recorded in pose space so it is comparable with the text and icon boxes.
         if (com.club.modules.perf.DrawBoxes.recording && ctx != null) {
-            var mt = ctx.getMatrices().peek().getPositionMatrix();
+            var mt = com.club.compat.Mtx.model(ctx);
             com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.SHAPE,
                     mt.m00() * x + mt.m10() * y + mt.m30(), mt.m01() * x + mt.m11() * y + mt.m31(),
                     mt.m00() * (x + w) + mt.m10() * (y + h) + mt.m30(),
@@ -471,7 +470,7 @@ public final class ModernBackend implements UiRenderer {
                     thickness > 0f ? MODE_BORDER : MODE_FILL, 0, 1e-4f, Math.max(thickness, 1e-4f), colorA, colorA);
             return;
         }
-        Matrix4f mat = ctx.getMatrices().peek().getPositionMatrix();
+        Matrix4f mat = com.club.compat.Mtx.model(ctx);
         batchVertex(mat, qx0, qy0, cx, cy, r, g, b, a, hw, hh, rr, th);
         batchVertex(mat, qx0, qy1, cx, cy, r, g, b, a, hw, hh, rr, th);
         batchVertex(mat, qx1, qy1, cx, cy, r, g, b, a, hw, hh, rr, th);
@@ -536,7 +535,7 @@ public final class ModernBackend implements UiRenderer {
             int b =  colorA         & 0xFF;
             int a = (colorA >>> 24) & 0xFF;
 
-            Matrix4f mat = ctx.getMatrices().peek().getPositionMatrix();
+            Matrix4f mat = com.club.compat.Mtx.model(ctx);
 
             // Stage-1 immediate mode: one begin/end per shape (unavoidable with Tessellator API).
             // BATCHING SEAM: accumulate vertex data here instead of submitting immediately.

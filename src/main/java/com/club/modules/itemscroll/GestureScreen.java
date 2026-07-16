@@ -242,8 +242,8 @@ public final class GestureScreen extends Screen {
         updateCanvas();
         int mx = Math.round(mxMc / canvasK), my = Math.round(myMc / canvasK);
 
-        dc.getMatrices().push();
-        dc.getMatrices().scale(canvasK, canvasK, 1f);
+        com.club.compat.Mtx.push(dc);
+        com.club.compat.Mtx.scale(dc, canvasK);
         Ui.beginFrame(dc, canvasK);
         try {
             UiRenderer r = Ui.renderer();
@@ -291,7 +291,7 @@ public final class GestureScreen extends Screen {
             rows.render(uiCtx);
         } finally {
             Ui.endFrame();
-            dc.getMatrices().pop();
+            com.club.compat.Mtx.pop(dc);
         }
     }
 
