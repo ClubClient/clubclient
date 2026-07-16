@@ -120,6 +120,15 @@ jar {
 
 test {
 	useJUnitPlatform()
+
+	// Stonecutter builds each Minecraft version as its own subproject (versions/<ver>/), which moves the
+	// test task's working directory there with it. Several tests READ THE REPOSITORY rather than the
+	// compiled code — ArchitectureRuleTest walks src/main/java to enforce the layer rules, CharsetCoverage
+	// and IconAtlas open the committed font/atlas JSON — and they resolve those paths relative to the CWD.
+	// That source is SHARED and lives at the root, so the root is where they have to run from. Without this
+	// line, eight of them die on NoSuchFileException in a build whose code compiled perfectly, which reads
+	// like the port broke the mod when all that moved was a directory.
+	workingDir = rootProject.projectDir
 }
 
 // Offline icon SDF atlas (Stage 11). Sources: tools/icons/src/<HHHH>_<name>.svg (HHHH = PUA code

@@ -4,6 +4,12 @@ pluginManagement {
 			name = 'Fabric'
 			url = 'https://maven.fabricmc.net/'
 		}
+		// Stonecutter (dev.kikugie.stonecutter) — the multi-version controller. Not on the plugin
+		// portal's mirror of its own dependencies, so its maven has to be named explicitly.
+		maven {
+			name = 'KikuGie'
+			url = 'https://maven.kikugie.dev/releases'
+		}
 		mavenCentral()
 		gradlePluginPortal()
 	}
@@ -13,6 +19,22 @@ pluginManagement {
 // unsupported runtime (e.g. JDK 25, which triggers the LWJGL "Unsupported JNI version" instability).
 plugins {
 	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+	id 'dev.kikugie.stonecutter' version '0.9'
+}
+
+// ---- multi-version ------------------------------------------------------------------------------
+// One branch, one source tree, N Minecraft versions. Stonecutter makes a subproject per version and
+// swaps the active one; the source stays shared, and the eight files that actually know which
+// Minecraft is underneath carry //? comments (docs/superpowers/specs/2026-07-16-multiversion-design.md).
+//
+// kotlinController = false: this project's build scripts are Groovy, and the controller must match or
+// Gradle cannot even evaluate it.
+stonecutter {
+	kotlinController = false
+	create(rootProject) {
+		versions('1.21.1', '1.21.8', '1.21.11')
+		vcsVersion = '1.21.1'      // the version the working tree is checked out to by default
+	}
 }
 
 // Matches the modid in fabric.mod.json and archives_base_name in gradle.properties.
