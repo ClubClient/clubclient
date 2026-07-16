@@ -47,8 +47,13 @@ public class MixinHeldItemRenderer {
      * <table>
      *   <tr><td>1.21.1</td><td>{@code client/render/model/json/ModelTransformationMode}</td><td>+ boolean</td></tr>
      *   <tr><td>1.21.2 – 1.21.4</td><td>{@code item/ModelTransformationMode} (moved)</td><td>+ boolean</td></tr>
-     *   <tr><td>1.21.5 +</td><td>{@code item/ItemDisplayContext} (renamed)</td><td>boolean dropped</td></tr>
+     *   <tr><td>1.21.5 – 1.21.8</td><td>{@code item/ItemDisplayContext} (renamed)</td><td>boolean dropped</td></tr>
+     *   <tr><td>1.21.9 +</td><td>…and {@code VertexConsumerProvider} → {@code OrderedRenderCommandQueue}</td><td></td></tr>
      * </table>
+     *
+     * <p>FOUR rows now, from four separate releases, on ONE string. Nothing about the name ever changed
+     * after 1.21.5 — every later break is a parameter type, which is why the checker had to learn to read
+     * descriptors before it could see any of this.</p>
      *
      * <p>A single guess would have been wrong on two of the three rows, and silently: this reads as "the
      * sword animation just doesn't play" long before anyone suspects a string.</p>
@@ -59,9 +64,12 @@ public class MixinHeldItemRenderer {
     //?} elif <1.21.5 {
     /*private static final String RENDER_ITEM =
             "Lnet/minecraft/client/render/item/HeldItemRenderer;renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ModelTransformationMode;ZLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V";*/
-    //?} else {
+    //?} elif <1.21.9 {
     /*private static final String RENDER_ITEM =
             "Lnet/minecraft/client/render/item/HeldItemRenderer;renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;I)V";*/
+    //?} else {
+    /*private static final String RENDER_ITEM =
+            "Lnet/minecraft/client/render/item/HeldItemRenderer;renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/command/OrderedRenderCommandQueue;I)V";*/
     //?}
 
     private float club$swing;
@@ -186,11 +194,31 @@ public class MixinHeldItemRenderer {
         return AnimationModule.overridesVanillaSwing() ? 0f : original;
     }
 
+    /**
+     * <b>A SIXTH shape of the same failure, and the one that costs a launch to see.</b> An {@code @Inject}
+     * handler's parameters are not decoration — mixin matches them against the TARGET's parameters, and a
+     * mismatch is not a warning, it is "Scanned 0 target(s)" at startup. The bracketed call is not the only
+     * thing that changed at 1.21.9: {@code renderFirstPersonItem} ITSELF now takes an
+     * {@code OrderedRenderCommandQueue} where it took a {@code VertexConsumerProvider}. Measured:
+     *
+     * <pre>{@code 1.21.8   (…Lclass_4587;Lclass_4597;I)V     ← VertexConsumerProvider
+     * 1.21.9   (…Lclass_4587;Lclass_11659;I)V    ← OrderedRenderCommandQueue}</pre>
+     *
+     * <p>The parameter is threaded through untouched — we never call it, we only have to name its type to be
+     * allowed to stand next to it. Hence the type swaps and the body does not: duplicating fifty lines of pose
+     * maths to change one word would guarantee the two copies drift.</p>
+     */
     @Inject(method = "renderFirstPersonItem",
             at = @At(value = "INVOKE", target = RENDER_ITEM, shift = At.Shift.BEFORE))
     private void club$preItem(AbstractClientPlayerEntity player, float tickDelta, float pitch, Hand hand,
                               float swingProgress, ItemStack item, float equipProgress,
-                              MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light,
+                              MatrixStack matrices,
+                              //? if <1.21.9 {
+                              VertexConsumerProvider vertexConsumers,
+                              //?} else {
+                              /*net.minecraft.client.render.command.OrderedRenderCommandQueue vertexConsumers,*/
+                              //?}
+                              int light,
                               CallbackInfo ci) {
         matrices.push();
 
@@ -249,7 +277,13 @@ public class MixinHeldItemRenderer {
             at = @At(value = "INVOKE", target = RENDER_ITEM, shift = At.Shift.AFTER))
     private void club$postItem(AbstractClientPlayerEntity player, float tickDelta, float pitch, Hand hand,
                                float swingProgress, ItemStack item, float equipProgress,
-                               MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light,
+                               MatrixStack matrices,
+                               //? if <1.21.9 {
+                               VertexConsumerProvider vertexConsumers,
+                               //?} else {
+                               /*net.minecraft.client.render.command.OrderedRenderCommandQueue vertexConsumers,*/
+                               //?}
+                               int light,
                                CallbackInfo ci) {
         matrices.pop();
     }
