@@ -41,6 +41,15 @@ If you ever need to rule Club out of a suspected rendering bug, those culls stil
 in `config/club_settings.json` (`perf.cullParticles`, `perf.cullBlockEntities`), instead of a menu toggle
 pretending to be a quality setting.
 
+**Two things Minecraft now does itself, so Club stopped doing them.** Where the game does the work, we get out
+of the way rather than doing it twice:
+
+- **Background FPS is not in the 1.21.8 and 1.21.11 builds.** Minecraft caps its own frame rate behind another
+  window from 1.21.2 on. Your setting is Minecraft's now, not ours.
+- **From 1.21.11 the game culls particles behind you**, and by a better test than ours — we only ever skipped
+  what sat behind the camera, and it drops everything outside your view. So Club's particle cull is not in that
+  build. Nothing changes for you; the work still doesn't happen.
+
 ## v0.1.3
 
 **Item Scrolling (beta).** Move items with the mouse instead of clicking them one slot at a time.
