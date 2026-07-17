@@ -30,7 +30,7 @@
 Лицензия — **MIT** (`LICENSE`). Шрифт интерфейса — **Onest** под SIL OFL 1.1; файлы называются
 `tools/fonts/inter_*.ttf` по историческим причинам (прототипировали на Inter, имя пережило замену), но
 внутри Onest. Джар везёт MSDF-атлас — производную шрифта, — поэтому в него кладётся и `OFL_club`
-(см. `build.gradle` → `jar {}` и `THIRD-PARTY-NOTICES.md`).
+(см. `build.gradle` → `jar {}` и `docs/THIRD-PARTY-NOTICES.md`).
 
 ## 2. Сборка и запуск
 

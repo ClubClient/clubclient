@@ -123,7 +123,7 @@ CLUB_BENCH=1 ./gradlew runClient                                                
 ./gradlew runClient -PclubCompat -PclubIris                                             # Sodium + Iris + Freecam
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request — there are six rules that will close
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md) before opening a pull request — there are six rules that will close
 one, and each was bought with a bug.
 
 ## Help & bugs
@@ -138,5 +138,5 @@ one, and each was bought with a bug.
 
 The UI is set in [Onest](https://github.com/simpals/onest) by Dmitri Voloshin and Andrey Kudryavtsev, used
 under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL) — see
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The font files live in `tools/fonts/`; the jar carries a
+[THIRD-PARTY-NOTICES.md](docs/THIRD-PARTY-NOTICES.md). The font files live in `tools/fonts/`; the jar carries a
 pre-rendered MSDF atlas of them. Every icon is drawn for Club.

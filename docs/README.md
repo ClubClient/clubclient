@@ -27,7 +27,7 @@ These describe how Club works **now**, and are kept true.
 | [DISCORD.md](DISCORD.md) | Server structure, texts, the release embed. |
 | [LAUNCH.md](LAUNCH.md) | Launch posts, for when a page goes live. |
 
-The release itself: `CHANGELOG.md` (its `## vX.Y.Z` section becomes the GitHub release body),
+The release itself: `docs/CHANGELOG.md` (its `## vX.Y.Z` section becomes the GitHub release body),
 `.github/discord-release.md` (the `@everyone` announcement), `.github/workflows/release.yml` (the machinery).
 
 ## Specs and plans

@@ -52,6 +52,29 @@ jobs:
           echo "nodes=$NODES jars=$JARS"; ls -la versions/*/build/libs/club-*.jar
           [ "$NODES" = "$JARS" ] || { echo "::error::$NODES version nodes but $JARS jars — refusing to publish a partial release"; exit 1; }
 
+      # Open every jar and look, because the last two artifact bugs were both invisible from the source and
+      # obvious from inside the file: a fabric.mod.json that named the wrong Minecraft, and — caught the day
+      # this step was written — a jar with NO licence at all. Stonecutter builds each node from versions/<v>/,
+      # so build.gradle's relative from("LICENSE") resolved against that directory, found nothing, and `from`
+      # on a missing file is silently a no-op. v0.1.2 and v0.1.3 carried LICENSE_club and OFL_club; the first
+      # multiversion build carried neither, and compiled, tested and would have released clean.
+      #
+      # This is not paperwork. The jar ships an MSDF atlas rendered from Onest, which makes it a derivative,
+      # and OFL §2 requires the licence to travel with it. Publishing without it is a licence violation, and
+      # nothing else in this pipeline can see it.
+      - name: every jar carries its licences and knows its Minecraft
+        run: |
+          FAIL=0
+          for J in versions/*/build/libs/club-*.jar; do
+            V=$(echo "$J" | cut -d/ -f2)
+            HAVE=$(unzip -l "$J" | awk '{print $4}' | grep -cE '^(LICENSE|OFL)_' || true)
+            RANGE=$(unzip -p "$J" fabric.mod.json | grep -o '"minecraft": *"[^"]*"' || true)
+            echo "$V: licence files=$HAVE  $RANGE"
+            [ "$HAVE" -ge 2 ] || { echo "::error::$J carries $HAVE licence files, expected LICENSE_* and OFL_*"; FAIL=1; }
+            echo "$RANGE" | grep -q "$V" || { echo "::error::$J does not declare Minecraft $V — it would be refused at the player's launcher, naming OUR mod"; FAIL=1; }
+          done
+          exit $FAIL
+
       # The tag is the source of truth for the version; if gradle.properties disagrees, the jar we are about
       # to publish is not the one the tag names. Fail loudly rather than ship a mislabelled artifact.
       - name: version matches the tag
@@ -61,16 +84,16 @@ jobs:
           echo "tag=$TAG  gradle.properties=$MOD"
           [ "$TAG" = "$MOD" ] || { echo "::error::tag $GITHUB_REF_NAME does not match mod_version=$MOD"; exit 1; }
 
-      # Pull this version's section out of CHANGELOG.md — from its "## vX.Y.Z" heading to the next "## ".
+      # Pull this version's section out of docs/CHANGELOG.md — from its "## vX.Y.Z" heading to the next "## ".
       - name: extract changelog
         run: |
           awk -v v="## ${GITHUB_REF_NAME}" '
             $0 == v {found=1; next}
             found && /^## / {exit}
             found {print}
-          ' CHANGELOG.md > RELEASE_BODY.md
+          ' docs/CHANGELOG.md > RELEASE_BODY.md
           echo "--- release body ---"; cat RELEASE_BODY.md
-          [ -s RELEASE_BODY.md ] || { echo "::error::no ${GITHUB_REF_NAME} section in CHANGELOG.md"; exit 1; }
+          [ -s RELEASE_BODY.md ] || { echo "::error::no ${GITHUB_REF_NAME} section in docs/CHANGELOG.md"; exit 1; }
 
       - name: publish release
         uses: softprops/action-gh-release@v3

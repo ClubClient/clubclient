@@ -193,7 +193,7 @@ Modrinth → your project → **Versions** → **Create version**.
 The version number is already inside the jar (`fabric.mod.json` says `0.1.4+mc1.21.8`), so the field and the
 artifact agree by construction — nothing to keep in sync by hand.
 
-**Changelog:** paste the `## v0.1.4` section of `CHANGELOG.md`. Same text in all three entries — it is one
+**Changelog:** paste the `## v0.1.4` section of `docs/CHANGELOG.md`. Same text in all three entries — it is one
 release that happens to ship three files, and a player on 1.21.8 should read the same notes as one on 1.21.1.
 
 ## Why not one entry with three game versions
@@ -223,5 +223,5 @@ announcement fires from the tag and links to Modrinth, so the link has to alread
 
 The rest is automatic once the tag is pushed:
 - `release.yml` builds all three nodes, refuses to publish unless there are as many jars as version nodes,
-  attaches them, and pulls the release body out of `CHANGELOG.md`.
+  attaches them, and pulls the release body out of `docs/CHANGELOG.md`.
 - Discord gets an `@everyone` announcement built from `.github/discord-release.md`.

@@ -14,7 +14,7 @@ Java 21, and an internet connection for the first dependency fetch. That's it.
 
 Most of the documentation is in **Russian** (`docs/`) — this project was written in Russian and the docs were
 never a translation exercise. **Code, code comments and every UI string are English**, and must stay that way.
-Start at [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Start at [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
 
 ## The rules that close pull requests
 
@@ -47,7 +47,7 @@ It must be green. If you touched rendering, run it under the mods that rewrite r
 ```
 
 **3. The visual design is frozen.** Flat. No glass, no glow, no gradient on text — the single exception is the
-underline of the active tab. The palette is in [docs/DESIGN.md](docs/DESIGN.md). **The menu and its popovers
+underline of the active tab. The palette is in [docs/DESIGN.md](../docs/DESIGN.md). **The menu and its popovers
 are frozen too**, by the owner's decision. A visual-redesign PR is closed; this is not a judgement of your
 taste, it is simply not open.
 
@@ -76,7 +76,7 @@ reasoning, and it is worth reading.
 ## Third-party assets
 
 The interface is set in [Onest](https://github.com/simpals/onest) under the SIL Open Font License — see
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The font files are named `inter_*.ttf` for historical
+[THIRD-PARTY-NOTICES.md](../docs/THIRD-PARTY-NOTICES.md). The font files are named `inter_*.ttf` for historical
 reasons; they contain Onest. Every icon is drawn for Club (`tools/icons/src/`).
 
 ## Licence
