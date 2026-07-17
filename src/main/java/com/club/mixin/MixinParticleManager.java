@@ -22,6 +22,28 @@ import org.spongepowered.asm.mixin.injection.At;
  * <p>Note for whoever hooks particles next: Iris SPLITS this method into an opaque pass and a translucent
  * pass, so it runs TWICE a frame with a filtered sheet list. Anything counted here is counted per call, not
  * per frame — which is fine for a skip/considered ratio and would be a bug for a per-frame budget.
+ *
+ * <h2>1.21.11 does this itself, so this mixin is not built there</h2>
+ *
+ * <p>The class is absent from {@code versions/1.21.11/.../club.mixins.json}, and that is not a gap left open
+ * — it is the feature arriving upstream. Measured in the 1.21.11 jar:
+ *
+ * <pre>{@code ParticleManager.addToBatch(SubmittableBatch, Frustum, Camera, float)
+ *   -> ParticleRenderer.render(Frustum, Camera, float)
+ *      -> BillboardParticleRenderer.render calls Frustum.intersectPoint(D,D,D)}</pre>
+ *
+ * <p>A frustum now reaches the particle renderer and it culls against it. Vanilla's test is STRICTLY better
+ * than ours: we only ever skipped what was behind the camera, and a full frustum also drops everything to
+ * either side. Wrapping it would buy nothing and cost a second visibility test per particle per frame.
+ *
+ * <p>The third thing Mojang has absorbed from this mod — after the background frame cap (1.21.2's
+ * {@code InactivityFpsLimiter}) and the equip dip (1.21.4's {@code shouldSkipHandAnimationOnSwap}). The rule
+ * the owner set for the first two applies here: when the game does it, we stop doing it. The player on
+ * 1.21.11 loses nothing.
+ *
+ * <p>Unaffected and still built on every version: {@code MixinParticleManagerVisibility}, which is the
+ * Particles category — choosing which particle TYPES exist at all. That is a different question from whether
+ * a particle that exists is on screen, and no version of Minecraft answers it.
  */
 @Mixin(ParticleManager.class)
 public class MixinParticleManager {
