@@ -27,6 +27,29 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(WorldRenderer.class)
 public abstract class MixinWorldRendererFrustum {
 
+    /**
+     * <b>1.21.11 stopped storing the frustum and started returning it</b>, which breaks this mixin in two
+     * places at once — the field it shadows and the signature it injects into. Measured:
+     *
+     * <pre>{@code 1.21.1   private Frustum frustum;   setupFrustum(Vec3d;Matrix4f;Matrix4f)V
+     * 1.21.8   private Frustum frustum;   setupFrustum(Vec3d;Matrix4f;Matrix4f)V
+     * 1.21.11  (no such field)            setupFrustum(Matrix4f;Matrix4f;Vec3d)Frustum}</pre>
+     *
+     * <p>Note the parameters were also REORDERED — the Vec3d moved from first to last — so even a mixin that
+     * survived the missing field would have captured a matrix as its camera position and quietly culled
+     * against nonsense. Two independent breaks, one release.
+     *
+     * <p><b>@Shadow is the trap here.</b> It names the field in ordinary Java, so it reads as something the
+     * compiler checks. It is not: the field lives in the TARGET, and javac only ever sees this declaration.
+     * The build was green and 1.21.11 died at startup with "@Shadow field frustum was not located in the
+     * target class". The offline checker was silent because it read @Accessor's string and never looked at
+     * @Shadow at all — it does now, and it names this exact field when the fix is reverted.
+     *
+     * <p><b>Boundary, honestly:</b> 1.21.8 has the field, 1.21.11 does not. 1.21.9 and 1.21.10 are UNMEASURED
+     * — Club ships neither, so no jar depends on the guess, but anyone adding a node there owes this a javap
+     * first.
+     */
+    //? if <1.21.11 {
     @Shadow private Frustum frustum;
 
     @Inject(method = "setupFrustum", at = @At("RETURN"))
@@ -34,4 +57,11 @@ public abstract class MixinWorldRendererFrustum {
         if (IrisCompat.inShadowPass()) return;   // the sun's view of the world is not the player's
         MainFrustum.set(this.frustum, pos);
     }
+    //?} else {
+    /*@com.llamalad7.mixinextras.injector.ModifyReturnValue(method = "setupFrustum", at = @At("RETURN"))
+    private Frustum club$captureMainFrustum(Frustum built, Matrix4f view, Matrix4f proj, Vec3d pos) {
+        if (!IrisCompat.inShadowPass()) MainFrustum.set(built, pos);   // the sun's view is not the player's
+        return built;
+    }*/
+    //?}
 }

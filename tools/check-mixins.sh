@@ -166,6 +166,23 @@ for F0 in "$SRC"/*.java; do
         fi
     done
 
+    # ---- @Shadow : the field or method must EXIST in the target ----------------------------------
+    # The SIXTH shape, and it cost the owner a launch of 1.21.11 that this script had just called clean.
+    # @Shadow is not a string like @Accessor's — the member is named by ordinary Java syntax, so it LOOKS
+    # like the compiler is checking it. It is not: the field lives in the target, not in the mixin, and
+    # javac only ever sees the declaration. 1.21.11 deleted WorldRenderer.frustum outright (setupFrustum
+    # returns the frustum now instead of storing it), and the build stayed green right up to
+    # "@Shadow field frustum was not located in the target class net.minecraft.class_761".
+    #
+    # Matches both shapes: "@Shadow ... name;" (field) and "@Shadow ... name(...)" (method).
+    for N in $(perl -0ne 'while (/\@Shadow\b[^;{]*?\s(\w+)\s*[(;]/gs) { print "$1\n" }' "$F" | sort -u); do
+        if ! javap -p -classpath "$MCJAR" "$OWNER" 2>/dev/null | grep -qP "[ .]$N\b"; then
+            echo "  NO SHADOW    $B  ->  $OWNER :: $N (@Shadow names it, $MC does not have it)"
+            echo "               (mixin rejects this at STARTUP; javac never checks a shadowed member)"
+            echo x >> "$FAILFILE"
+        fi
+    done
+
     # ---- @ModifyReturnValue : the handler's return type must EQUAL the target's ------------------
     # Mixin checks this at startup and nowhere earlier: the handler is bound to its target by NAME, so
     # javac has no idea the two are related. 1.21.2 narrowed GameRenderer.getFov from double to float and
