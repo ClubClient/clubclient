@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.1.5
+
+**Freelook turns itself off on Astrum.** Astrum's rules ban Perspective Mod — the mod whose whole job is letting
+you look around while your aim and your movement keep pointing where they were. That is exactly what Club's
+Freelook does, so the name it ships under changes nothing: on Astrum it is a banned mod, and Club stops handing
+it to you there.
+
+- Join Astrum and Freelook is simply not there — no card in the menu, and the key does nothing. Leave, and it
+  comes back on its own.
+- **On Aormio it stays.** Their rules ban automation and forged packets — Killaura, AutoTotem, AimAssist — and
+  Freelook is none of that. A rule belongs to the server that wrote it, and we are not going to invent Aormio's
+  rules for them.
+- Same shape as Item Scroll, for the same reason: one jar, no switch. A switch a player can flip is a bypass we
+  shipped ourselves.
+
+**This should have been caught a long time ago.** Freelook has been in Club since v0.1, and Astrum's list has
+named Perspective Mod the whole time. The mistake was in how the list was read: we looked for our own name, and
+our name is never going to be on it. A ban list names *functions*, and the only question that matters is what a
+moderator sees when they watch you play.
+
 ## v0.1.4
 
 **Club runs on 1.21.8 and 1.21.11 now, as well as 1.21.1.** Three jars, one for each — pick the one that
