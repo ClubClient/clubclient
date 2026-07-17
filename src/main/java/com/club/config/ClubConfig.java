@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 12; // bumped when new fields are added, for migration
+    public int version = 11; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -33,8 +33,8 @@ public class ClubConfig {
     public boolean noFireOverlay = true;
     public boolean noBobbing = true;
     public boolean shulkerTooltip = true; // hover a shulker box to see its contents as an item grid; on by default (QoL)
-    public boolean lowShield = false;      // lower the first-person shield so it stops covering the view; opt-in cosmetic, OFF by default
-    public float lowShieldAmount = 0.45f;  // how far to drop it, in HeldItemRenderer item-space units (applyEquipOffset uses 0.6 for a full equip)
+    // Low Shield is NOT here on purpose (owner: "как и щит… вшита внутрь и всегда включена"). Like the perf
+    // culls, it is baked into the renderer with no toggle and no setting — see com.club.mixin.MixinHeldItemRenderer.
     public boolean fullbright = false; // gamma READ override (15.0) — off by default, mirrored in FullbrightModule
     // Per-module toggle keybinds (Stage 43): module name → InputUtil translation key ("key.keyboard.r").
     // Bound from each module's popover; fired by ModuleBinds on key edges while no screen is open.
@@ -445,13 +445,6 @@ public class ClubConfig {
             // exists only to keep `version` telling the truth about the schema (line 23), and to be the one
             // place a future safety-net default would go, the way v6 seeded the v0.1 kit for partial files.
             version = 11;
-            changed = true;
-        }
-        if (version < 12) {
-            // Low Shield (v0.1.5): a new toggle (OFF) plus its amount — both field initializers already hold
-            // the shipping defaults, so a v11 file lacking the keys is correct as loaded. Version-only bump,
-            // same reasoning as v11.
-            version = 12;
             changed = true;
         }
         if (changed) save();

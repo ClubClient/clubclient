@@ -2,6 +2,7 @@ package com.club.mixin;
 
 import com.club.config.ClubConfig;
 import com.club.modules.screenstretch.ScreenStretchModule;
+import com.club.modules.totem.SmallTotem;
 import com.club.modules.zoom.ZoomModule;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import net.minecraft.client.render.Camera;
@@ -10,7 +11,10 @@ import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.ModifyArgs;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 
 @Mixin(GameRenderer.class)
 public class MixinGameRenderer {
@@ -83,4 +87,30 @@ public class MixinGameRenderer {
         }
         return original;
     }
+
+    // Small Totem — the pop lives in GameRenderer.renderFloatingItem THROUGH 1.21.5; it moved to
+    // InGameOverlayRenderer at 1.21.6 (measured across the cached jars, GameRenderer=1 up to 1.21.5,
+    // =0 from 1.21.6). So these two handlers exist ONLY on <1.21.6 — on 1.21.6+ the same seam lives in
+    // MixinInGameOverlayRenderer, and here the method is gone (a require=1 injector into an absent method
+    // would drop the client at startup). Both classes call SmallTotem so the numbers live in one place.
+    //? if <1.21.6 {
+    /** Lift the pop toward the top of the screen — the single translate that centres it (measured: exactly
+     *  one translate(FFF) in the method, so no ordinal is needed). Index 1 = the Y argument. */
+    @ModifyArg(method = "renderFloatingItem",
+               at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/math/MatrixStack;translate(FFF)V"),
+               index = 1)
+    private float club$totemLift(float y) {
+        return SmallTotem.liftY(y);
+    }
+
+    /** Shrink the pop — the single scale(FFF) call. All three components multiplied so the sign (the Y flip
+     *  into screen space) is preserved. */
+    @ModifyArgs(method = "renderFloatingItem",
+                at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/math/MatrixStack;scale(FFF)V"))
+    private void club$totemShrink(Args args) {
+        args.set(0, SmallTotem.shrink((float) args.get(0)));
+        args.set(1, SmallTotem.shrink((float) args.get(1)));
+        args.set(2, SmallTotem.shrink((float) args.get(2)));
+    }
+    //?}
 }

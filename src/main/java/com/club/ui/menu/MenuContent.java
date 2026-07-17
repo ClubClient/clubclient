@@ -122,7 +122,7 @@ public final class MenuContent {
     public static List<Category> build(Runnable openHudEditor) {
         ClubConfig c = ClubConfig.get();
         return List.of(
-            new Category("Combat", IconGlyph.COMBAT, List.of(animations(c), lowShield(c))),
+            new Category("Combat", IconGlyph.COMBAT, List.of(animations(c))),
             new Category("Visuals", IconGlyph.VISUALS, List.of(
                 zoom(c),
                 screenStretch(c),
@@ -182,16 +182,6 @@ public final class MenuContent {
                         i -> { c.animations.type = at[i].name(); save(); }),
                 new SliderSetting("Speed", 0.5f, 2.0f, 0.01f, () -> c.animations.speed, v -> c.animations.speed = v),
                 new SliderSetting("Amplitude", 0.5f, 1.5f, 0.01f, () -> c.animations.amplitude, v -> c.animations.amplitude = v)));
-    }
-
-    /** Low Shield — a master toggle plus how far to drop it. The slider exists because "how low" is taste,
-     *  and 0.45 is only a starting point; Reset returns to on-at-0.45 (the shipped default), not to off. */
-    private static Module lowShield(ClubConfig c) {
-        return new Module("Low Shield", "Lower the shield so it stops covering your view.", IconGlyph.LOW_SHIELD,
-            () -> c.lowShield, v -> { c.lowShield = v; save(); },
-            () -> { c.lowShield = true; c.lowShieldAmount = 0.45f; save(); },
-            List.of(
-                new SliderSetting("Amount", 0.1f, 1.0f, 0.01f, () -> c.lowShieldAmount, v -> c.lowShieldAmount = v)));
     }
 
     /**

@@ -2,7 +2,6 @@ package com.club.mixin;
 
 import com.club.modules.animations.AnimationModule;
 import com.club.modules.animations.Pose;
-import com.club.config.ClubConfig;
 import com.club.modules.hands.HandsModule;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -39,6 +38,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(HeldItemRenderer.class)
 public class MixinHeldItemRenderer {
+
+    /** How far the blocking shield drops, in HeldItemRenderer item-space units (applyEquipOffset moves a full
+     *  equip by 0.6). Baked in, no setting — one edit here is the only way to retune it, by owner's design. */
+    private static final float LOW_SHIELD_DROP = 0.45f;
 
     /**
      * The call our pose brackets. Two independent changes hide in this one string, and BOTH are invisible to
@@ -236,15 +239,18 @@ public class MixinHeldItemRenderer {
             matrices.scale(sc, sc, sc);
         }
 
-        // Low Shield: drop the shield so its raised block-pose stops filling the screen. A translate in the
-        // item's own space, so it rides on top of vanilla's brandish and equip offsets rather than replacing
-        // them — the shield still swings up to block, just lower. −Y is DOWN here (applyEquipOffset lowers an
-        // unequipping item with translate(0, −equipProgress·0.6, 0)), so the amount is negated. Whichever hand
-        // actually holds the shield; a modded shield that is not Items.SHIELD keeps vanilla placement (honest
-        // over clever — a wrong isShield guess would move things that are not shields).
-        ClubConfig cfg = ClubConfig.get();
-        if (cfg.lowShield && item.isOf(Items.SHIELD)) {
-            matrices.translate(0.0f, -cfg.lowShieldAmount, 0.0f);
+        // Low Shield (owner: "как и щит… вшита внутрь и всегда включена") — baked in, no toggle, no setting,
+        // the way the perf culls are. Vanilla's raised BLOCK pose fills a third of the screen; this drops it.
+        //
+        // Only WHILE BLOCKING. At rest the off-hand shield already sits in the bottom corner, out of the way —
+        // lowering that too would push it off the bottom edge. The complaint is the raised pose, so the gate is
+        // vanilla's own use-pose condition for THIS hand: isUsingItem() && getActiveHand() == hand (a blocking
+        // shield's getItemUseTimeLeft stays > 0, so that clause is implied). A translate in the item's own
+        // space, riding ON TOP of vanilla's brandish rather than replacing it: the shield still raises to
+        // block, just lower. −Y is DOWN here (applyEquipOffset lowers an unequipping item the same way).
+        // Items.SHIELD only — a modded shield keeps vanilla placement rather than risk an isShield guess.
+        if (item.isOf(Items.SHIELD) && player.isUsingItem() && player.getActiveHand() == hand) {
+            matrices.translate(0.0f, -LOW_SHIELD_DROP, 0.0f);
         }
 
         // Custom attack pose — only on the hand that actually swung (vanilla gates the swing it

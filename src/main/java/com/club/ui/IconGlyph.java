@@ -53,7 +53,6 @@ public enum IconGlyph {
     BLOCK_ENTITIES(0xE01F),
     BACKGROUND_FPS(0xE022),
     SHULKER_TOOLTIP(0xE023),
-    LOW_SHIELD(0xE024),
     // service
     SEARCH(0xE020),
     /** The CLUB mark — the club card suit (trefoil), solid. Header wordmark + editor watermark. */
