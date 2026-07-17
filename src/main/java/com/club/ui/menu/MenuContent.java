@@ -130,12 +130,13 @@ public final class MenuContent {
                 flag("No Hurt Cam",     "Removes the red damage screen tilt.",       IconGlyph.NO_HURT_CAM, () -> c.noHurtCam,     v -> { c.noHurtCam = v; save(); }),
                 flag("No Fire Overlay", "Hides the first-person flames while burning.", IconGlyph.NO_FIRE_OVERLAY, () -> c.noFireOverlay, v -> { c.noFireOverlay = v; save(); }),
                 flag("No Bobbing",      "Stops the view bobbing as you walk.",        IconGlyph.NO_BOBBING, () -> c.noBobbing,     v -> { c.noBobbing = v; save(); }))),
-            new Category("Player", IconGlyph.PLAYER, List.of(
+            // cards(), not List.of(): Freelook's factory returns null where the server forbids it, and
+            // List.of() throws on a null element — which would take the whole menu down with it.
+            new Category("Player", IconGlyph.PLAYER, cards(
                 hands(c),
                 toggleSprint(c),
                 // A hold module, so NO on/off toggle — see zoom(c) for the reasoning. The key is the switch.
-                new Module("Freelook", "Hold the freelook key to swing the camera freely.", IconGlyph.FREELOOK,
-                        null, null, () -> {}, List.of()))),
+                com.club.modules.freelook.FreelookMenu.card())),   // null where the server forbids it
             // Particles is the one category whose CONTENT is not cards: ClubMenuScreen renders a two-pane for
             // it (groups on the left, per-particle On/Off on the right) — see com.club.ui.menu.ParticlesPane.
             // The empty module list is deliberate; the rail entry, its gold accent and its icon are all this

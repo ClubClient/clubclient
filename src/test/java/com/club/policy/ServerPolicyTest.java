@@ -102,17 +102,40 @@ class ServerPolicyTest {
     //  arrived, so the thing it proved stopped being true and it was deleted in the same commit — a test
     //  kept past its truth is worse than no test.)
 
+    /** What Astrum forbids: item scrolling (ItemScroller/MouseTweaks) AND freelook (Perspective Mod). */
+    private static final Set<ServerFeature> ASTRUM = Set.of(ServerFeature.ITEM_SCROLL, ServerFeature.FREELOOK);
+
     @Test void astrumForbidsItemScrollOnBothItsDomains() {
         for (String a : List.of("astrummc.net", "astrummc.su", "astrummc.net:25565", "ASTRUMMC.NET"))
-            assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.restrictionsFor(a),
+            assertEquals(ASTRUM, ServerPolicy.restrictionsFor(a),
                     "Astrum forbids item scrolling, whichever door the player came through: " + a);
+    }
+
+    @Test void astrumForbidsFreelookBecauseItBansPerspectiveMod() {
+        // Astrum's list names "Perspective Mod" and then bans anything "включающее в себя функционал"
+        // of a listed mod. Freelook IS that functionality — camera off the aim — so the name it ships
+        // under does not matter. Found months after v0.1 shipped it: nobody had read their list against
+        // our own feature table.
+        for (String a : List.of("astrummc.net", "astrummc.su", "server.astrummc.net"))
+            assertTrue(ServerPolicy.restrictionsFor(a).contains(ServerFeature.FREELOOK),
+                    "Astrum bans Perspective Mod, and freelook is Perspective Mod: " + a);
     }
 
     @Test void astrumsOwnSubdomainsAreCovered() {
         // Both SRV records point at server.astrummc.net — this is the host the client actually dials, and
         // it must carry the rule without being listed by hand.
-        assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.restrictionsFor("server.astrummc.net"));
-        assertEquals(Set.of(ServerFeature.ITEM_SCROLL), ServerPolicy.restrictionsFor("play.astrummc.su"));
+        assertEquals(ASTRUM, ServerPolicy.restrictionsFor("server.astrummc.net"));
+        assertEquals(ASTRUM, ServerPolicy.restrictionsFor("play.astrummc.su"));
+    }
+
+    @Test void aormioDoesNotForbidFreelook() {
+        // A rule is ONE server's, never a default for the world — the whole reason an unknown address is
+        // allowed. Aormio's list is written by function (Killaura, AutoTotem, AimAssist, Modified Packets):
+        // automation and packet lies. Freelook is neither, and it does not appear there under any name.
+        // Cutting it here too would be us inventing someone else's rule for them.
+        for (String a : List.of("aormio.ru", "aormio.net", "mc.aormio.ru", "msk.aormio.net"))
+            assertFalse(ServerPolicy.restrictionsFor(a).contains(ServerFeature.FREELOOK),
+                    "Aormio does not ban freelook — do not invent a rule for a server that did not make it: " + a);
     }
 
     @Test void aormioForbidsItemScrollOnBothZones() {

@@ -1,6 +1,8 @@
 package com.club.modules.freelook;
 
 import com.club.config.ClubConfig;
+import com.club.policy.ServerFeature;
+import com.club.policy.ServerPolicy;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.Perspective;
 
@@ -41,7 +43,17 @@ public final class FreelookModule {
     public static void tick(MinecraftClient mc) {
         boolean want = com.club.util.Keys.held(com.club.ClubClient.freelookKey)
                 && mc.player != null && mc.currentScreen == null
-                && mc.getCameraEntity() == mc.player;
+                && mc.getCameraEntity() == mc.player
+                // …and the server we are on allows it at all. This is the GUARD; FreelookMenu.card() is only
+                // the face. Hiding the card alone would leave Left Alt swinging the camera on a server that
+                // bans exactly that — a barrier standing at the door while the act goes on behind it, which
+                // is the mistake ItemScroll already made once (see ItemScrollMenu.card()).
+                //
+                // It belongs in `want`, NOT in an early return. A forbidden freelook must RELEASE, and only
+                // apply(false) restores the perspective it took: return early while active and the player is
+                // left in third person with no key that gets him out — we would have replaced a rule
+                // violation with a broken camera.
+                && ServerPolicy.allows(ServerFeature.FREELOOK);
         apply(want, mc);
     }
 

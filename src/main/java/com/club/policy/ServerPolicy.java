@@ -10,17 +10,25 @@ import java.util.Set;
 /**
  * Where Club stands down because the server says so.
  *
- * <p>One server our players use forbids item scrolling by rule. Its admins confirmed the ban and said
- * plainly that a workaround would cost us our reputation — so this is the opposite of a workaround: the
- * client turns the forbidden feature off there itself, and {@code ItemScrollMenu.notice()} tells the
- * player it did. Lunar and Badlion do the same on Hypixel. Nothing here hides anything from anyone.</p>
+ * <p>Servers our players use forbid some of what Club does. Astrum's admins confirmed their item-scroll ban
+ * and said plainly that a workaround would cost us our reputation — so this is the opposite of a workaround:
+ * the client turns the forbidden feature off there itself. Lunar and Badlion do the same on Hypixel. Nothing
+ * here hides anything from anyone.</p>
+ *
+ * <h2>Read the list for FUNCTIONS, not for our name</h2>
+ *
+ * <p>No ban list will ever say "Club". Astrum's says <i>Perspective Mod</i> and <i>ItemScroller</i>, and then
+ * says that anything <i>including the functionality</i> of a listed mod is listed too. So the question is never
+ * "are we named" — it is "does a moderator watching this player see a banned mod doing its work". Freelook was
+ * found this way, months after it shipped: nobody had read the list against our own feature table.</p>
  *
  * <h2>What this promises, and what it cannot</h2>
  *
- * <p>It promises one thing: on a listed server Club will not send an item-scroll click. It does NOT
- * promise the player cannot scroll items at all — they can install the real Item Scroller, and Club
- * already stands aside for it ({@code ItemScrollModule.sibling()}). This is not a security boundary and
- * cannot be one: the client belongs to the player. It is Club declining to hand them a forbidden tool.</p>
+ * <p>It promises one thing: on a listed server Club will not perform the forbidden action. It does NOT
+ * promise the player cannot do it at all — they can install the real Item Scroller or the real Perspective Mod,
+ * and Club already stands aside for the former ({@code ItemScrollModule.sibling()}). This is not a security
+ * boundary and cannot be one: the client belongs to the player. It is Club declining to hand them a forbidden
+ * tool.</p>
  *
  * <h2>Why the table is hardcoded</h2>
  *
@@ -76,7 +84,14 @@ public final class ServerPolicy {
             //   _minecraft._tcp.astrummc.net  SRV -> server.astrummc.net  -> 80.242.59.230
             //   _minecraft._tcp.astrummc.su   SRV -> server.astrummc.net  -> 80.242.59.230
             // Subdomains ride along for free, so the .net key already covers the host both doors open onto.
-            new ServerRule(Set.of("astrummc.net", "astrummc.su"), Set.of(ServerFeature.ITEM_SCROLL)),
+            //
+            // Astrum forbids TWO things, and the second one is not named after us. Its list bans
+            // "Perspective Mod" outright, and closes with: "Любые модификации или клиенты, включающие в себя
+            // функционал запрещенных модов из списка выше, также считаются запрещенными" — the functionality,
+            // not the file name. Freelook IS that functionality: camera off the aim, which is the entire mod.
+            // Read the list for ItemScroller/MouseTweaks and you find item scrolling the same way.
+            new ServerRule(Set.of("astrummc.net", "astrummc.su"),
+                    Set.of(ServerFeature.ITEM_SCROLL, ServerFeature.FREELOOK)),
 
             // Aormio. The owner supplied mc.aormio.ru; the rest is what looking actually found on
             // 2026-07-16, and it is more than was handed over:
@@ -89,6 +104,15 @@ public final class ServerPolicy {
             // Hence the keys are the two ZONES, not the one address given. mc./msk./play. and anything else
             // they add ride the subdomain rule. Listing only mc.aormio.ru would have missed msk.aormio.ru —
             // the host the client is actually handed by the SRV — and every .net door, silently.
+            //
+            // FREELOOK is deliberately ABSENT here. Aormio's list is written by FUNCTION, not by mod name,
+            // and every function on it is automation or a packet lie — Killaura, AutoTotem, AimAssist,
+            // Velocity, Modified Packets. Freelook is none of those: it moves a camera and touches nothing
+            // that leaves the client. The catch-alls ("Any Movement Function", "Any Other Cheat Function")
+            // are broad, but freelook changes no movement — that is the one thing its whole implementation
+            // is built to guarantee. Astrum bans it because Astrum names the mod; Aormio does not name it,
+            // and a rule is one server's, never a default for the world (see the class doc). If their admins
+            // say otherwise, this is a one-line edit — and the ONLY honest way to find out is to ask them.
             new ServerRule(Set.of("aormio.ru", "aormio.net"), Set.of(ServerFeature.ITEM_SCROLL)));
 
     // ---- the pure rule ----------------------------------------------------------------------------
