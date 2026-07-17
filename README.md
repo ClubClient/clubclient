@@ -17,53 +17,105 @@ Open the menu with **Right Shift**.
 
 ## Club is not a cheat client
 
-No killaura, no ESP, no reach, no autoclicker, no X-ray, no combat automation. Nothing in Club gives you
-information the game doesn't, or reach the game doesn't. Everything it does is about *your* view of the game
-and *your* convenience at the keyboard — so it belongs on servers that ban hacks.
+- **It never acts for you.** No killaura, no autoclicker, no auto-totem, no combat automation of any kind.
+- **It never shows you what a wall hides.** No X-ray, no ESP, no chest or spawner finders, no minimap. The
+  Target HUD will not name an entity through a block, and never names one you cannot see at all.
+- **It never reaches further than your arm.** No reach, no hitbox.
+- **It says nothing to the server your own hand doesn't.**
 
-The source is right here; you don't have to take our word for it.
+What Club *does* change is what your own eyes get from what the game already draws: brightness, magnification,
+where the camera sits, how your HUD is laid out. Those are conveniences, not secrets — and some servers
+regulate them anyway. **Where a server's rules forbid something Club does, Club turns it off there itself**, on
+that server, with no switch for you to flip.
 
-*One honest footnote, since you can read the code:* **Item Scrolling moves items by clicking slots** — the
-same packets your own hand sends, just faster. The protocol has no batch move, so a strict anti-cheat may
-rate-limit a large transfer the way it would rate-limit fast clicking. Nothing else in Club talks to the
-server at all.
+The source is right here; you don't have to take our word for any of it. The table below is the whole mod, and
+the right-hand column is the answer to "is this a cheat".
 
 ## Features
 
-**Visuals**
-- **Zoom** — hold to magnify the world; smooth eased FOV, scroll to adjust the amount (2×–8×). Your look
-  sensitivity slows with the zoom, so the world crosses the screen at one speed at any magnification.
-- **Fullbright** — see in the dark. Overrides only the world lightmap, so your real brightness slider and
-  `options.txt` are never touched.
-- **Screen Stretch** — fake a target aspect ratio (with optional letterbox bars).
-- **No Hurt Cam / No Fire Overlay / No Bobbing** — a quieter first-person view.
+This is the whole mod. Nothing is left out of this table, and the right-hand column is the answer to "is this
+a cheat" — it says the same word eighteen times.
 
-**Player**
-- **Hands** — reposition and scale the first-person hands, per hand.
-- **Toggle Sprint** — sprint automatically, no key held; with a quiet on-screen indicator.
-- **Freelook** — hold to swing the camera around yourself without turning. It never changes your aim or
-  movement — a camera feature, not an aim tool.
+### Visuals
 
-**Combat**
-- **Animations** — a custom first-person attack animation (Overhead / Spin / …), with speed & amplitude.
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Zoom** | Hold a key to magnify the world, 2×–8×, on a smooth eased FOV. Your look sensitivity slows with the zoom, so the world crosses the screen at one speed at any magnification. | Nothing |
+| **Fullbright** | Raises the world lightmap to maximum so you can see in the dark. Your real brightness slider and `options.txt` are never touched. | Nothing |
+| **Screen Stretch** | Render at an aspect ratio your monitor doesn't have, with optional letterbox bars. | Nothing |
+| **No Hurt Cam** | Removes the red damage screen tilt. | Nothing |
+| **No Fire Overlay** | Hides the first-person flames while you burn. | Nothing |
+| **No Bobbing** | Stops the view bobbing as you walk. | Nothing |
 
-**Item Scrolling** — move items with the mouse instead of clicking them one at a time. Scroll a slot for one
-item, **Shift** for the stack, **Ctrl** for every stack of that type, **Shift+drag** across slots to move each
-one you cross. Every gesture is rebindable on its own screen; two actions can never share one; and if a
-gesture overrides something vanilla already does with it, the row tells you instead of quietly eating the
-click.
+### Player
 
-**Performance** — Club stops drawing what you cannot see. Minecraft doesn't cull particles at all, and it
-frustum-culls the 16×16×16 section but never the chest inside it. Club skips both. Measured, interleaved in
-one session on a fixed-seed scene: **−5.3%** frame time on a normal machine, **−8.1%** on a CPU-bound one.
-Where the GPU is the bottleneck, our own benchmark refuses to claim a win — and prints that it refuses. Run
-it yourself: `CLUB_BENCH=1 ./gradlew runClient`. The report we measured against is in
-[docs/bench/](docs/bench/).
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Hands** | Reposition and scale the first-person hands, each hand on its own. | Nothing |
+| **Toggle Sprint** | Holds your sprint key down for you, so you don't have to. | **Nothing of its own.** The game sends the sprint state it always sends while that key is held — Club only holds the key. |
+| **Freelook** | Hold a key to swing the camera around yourself. Your aim, your movement and every packet stay exactly where they were: it is a camera, not an aim tool. | Nothing |
 
-**HUD** — a movable, editor-driven overlay in one flat "chips" language: status effects, the crosshair
-target's health, worn armor, an FPS whisper, and the sprint indicator. Drag to place, right-click for
-per-element settings, snap to a grid, or nudge with the arrow keys. It's the size you set it — Minecraft's
-GUI Scale doesn't touch it.
+### Combat
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Animations** | Replaces the vanilla first-person swing with one of your own (Overhead / Spin / …), with speed and amplitude. Drawing only — the swing the server sees is vanilla's, at vanilla's timing. | Nothing |
+
+### Particles
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Particles** | Every particle the game has, in seven groups, each one switchable. All on by default; nothing is protected. A hidden particle is never created at all — not ticked, not drawn. | Nothing |
+
+### Inventory
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Item Scroll** | Move items by scrolling instead of clicking them one at a time. Scroll for one item, **Shift** for the stack, **Ctrl** for every stack of that type, **Shift+drag** across the slots you cross. Every gesture is rebindable. | **Slot clicks — the same ones your own hand sends, just faster.** This is the only module in Club that talks to the server at all. The protocol has no batch move, so a strict anti-cheat may rate-limit a large transfer the way it would rate-limit fast clicking. |
+
+### HUD
+
+| Element | What it does | What goes to the server |
+|---|---|---|
+| **Target** | Name and health of the living thing under your crosshair, within 4 blocks — a step past vanilla's own attack reach. Never through a block, never one you cannot see, never an armour stand. The range is fixed and is deliberately not a setting. | Nothing |
+| **Armor** | Your own armour and its durability. | Nothing |
+| **Effects** | Your own potion effects. | Nothing |
+| **Info** | Your FPS. | Nothing |
+| **Sprint** | Whether Toggle Sprint is currently on. | Nothing |
+| **HUD Editor** | Drag, snap, scale and configure every element. The HUD is the size you set it — Minecraft's GUI Scale doesn't touch it. | Nothing |
+
+### Misc
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Background FPS** | Caps the frame rate while the game sits behind another window — your battery and your fans, zero in-game cost. Not in the 1.21.8 and 1.21.11 builds: Minecraft has done this itself since 1.21.2. | Nothing |
+| **Hide Effects** | Hides Minecraft's own potion icons. | Nothing |
+
+### Where Club stands down
+
+Some servers forbid some of this by rule, and Club keeps the rule for you rather than leaving it to you to
+remember:
+
+| Server | What is absent there |
+|---|---|
+| **Astrum** | Item Scroll, Freelook |
+| **Aormio** | Item Scroll |
+
+No card in the menu, no hotkey, nothing to toggle — on those servers this client simply *is* a build without
+the module. It is one jar, and there is no switch, because a switch you could flip is a bypass we shipped
+ourselves.
+
+### Performance
+
+Club skips drawing particles behind the camera, and block entities off-screen inside a section the game
+already decided was visible. Both are always on and baked in: they never change a pixel, so they were never
+dials worth tuning. On **1.21.11 the particle cull is gone** — the game does it itself now, and by a better
+test than ours.
+
+There are no percentages on this page. The ones that used to be here were measured on 1.21.1 alone, against a
+cull that no longer exists in every build, and a number you cannot reproduce is not a number. Measure it
+yourself if you want one: `CLUB_BENCH=1 ./gradlew runClient`, and the bench refuses to claim a win where the
+GPU is the bottleneck — see [docs/bench/](docs/bench/).
 
 **Everything is keyboard-friendly**, and every toggleable module can be bound to its own **hotkey** from its
 settings popover.
