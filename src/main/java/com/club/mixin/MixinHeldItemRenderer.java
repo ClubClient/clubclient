@@ -2,6 +2,7 @@ package com.club.mixin;
 
 import com.club.modules.animations.AnimationModule;
 import com.club.modules.animations.Pose;
+import com.club.config.ClubConfig;
 import com.club.modules.hands.HandsModule;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -11,6 +12,7 @@ import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.item.HeldItemRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.util.Arm;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.RotationAxis;
@@ -232,6 +234,17 @@ public class MixinHeldItemRenderer {
             matrices.translate(HandsModule.offsetX(rightSide), HandsModule.offsetY(rightSide), HandsModule.offsetZ(rightSide));
             float sc = HandsModule.scale(rightSide);
             matrices.scale(sc, sc, sc);
+        }
+
+        // Low Shield: drop the shield so its raised block-pose stops filling the screen. A translate in the
+        // item's own space, so it rides on top of vanilla's brandish and equip offsets rather than replacing
+        // them — the shield still swings up to block, just lower. −Y is DOWN here (applyEquipOffset lowers an
+        // unequipping item with translate(0, −equipProgress·0.6, 0)), so the amount is negated. Whichever hand
+        // actually holds the shield; a modded shield that is not Items.SHIELD keeps vanilla placement (honest
+        // over clever — a wrong isShield guess would move things that are not shields).
+        ClubConfig cfg = ClubConfig.get();
+        if (cfg.lowShield && item.isOf(Items.SHIELD)) {
+            matrices.translate(0.0f, -cfg.lowShieldAmount, 0.0f);
         }
 
         // Custom attack pose — only on the hand that actually swung (vanilla gates the swing it
