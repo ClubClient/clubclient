@@ -102,10 +102,12 @@ public final class SprintElement extends HudElement {
         // A DENSER GROUND than the shared V4 chip (owner, v0.1.3 #8: "кнопку спринта вообще не видно").
         // The other chips carry bright content — 18px HP, armour icons — that reads over anything. This one
         // is a single quiet word, and on the shared bg2-at-55% wash it vanished over a bright PvP world (on
-        // a dark scene it was fine, which is why it flickered in and out). bg1 (#090E16) at 82% is a real
-        // dark pill: the word sits on it legibly over grass in daylight, without becoming a loud panel.
+        // a dark scene it was fine, which is why it flickered in and out). bg1 (#090E16) is a real dark pill,
+        // so the word sits on it legibly over grass without becoming a loud panel. 0.72 (owner: "чуть
+        // прозрачнее") — lighter than the 0.82 it was, but this is the floor: 55% is where it started
+        // vanishing over daylight grass, so the pill must stay well above that.
         ctx.renderer().roundedRect(ox, oy, cw * s, CONTENT_H * s, HudPaint.CHIP_RAD * s,
-                Color.scaleAlpha(Tokens.surface().bg1(), 0.82f * alpha));
+                Color.scaleAlpha(Tokens.surface().bg1(), 0.72f * alpha));
         // The chip is only on screen while autosprint is working (see hasContent), so the one thing left to
         // report is whether the player is actually MOVING under it. Bright = running. Idle = one clear step
         // down (textMuted, NOT the near-invisible textDesc): the state must READ, not merely differ. The

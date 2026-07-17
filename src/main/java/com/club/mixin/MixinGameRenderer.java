@@ -94,13 +94,14 @@ public class MixinGameRenderer {
     // MixinInGameOverlayRenderer, and here the method is gone (a require=1 injector into an absent method
     // would drop the client at startup). Both classes call SmallTotem so the numbers live in one place.
     //? if <1.21.6 {
-    /** Lift the pop toward the top of the screen — the single translate that centres it (measured: exactly
-     *  one translate(FFF) in the method, so no ordinal is needed). Index 1 = the Y argument. */
+    /** Lift the pop toward the top of the screen. On &lt;1.21.6 the single translate Y (measured: exactly one
+     *  translate(FFF) in the method) IS the screen centre — getScaledWindowHeight/2 times a sway — so lifting
+     *  is a proportional multiply. Index 1 = the Y argument. */
     @ModifyArg(method = "renderFloatingItem",
                at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/math/MatrixStack;translate(FFF)V"),
                index = 1)
     private float club$totemLift(float y) {
-        return SmallTotem.liftY(y);
+        return SmallTotem.liftLegacyY(y);
     }
 
     /** Shrink the pop — the single scale(FFF) call. All three components multiplied so the sign (the Y flip

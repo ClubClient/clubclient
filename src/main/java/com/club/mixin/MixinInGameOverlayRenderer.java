@@ -34,7 +34,7 @@ public class MixinInGameOverlayRenderer {
                at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/math/MatrixStack;translate(FFF)V"),
                index = 1)
     private float club$totemLift(float y) {
-        return SmallTotem.liftY(y);
+        return SmallTotem.liftModernY(y);
     }
 
     @ModifyArgs(method = "renderFloatingItem",

@@ -242,14 +242,21 @@ public class MixinHeldItemRenderer {
         // Low Shield (owner: "как и щит… вшита внутрь и всегда включена") — baked in, no toggle, no setting,
         // the way the perf culls are. Vanilla's raised BLOCK pose fills a third of the screen; this drops it.
         //
-        // Only WHILE BLOCKING. At rest the off-hand shield already sits in the bottom corner, out of the way —
-        // lowering that too would push it off the bottom edge. The complaint is the raised pose, so the gate is
-        // vanilla's own use-pose condition for THIS hand: isUsingItem() && getActiveHand() == hand (a blocking
-        // shield's getItemUseTimeLeft stays > 0, so that clause is implied). A translate in the item's own
-        // space, riding ON TOP of vanilla's brandish rather than replacing it: the shield still raises to
-        // block, just lower. −Y is DOWN here (applyEquipOffset lowers an unequipping item the same way).
+        // Only WHILE BLOCKING, and gated on vanilla's EXACT use-pose condition — all three of
+        // isUsingItem() && getItemUseTimeLeft() > 0 && getActiveHand() == hand, the same triple vanilla's own
+        // block pose uses (renderFirstPersonItem, measured). Dropping the getItemUseTimeLeft() clause is what
+        // caused the jitter the owner saw: on the LOCAL player, setCurrentHand writes activeHand and
+        // itemUseTimeLeft IMMEDIATELY but the isUsingItem() DataTracker flag only server-side, so it lags a
+        // round trip in BOTH directions (measured in LivingEntity.setCurrentHand: the putfields are
+        // unconditional, setLivingFlag is inside !isClient). On release, itemUseTimeLeft snaps to 0 at once —
+        // vanilla un-raises the shield immediately — while isUsingItem() stays true for ~1 RTT; a gate on
+        // isUsingItem() alone kept our drop applied for that window, so the shield hung too low, then snapped
+        // back. Matching vanilla's triple binds our drop to the exact frames vanilla is posing the raise, so
+        // the two can never desync. A translate in the item's own space, riding ON TOP of vanilla's brandish:
+        // the shield still raises to block, just lower. −Y is DOWN (applyEquipOffset lowers the same way).
         // Items.SHIELD only — a modded shield keeps vanilla placement rather than risk an isShield guess.
-        if (item.isOf(Items.SHIELD) && player.isUsingItem() && player.getActiveHand() == hand) {
+        if (item.isOf(Items.SHIELD) && player.isUsingItem() && player.getItemUseTimeLeft() > 0
+                && player.getActiveHand() == hand) {
             matrices.translate(0.0f, -LOW_SHIELD_DROP, 0.0f);
         }
 

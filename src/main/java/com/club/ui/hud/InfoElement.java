@@ -94,7 +94,10 @@ public final class InfoElement extends HudElement {
     }
 
     @Override public void paint(UiContext ctx, MinecraftClient mc, float ox, float oy, float s, boolean live) {
-        int val = Color.scaleAlpha(Tokens.palette().textMuted(), alpha);   // quiet — this is aux info
+        // The value read too gray (owner). Nudged up from textMuted toward textHi — brighter, but a BLEND
+        // rather than textHi itself, which would push aux FPS past the hero HP number and invert the HUD's
+        // brightness order. Label stays faint, so the number-vs-label hierarchy holds.
+        int val = Color.scaleAlpha(Color.lerp(Tokens.palette().textMuted(), Tokens.palette().textHi(), 0.5f), alpha);
         int lab = Color.scaleAlpha(Tokens.palette().textFaint(), alpha);
         float reserve = reserve(mc, live);
         String v = fps(mc, live);
