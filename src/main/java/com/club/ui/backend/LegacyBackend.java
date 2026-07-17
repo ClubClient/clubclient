@@ -68,16 +68,16 @@ public final class LegacyBackend implements UiRenderer {
     // (Stage 59 audit). Push/pop is now 1:1, and the depth is bounded so a runaway can't walk the array.
     private static final int MAX_CLIP = 16;
 
-    /** MC GUI units per caller unit — DrawContext.enableScissor takes GUI units and knows nothing about
-     *  the caller's matrix scale, so clip rects must be converted by hand. See Ui.beginFrame(ctx, k). */
+    /** MC GUI units per caller unit. Whether a clip rect must be converted by this by hand is a question
+     *  whose answer changed mid-1.21, so it is asked in {@link com.club.compat.Mtx#scissor} and not here —
+     *  this class stays version-blind. See Ui.beginFrame(ctx, k). */
     private float unitK = 1f;
     public void unitScale(float k) { this.unitK = (k > 0f) ? k : 1f; }
 
     @Override public void pushClip(float x, float y, float w, float h) {
         if (ctx == null || clipDepth >= MAX_CLIP) return;
         clipDepth++;
-        ctx.enableScissor((int) (x * unitK), (int) (y * unitK),
-                          (int) ((x + w) * unitK), (int) ((y + h) * unitK));
+        com.club.compat.Mtx.scissor(ctx, x, y, w, h, unitK);
     }
     @Override public void pushRoundedClip(float x, float y, float w, float h, float r) { pushClip(x, y, w, h); }
     @Override public void popClip() {
