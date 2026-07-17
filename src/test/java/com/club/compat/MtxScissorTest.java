@@ -4,6 +4,7 @@ import net.minecraft.client.gui.ScreenRect;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The clip must land on the cards, and who scales it changed mid-1.21.
@@ -54,11 +55,16 @@ class MtxScissorTest {
      * wrong thing. Loud is the correct failure for a version nobody has measured this against.
      */
     private static ScreenRect asVanillaWillPlaceIt(int[] r) {
+        return asVanillaWillPlaceIt(r, K);
+    }
+
+    /** Same, at an arbitrary canvas scale — the parameter the K=0.5-only tests never varied. */
+    private static ScreenRect asVanillaWillPlaceIt(int[] r, float k) {
         ScreenRect given = new ScreenRect(r[0], r[1], r[2] - r[0], r[3] - r[1]);
         //? if <1.21.5 {
         return given;
         //?} else {
-        /*return given.transform(new org.joml.Matrix3x2f().scale(K, K));*/
+        /*return given.transform(new org.joml.Matrix3x2f().scale(k, k));*/
         //?}
     }
 
@@ -93,5 +99,41 @@ class MtxScissorTest {
         assertEquals(100, r[1]);
         assertEquals(500, r[2]);
         assertEquals(150, r[3]);
+    }
+
+    /**
+     * The clip must never be SMALLER than asked, at any scale — and this suite missed that for a day.
+     *
+     * <p>Both tests above use K=0.5 and whole-number rects, where truncation happens to be exact. The owner
+     * found what they hid: on a large window the settings popover cut the right edge off its own values,
+     * drawing "4.0" as "4.C", on 1.21.8/1.21.11 while 1.21.1 stayed clean. A test that only ever asks the one
+     * question with a known-tidy answer is a test that agrees with itself.
+     *
+     * <p>Fractional on purpose: Club's layout produces fractional edges constantly (centred columns, halved
+     * gutters), and it is the fraction that gets thrown away.
+     */
+    @Test
+    void theClipNeverShrinksBelowWhatItWasAskedFor() {
+        for (float k : new float[]{0.5f, 1f, 1.667f, 2f, 3.25f}) {
+            float x = 300.4f, y = 100.7f, w = 200.3f, h = 50.9f;
+            int[] r = Mtx.scissorRect(x, y, w, h, k);
+
+            // The rect we hand over, and the rect we were asked for, in THE SAME units — which is the only
+            // place the guarantee can live. Below 1.21.5 we do the scaling, so the rect is in GUI units; from
+            // 1.21.5 vanilla does it, so the rect is in Club units. Both must contain what was requested; the
+            // transform is monotonic, so containment survives it either way.
+            //? if <1.21.5 {
+            float wantL = x * k, wantT = y * k, wantR = (x + w) * k, wantB = (y + h) * k;
+            //?} else {
+            /*float wantL = x, wantT = y, wantR = x + w, wantB = y + h;*/
+            //?}
+
+            assertTrue(r[0] <= wantL, "k=" + k + ": clip starts at " + r[0] + ", inside the rect at " + wantL);
+            assertTrue(r[1] <= wantT, "k=" + k + ": clip top cuts the rect");
+            assertTrue(r[2] >= wantR,
+                    "k=" + k + ": clip ends at " + r[2] + ", short of the rect at " + wantR
+                            + " — this is the popover cutting '4.0' into '4.C'");
+            assertTrue(r[3] >= wantB, "k=" + k + ": clip bottom cuts the rect");
+        }
     }
 }

@@ -134,19 +134,27 @@ public final class Mtx {
      * <p>Pure and static so it can be tested: the version's answer IS the question here, and a test that has
      * to open a window to ask it is a test nobody runs.
      *
-     * <p>One honest cost of the new branch: vanilla's API takes ints, so passing raw Club units means the
-     * truncation happens BEFORE the scale instead of after, which can move an edge by a pixel at
-     * {@code canvasK > 1}. That is unavoidable once vanilla owns the transform — it is what every vanilla
-     * widget already lives with — and a pixel of clip edge is not a card.
+     * <p><b>Round OUTWARD, and this is the whole reason the second branch exists as its own line.</b> Vanilla's
+     * API takes ints, so somebody truncates. Below 1.21.5 we scaled first, so the rounding error was a
+     * fraction of a GUI PIXEL and nobody could see it. From 1.21.5 we hand over raw Club units and vanilla
+     * scales afterwards — so truncating costs up to a whole CLUB UNIT, which is {@code canvasK} pixels, and
+     * {@code canvasK} is above 1 on any large window. It cost exactly that: the settings popover cut the right
+     * edge off its own values ("4.0" drawn as "4.C") on 1.21.8/1.21.11 while 1.21.1 was clean, and the menu is
+     * supposed to look the same at every scale — that is what the canvas is FOR.
      *
-     * @param unitK MC GUI units per Club unit; unused on 1.21.6+, where vanilla's matrix already carries it
+     * <p>So floor the near edges and ceil the far ones. A clip may legally include a pixel it did not have to;
+     * it may never exclude one it was asked to keep. Truncating toward zero does the opposite on the far edge,
+     * which is the one bug this seam has now caused twice.
+     *
+     * @param unitK MC GUI units per Club unit; unused on 1.21.5+, where vanilla's matrix already carries it
      */
     static int[] scissorRect(float x, float y, float w, float h, float unitK) {
         //? if <1.21.5 {
-        return new int[] { (int) (x * unitK), (int) (y * unitK),
-                           (int) ((x + w) * unitK), (int) ((y + h) * unitK) };
+        return new int[] { (int) Math.floor(x * unitK), (int) Math.floor(y * unitK),
+                           (int) Math.ceil((x + w) * unitK), (int) Math.ceil((y + h) * unitK) };
         //?} else {
-        /*return new int[] { (int) x, (int) y, (int) (x + w), (int) (y + h) };*/
+        /*return new int[] { (int) Math.floor(x), (int) Math.floor(y),
+                           (int) Math.ceil(x + w), (int) Math.ceil(y + h) };*/
         //?}
     }
 
