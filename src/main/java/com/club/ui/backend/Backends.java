@@ -23,6 +23,12 @@ public final class Backends {
     //? if <1.21.5 {
     public static final ModernBackend MODERN_R = new ModernBackend();
     public static final ModernText    MODERN_T = new ModernText();
+    //?} else {
+    /*// The same renderer, re-expressed for the other side of the 1.21.5 seam: ModernBackend draws now and
+    // owns its flush; ModernShapes records a GuiElementRenderState and lets vanilla's GuiRenderer flush it.
+    // Exactly one of the two is in the source set on any version (build.gradle enforces it), so they never
+    // meet and neither needs to know the other exists.
+    public static final ModernShapes  MODERN_S = new ModernShapes();*/
     //?}
     public static final LegacyBackend LEGACY_R = new LegacyBackend();
     public static final LegacyText    LEGACY_T = new LegacyText();
@@ -45,6 +51,8 @@ public final class Backends {
         current = ctx;
         //? if <1.21.5 {
         MODERN_R.begin(ctx); MODERN_T.begin(ctx);
+        //?} else {
+        /*MODERN_S.begin(ctx);*/
         //?}
         LEGACY_R.begin(ctx); LEGACY_T.begin(ctx);
     }

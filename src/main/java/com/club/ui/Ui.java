@@ -76,27 +76,33 @@ public final class Ui {
      * shader path was never compiled in, so LEGACY is the road, not a parachute, and there is nothing to
      * report. Telling that player to "check resource packs" is advice about a problem they do not have.
      *
-     * <p><b>Whoever finishes the RenderPipeline port: this is the switch.</b> The moment {@code ModernBackend}
-     * and {@code ModernText} compile into the 1.21.5+ jars (drop their exclusions in {@code build.gradle}),
-     * the branch below is {@code true} everywhere and this method should stop being version-guarded at all.
-     * That same change brings {@link LegacyNotice} back to life on those versions, which is the point: once
-     * MODERN can run there, a fallback there means something broke again, and the player wants to know.
+     * <p>It is {@code true} everywhere again. 1.21.5+ reaches the same pixels by the other road —
+     * {@code ModernShapes} records a {@code GuiElementRenderState} where {@code ModernBackend} drew and
+     * flushed — so a fallback there means something broke, exactly as it does on 1.21.1, and
+     * {@link LegacyNotice} says so again on every version. The owner's rule, restated: the plaque tracks
+     * "broken", never "old".
      */
     public static boolean modernSupported() {
-        //? if <1.21.5 {
         return true;
-        //?} else {
-        /*return false;*/
-        //?}
     }
 
-    /** False wherever the shader path is not built (1.21.5+, until it is rewritten on RenderPipeline) —
-     *  which sends {@link #backend()} down the LEGACY road it already takes when a shader fails to load. */
+    /**
+     * Whether MODERN can actually draw THIS session — asked fresh, because a shader that fails to load is a
+     * runtime fact, not a build one. False sends {@link #backend()} down the LEGACY road and lights
+     * {@link LegacyNotice}.
+     *
+     * <p>Both sides ask the same question of their own machinery. Below 1.21.5 that is the registered shader
+     * programs; from 1.21.5 it is whether our pipeline linked — {@code ShapePipe.ready()} calls
+     * {@code precompilePipeline(p).isValid()}, which matters more than it looks: an invalid pipeline does not
+     * merely fail to draw, it throws from inside {@code GuiRenderer}'s flush, long after our call returned,
+     * and kills the client on vanilla's stack. Asking first is what makes a broken shader cost the player
+     * their rounded corners instead of their session — the promise this class has always made.
+     */
     public static boolean modernAvailable() {
         //? if <1.21.5 {
         return com.club.ui.backend.UiShaders.ready() && Backends.MODERN_T.healthy() && Backends.MODERN_R.healthy();
         //?} else {
-        /*return false;*/
+        /*return com.club.compat.ShapePipe.ready() && Backends.MODERN_S.healthy();*/
         //?}
     }
     public static Backend backend() {
@@ -110,7 +116,10 @@ public final class Ui {
     public static UiRenderer renderer() { return backend() == Backend.MODERN ? Backends.MODERN_R : Backends.LEGACY_R; }
     public static UiText text() { return backend() == Backend.MODERN ? Backends.MODERN_T : Backends.LEGACY_T; }
     //?} else {
-    /*public static UiRenderer renderer() { return Backends.LEGACY_R; }
+    /*public static UiRenderer renderer() { return backend() == Backend.MODERN ? Backends.MODERN_S : Backends.LEGACY_R; }
+    // Text is not routed here on this side: LegacyText holds the fork itself, delegating to SpriteText when
+    // its pipeline is up and to vanilla's TextRenderer when it is not. Two backends deciding the same thing
+    // in two places is how they come to disagree, so the one that owns the glyphs owns the choice.
     public static UiText text() { return Backends.LEGACY_T; }*/
     //?}
 }

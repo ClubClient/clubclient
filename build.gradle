@@ -94,6 +94,29 @@ if (!stonecutter.eval(stonecutter.current.version, "<1.21.5")) {
 	}
 }
 
+// ---- and the shape path on RenderPipeline is not built BELOW 1.21.5 ------------------------------
+// The exact mirror of the block above, and it has to be: these two files are the SAME renderer expressed
+// for the other side of the 1.21.5 seam. ModernBackend draws now and owns its flush; ShapePipe records a
+// GuiElementRenderState and lets vanilla's GuiRenderer flush it. Neither API exists on the other's side —
+// ShapePipe names GuiRenderState, RenderPipeline and com.mojang.blaze3d.vertex.VertexFormat, and 1.21.1
+// has none of the three — so each is excluded where it cannot compile rather than stubbed where it would
+// lie. Exactly one of the two is in the source set on every version; that is the invariant.
+//
+// Being a FILE-level guard is the point: it keeps `//?` out of the shape path entirely, leaving exactly one
+// stonecutter block inside ShapePipe (the setupVertices arity, which 1.21.11 really did change) instead of
+// wrapping the whole class in `>=1.21.5` and nesting the real seam inside it.
+if (stonecutter.eval(stonecutter.current.version, "<1.21.5")) {
+	sourceSets.main.java {
+		exclude "com/club/compat/ShapePipe.java"
+		exclude "com/club/ui/backend/ModernShapes.java"
+	}
+	// The test goes where its subject goes: it names ShapeState, ScreenRect and VertexConsumer, so on
+	// 1.21.1 it would not compile even though nothing it tests exists there to break.
+	sourceSets.test.java {
+		exclude "com/club/compat/ShapePipeVertexTest.java"
+	}
+}
+
 processResources {
 	inputs.property "version", project.version
 	// The Minecraft dependency range is per NODE, not per project: a jar built against 1.21.8 that still
