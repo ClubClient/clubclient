@@ -136,15 +136,76 @@ All rebindable, along with a hotkey for every module.
 
 ## 🛡️ Club is a clean client
 
-Club is not a cheat client. No combat automation, no killaura, no player ESP, no reach, no autoclicker, no
-X-ray. Nothing in it gives you information the game does not, or reach the game does not.
+- **It never acts for you.** No killaura, no autoclicker, no auto-totem, no combat automation of any kind.
+- **It never shows you what a wall hides.** No X-ray, no ESP, no chest or spawner finders, no minimap. The
+  Target HUD will not name an entity through a block, and never names one you cannot see at all.
+- **It never reaches further than your arm.** No reach, no hitbox.
+- **It says nothing to the server your own hand doesn't.**
 
-Everything Club does is about *your* view of the game and *your* convenience at the keyboard.
+What Club *does* change is what your own eyes get from what the game already draws: brightness, magnification,
+where the camera sits, how your HUD is laid out. Those are conveniences, not secrets — and some servers
+regulate them anyway. **Where a server's rules forbid something Club does, Club turns it off there itself**, on
+that server, with no switch for you to flip.
 
-One honest footnote, because the source is public and you can check it: **Item Scrolling moves items by
-clicking slots** — the same packets your own hand sends, just faster. That is all it can do; the protocol has
-no batch move. A strict anti-cheat may rate-limit a large transfer the way it would rate-limit fast clicking,
-and roll some of it back. Nothing else in Club talks to the server at all.
+### Every module, and what it sends
+
+You asked for this table, so here it is — the whole mod, nothing left out. The right-hand column is the answer
+to "is this a cheat", and it says the same word eighteen times. The source is public: check any row of it.
+
+**Visuals**
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Zoom** | Hold a key to magnify the world, 2×–8×, on a smooth eased FOV. Your look sensitivity slows with the zoom, so the world crosses the screen at one speed at any magnification. | Nothing |
+| **Fullbright** | Raises the world lightmap to maximum so you can see in the dark. Your real brightness slider and `options.txt` are never touched. | Nothing |
+| **Screen Stretch** | Render at an aspect ratio your monitor doesn't have, with optional letterbox bars. | Nothing |
+| **No Hurt Cam** | Removes the red damage screen tilt. | Nothing |
+| **No Fire Overlay** | Hides the first-person flames while you burn. | Nothing |
+| **No Bobbing** | Stops the view bobbing as you walk. | Nothing |
+
+**Player**
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Hands** | Reposition and scale the first-person hands, each hand on its own. | Nothing |
+| **Toggle Sprint** | Holds your sprint key down for you, so you don't have to. | **Nothing of its own.** The game sends the sprint state it always sends while that key is held — Club only holds the key. |
+| **Freelook** | Hold a key to swing the camera around yourself. Your aim, your movement and every packet stay exactly where they were: it is a camera, not an aim tool. | Nothing |
+
+**Combat**
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Animations** | Replaces the vanilla first-person swing with one of your own, with speed and amplitude. Drawing only — the swing the server sees is vanilla's, at vanilla's timing. | Nothing |
+
+**Particles**
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Particles** | Every particle the game has, in seven groups, each one switchable. All on by default; nothing is protected. A hidden particle is never created at all — not ticked, not drawn. | Nothing |
+
+**Inventory**
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Item Scroll** | Move items by scrolling instead of clicking them one at a time. Scroll for one item, **Shift** for the stack, **Ctrl** for every stack of that type, **Shift+drag** across the slots you cross. Every gesture is rebindable. | **Slot clicks — the same ones your own hand sends, just faster.** This is the only module in Club that talks to the server at all. The protocol has no batch move, so a strict anti-cheat may rate-limit a large transfer the way it would rate-limit fast clicking, and roll some of it back. |
+
+**HUD**
+
+| Element | What it does | What goes to the server |
+|---|---|---|
+| **Target** | Name and health of the living thing under your crosshair, within 4 blocks — a step past vanilla's own attack reach. Never through a block, never one you cannot see, never an armour stand. The range is fixed and is deliberately not a setting. | Nothing |
+| **Armor** | Your own armour and its durability. | Nothing |
+| **Effects** | Your own potion effects. | Nothing |
+| **Info** | Your FPS. | Nothing |
+| **Sprint** | Whether Toggle Sprint is currently on. | Nothing |
+| **HUD Editor** | Drag, snap, scale and configure every element. | Nothing |
+
+**Misc**
+
+| Module | What it does | What goes to the server |
+|---|---|---|
+| **Background FPS** | Caps the frame rate while the game sits behind another window. Not in the 1.21.8 and 1.21.11 builds: Minecraft has done this itself since 1.21.2. | Nothing |
+| **Hide Effects** | Hides Minecraft's own potion icons. | Nothing |
 
 ---
 

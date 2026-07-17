@@ -20,6 +20,23 @@ named Perspective Mod the whole time. The mistake was in how the list was read: 
 our name is never going to be on it. A ban list names *functions*, and the only question that matters is what a
 moderator sees when they watch you play.
 
+**Every module, and what it sends — in one table.** Asked for on Reddit, and now on the Modrinth page and in
+the README: all twenty modules, what each one does, and what each one sends to the server. The right-hand
+column says **Nothing** eighteen times, and names the two rows where that is not the answer — Item Scroll
+sends slot clicks (the same ones your own hand sends), and Toggle Sprint holds a vanilla key down so the game
+sends what it always would.
+
+**The promise above that table is new, because the old one was not true.** It said "nothing in Club gives you
+information the game doesn't". Fullbright hands you brightness 15.0 where the game's own slider stops at 1.0 —
+a dark cave shows you its contents, and that is information the game does not give. The sentence had been on
+the page since the first release, and it was the same sentence we used to rule out building a minimap. One
+standard or none.
+
+What stands there now is narrower, and every line can be checked against the source you already have: Club
+never acts for you, never shows you what a wall hides, never reaches further than your arm, and never says
+anything to the server your own hand doesn't. What it *does* change is what your own eyes get from what the
+game already draws — and where a server forbids even that, Club turns it off there itself.
+
 ## v0.1.4
 
 **Club runs on 1.21.8 and 1.21.11 now, as well as 1.21.1.** Three jars, one for each — pick the one that

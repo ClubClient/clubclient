@@ -112,10 +112,11 @@ already decided was visible. Both are always on and baked in: they never change 
 dials worth tuning. On **1.21.11 the particle cull is gone** — the game does it itself now, and by a better
 test than ours.
 
-There are no percentages on this page. The ones that used to be here were measured on 1.21.1 alone, against a
-cull that no longer exists in every build, and a number you cannot reproduce is not a number. Measure it
-yourself if you want one: `CLUB_BENCH=1 ./gradlew runClient`, and the bench refuses to claim a win where the
-GPU is the bottleneck — see [docs/bench/](docs/bench/).
+Measured **on 1.21.1**, interleaved in one session on a fixed-seed scene: **−5.3%** frame time on a normal
+machine, **−8.1%** on a CPU-bound one. Where the **GPU** is your bottleneck our own benchmark refuses to claim
+a win, and prints that it refuses. Those numbers belong to that version and that scene and nowhere else — the
+1.21.8 and 1.21.11 builds have never been benched, and the 1.21.11 build no longer contains half of what was
+being measured. Run it yourself: `CLUB_BENCH=1 ./gradlew runClient`, report in [docs/bench/](docs/bench/).
 
 **Everything is keyboard-friendly**, and every toggleable module can be bound to its own **hotkey** from its
 settings popover.
