@@ -312,6 +312,23 @@ public final class SpriteText implements UiText, GlyphSink {
         }
         com.club.compat.TextPipe.draw(ctx, a.textureId, c.x(), c.y(), c.k(), c.u(), c.v(),
                 c.cellW(), c.cellH(), a.metrics.atlasW, a.metrics.atlasH, a.pxRange, bias, runArgb);
+
+        // The order proof (Stage 67) — ModernText's recorder, restated on this side of the 1.21.5 seam.
+        // ModernText is excluded from the build here, so without this the recorder reads zero text and the
+        // harness's order check would pass by measuring nothing.
+        //
+        // Every glyph, including the ICON atlas's: on MODERN an icon composed by IconGlyph rides this very
+        // pipeline and ModernText counts it as TEXT. Counting it as an ICON here instead would make the two
+        // versions disagree about what they drew while drawing the same picture.
+        //
+        // Recorded AFTER the draw, so a glyph that was dropped (no pipeline) is not claimed as painted —
+        // the recorder must own the same pixels the GPU does.
+        if (com.club.modules.perf.DrawBoxes.recording) {
+            var mt = com.club.compat.Mtx.model(ctx);
+            com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.TEXT,
+                    mt.m00() * x0 + mt.m10() * y0 + mt.m30(), mt.m01() * x0 + mt.m11() * y0 + mt.m31(),
+                    mt.m00() * x1 + mt.m10() * y1 + mt.m30(), mt.m01() * x1 + mt.m11() * y1 + mt.m31());
+        }
     }
 
     // Memo of the last (atlas, bias) shader verdict. A run is almost always one atlas and one bias, so this

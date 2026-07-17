@@ -139,6 +139,10 @@ public final class HudManager {
             // com.club.ui.backend.Backends). Rather than report zeros there — a zero is a NUMBER, and this
             // project has published numbers it could not reproduce three times — the profiler is simply not
             // fed on those versions. It is a dev instrument; it comes back with the shaders.
+            //
+            // com.club.compat.HudCounters.AVAILABLE states this same boundary as a value, because the harness
+            // has to know not to ask. The two are one decision written twice and must flip together — see that
+            // class for why they cannot be merged into one.
             //? if <1.21.5 {
             if (prof && !failed)
                 HudProfiler.frame(t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3,

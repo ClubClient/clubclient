@@ -87,6 +87,10 @@ public final class ModernShapes implements UiRenderer {
         float cx = x + w * 0.5f, cy = y + h * 0.5f, hw = w * 0.5f, hh = h * 0.5f;
         int c = Color.scaleAlpha(color, currentOpacity());
         int[] clip = clipTop == 0 ? null : clipTop();
+        // ONE box for the whole shape, not four. The quadrants are an artefact of the vertex carrier
+        // holding a single radius (see the javadoc above); the player sees one rounded rect, and the order
+        // proof asks what the player sees.
+        record(x, y, w, h);
         quadrant(cx, cy, hw, hh, x,  y,  cx, cy, r.tl(), c, clip);
         quadrant(cx, cy, hw, hh, cx, y,  x + w, cy, r.tr(), c, clip);
         quadrant(cx, cy, hw, hh, cx, cy, x + w, y + h, r.br(), c, clip);
@@ -276,12 +280,39 @@ public final class ModernShapes implements UiRenderer {
     }
 
     /**
+     * The order proof's eye on this side of the 1.21.5 seam — {@code ModernBackend}'s recorder, restated.
+     *
+     * <p>{@link com.club.modules.perf.DrawBoxes} is fed by whichever classes are actually IN the build, and
+     * the three that fed it below 1.21.5 ({@code ModernBackend}, {@code ModernText}, {@code IconBatch}) are
+     * excluded here — so without this call the recorder reads zero on 1.21.5+, and a zero that means "the
+     * instrument is not looking" is worse than a red line: it makes the harness assert nothing while
+     * printing green.
+     *
+     * <p>Recorded in POSE space (the matrix is applied here, at record time) because that is the only space
+     * in which these boxes are comparable with the text and icon boxes — and because a later matrix change
+     * must not be able to move a box that has already been submitted. Same reduction {@code ModernText} and
+     * {@code IconBatch} make when they bake the pose into their queued quads.
+     */
+    private void record(float x, float y, float w, float h) {
+        // Guarded, not merely passed to a recorder that would ignore it: reading the matrix allocates on
+        // 1.21.6+ (Mtx.model builds a Matrix4f from the 2D transform), and production must pay one
+        // getstatic and a branch per shape — the cost DrawBoxes' javadoc promises.
+        if (!com.club.modules.perf.DrawBoxes.recording) return;
+        var mt = com.club.compat.Mtx.model(ctx);
+        com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.SHAPE,
+                mt.m00() * x + mt.m10() * y + mt.m30(), mt.m01() * x + mt.m11() * y + mt.m31(),
+                mt.m00() * (x + w) + mt.m10() * (y + h) + mt.m30(),
+                mt.m01() * (x + w) + mt.m11() * (y + h) + mt.m31());
+    }
+
+    /**
      * @param th SIGNED: 0 fill, &gt;0 border thickness, &lt;0 glow feather (see club:club_shape_vert.glsl)
      * @param pad how far the quad grows beyond the shape on every side, so a glow's falloff has room
      */
     private void shape(float x, float y, float w, float h, float radius, float th, float pad,
                        int cTL, int cBL, int cBR, int cTR) {
         if (broken || ctx == null || w <= 0 || h <= 0 || !ready()) return;
+        record(x, y, w, h);
         float o = currentOpacity();
         try {
             ShapePipe.shape(ctx,

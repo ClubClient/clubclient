@@ -294,6 +294,24 @@ public final class ClubHarness {
             // through it is not.
             cfg.perf.throttleWhenUnfocused = false;
 
+            // AND NEITHER MUST VANILLA'S PAUSE-ON-LOST-FOCUS — the same unfocused window, a bigger hammer.
+            //
+            // GameRenderer.render(): if the window is not focused and this flag is set, then half a second
+            // later it calls openGameMenu(false) — every frame the screen happens to be null. The harness
+            // sets the screen to null and expects the HUD; what it got was the pause menu, and HudManager
+            // skips the HUD entirely behind a screen that pauses. So the recorder saw nothing, the order
+            // checks read 0 icons at every GUI scale, and "the icon draws are counted" read 0/frame — six
+            // red lines describing the harness's own window, not the mod.
+            //
+            // This is not a 1.21.5+ regression: the flag is a public field of GameOptions and GameRenderer
+            // reads it identically on 1.21.1. It means the whole HUD half of this run has been measuring
+            // whether a human happened to leave the window in front — green when someone watched, red when
+            // nobody did. An instrument that answers a question about the room is not an instrument.
+            //
+            // Turning it off is not hiding the pause: it is refusing to be paused. A real player has focus,
+            // which is exactly the state being asserted about.
+            mc.options.pauseOnLostFocus = false;
+
             // ===== TECHNICAL ASSERTS (direct module logic) =====
             step(2, () -> report.add("== technical asserts =="));
 
@@ -900,13 +918,21 @@ public final class ClubHarness {
             step(2, () -> armPerfScene(mc));
             step(20, () -> {});
 
-            // A gate, not a fixed warm-up: probe until three consecutive windows agree (max ~40 s).
-            gate(settle, 800, () -> report.add(String.format(
-                    "INFO  settle: the reading stopped moving after %d probe windows "
-                    + "(%.0f fps, %.3f ms, share %.2f%%)%s",
-                    settle.windows, settle.lastFps, settle.lastMs, settle.lastShare * 100,
-                    gateTimedOut ? " — TIMED OUT, this run is INVALID" : "")));
-            for (int i = 0; i < 3; i++) { abWindow(false); abWindow(true); }
+            // Only where the profiler is fed. Without it these probe ~70 s of frames to read zero out of an
+            // instrument that is switched off by design, and then report "TIMED OUT, this run is INVALID" —
+            // which blames the machine for a decision the build made (com.club.compat.HudCounters).
+            //
+            // The scene above is armed either way: the ORDER proof that follows needs the armour it puts on
+            // the player, and it is the check that actually proves the icons on this version.
+            if (com.club.compat.HudCounters.AVAILABLE) {
+                // A gate, not a fixed warm-up: probe until three consecutive windows agree (max ~40 s).
+                gate(settle, 800, () -> report.add(String.format(
+                        "INFO  settle: the reading stopped moving after %d probe windows "
+                        + "(%.0f fps, %.3f ms, share %.2f%%)%s",
+                        settle.windows, settle.lastFps, settle.lastMs, settle.lastShare * 100,
+                        gateTimedOut ? " — TIMED OUT, this run is INVALID" : "")));
+                for (int i = 0; i < 3; i++) { abWindow(false); abWindow(true); }
+            }
             step(2, this::reportPerf);
 
             // ===== THE ICON BATCH IS INVISIBLE — PROVED, NOT PROMISED (Stage 67) =====
@@ -1018,8 +1044,29 @@ public final class ClubHarness {
                 ClubConfig.Perf p = ClubConfig.get().perf;
                 Boolean bg = cs.cardEnabledByName("Background FPS");
                 report.add(String.format("INFO  Background FPS card=%s cfg=%s", bg, p.throttleWhenUnfocused));
-                check("Background FPS card shows the config value it is bound to",
-                        Boolean.valueOf(p.throttleWhenUnfocused).equals(bg));
+                // THE CARD DOES NOT EXIST EVERYWHERE, AND THAT IS THE FEATURE.
+                //
+                // 1.21.2 deleted the seam this rode and added InactivityFpsLimiter in the same release, so
+                // PerfMenu.backgroundFps() returns null there and MenuContent drops it — a feature the game
+                // now has is not ours standing down, it is one we no longer have (see PerfMenu's javadoc).
+                // Asserting the binding regardless made this red on every version that deliberately removed
+                // the card, which teaches the reader to expect a red line here and is how a real one gets
+                // skipped.
+                //
+                // Asked of PerfMenu rather than a version literal: it is the definition the menu is built
+                // from, so this stays true on whatever the next version does to the feature, and 1.21.1 —
+                // where the card is shipped and players use it — keeps the full assert.
+                //
+                // Not a silent skip on the other side. "No card" is itself asserted, so a card creeping back
+                // in next to Minecraft's own limiter (two throttles fighting over one number) turns this red
+                // instead of passing unnoticed.
+                if (com.club.modules.perf.PerfMenu.backgroundFps() != null) {
+                    check("Background FPS card shows the config value it is bound to",
+                            Boolean.valueOf(p.throttleWhenUnfocused).equals(bg));
+                } else {
+                    check("Background FPS: no card here — Minecraft's own InactivityFpsLimiter replaced it, "
+                            + "and nothing of ours races it", bg == null);
+                }
 
                 // The two culls have NO card any more — they are baked in, on by default, and the config field
                 // IS the kill switch. Assert the shipped default here so a silent flip of it (or a lost field)
@@ -1353,6 +1400,32 @@ public final class ClubHarness {
          *  cache actually bought — measured ON against OFF, interleaved, in this one session. */
         private void reportPerf() {
             com.club.hud.PixelIcons.batchEnabled = true;   // production state, whatever the last window was
+
+            // THE PROFILER IS NOT FED ON THIS VERSION, SO NOTHING HERE MAY BE ASKED OF IT.
+            //
+            // Past 1.21.4 the HUD's primitives are recorded into vanilla's GuiRenderer, which issues the draws
+            // itself: our draw counters live in the shader path, which is not built there, so HudManager does
+            // not feed HudProfiler at all (see com.club.compat.HudCounters). Every snapshot therefore reports
+            // zero frames, and every number that follows is that zero — not a reading.
+            //
+            // This block used to run anyway. It printed a 0.00 ms frame and a 0% share as INFO, timed the
+            // settle gate out, called the run INVALID twice — and then asserted "the icon draws are counted,
+            // not invisible (0/frame)" and went red, on every run of every version past 1.21.4. The A/B it
+            // ran was empty too: PixelIcons.batchEnabled gates a <1.21.5 block, so both arms executed the
+            // same code and compared it with itself.
+            //
+            // A line that is red no matter what the mod does is worse than no line — it is the one people
+            // learn to scroll past, and the day it means something they scroll past it then as well. So the
+            // section states its absence once and asserts nothing. The icons are still proved, on a counter
+            // that IS fed here: the order check, real armour and real effects, at four GUI scales.
+            if (!com.club.compat.HudCounters.AVAILABLE) {
+                report.add("SKIP  perf: the HUD profiler is not fed on this version — from 1.21.5 vanilla's "
+                        + "GuiRenderer issues the draws and our counters live in the shader path, which is not "
+                        + "built here. No frame, no draw and no share is measured, so none is asserted. It "
+                        + "comes back with the shaders; the icons are proved by the order check below.");
+                return;
+            }
+
             if (batchOff.size() < 3 || batchOn.size() < 3) {
                 check("perf: the profiler saw all six windows", false);
                 return;

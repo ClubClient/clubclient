@@ -96,6 +96,18 @@ public final class SpriteIcons {
 
         com.club.compat.IconPipe.draw(ctx, a.textureId, q.x, q.y, q.k, q.u, q.v, q.cellW, q.cellH,
                 a.metrics.atlasW, a.metrics.atlasH, a.pxRange, argb);
+
+        // The order proof (Stage 67) sees this path too. It is reached only when the backend is LEGACY —
+        // MODERN sends the same icon through the text pipeline (IconGlyph.draw) — so it records the CELL
+        // actually painted rather than the caller's content box: the two differ by the glyph's plane bounds,
+        // and a box that is not the pixels is not evidence.
+        if (com.club.modules.perf.DrawBoxes.recording) {
+            var mt = com.club.compat.Mtx.model(ctx);
+            float x1 = q.x + q.cellW * q.k, y1 = q.y + q.cellH * q.k;
+            com.club.modules.perf.DrawBoxes.add(com.club.modules.perf.DrawBoxes.ICON,
+                    mt.m00() * q.x + mt.m10() * q.y + mt.m30(), mt.m01() * q.x + mt.m11() * q.y + mt.m31(),
+                    mt.m00() * x1 + mt.m10() * y1 + mt.m30(), mt.m01() * x1 + mt.m11() * y1 + mt.m31());
+        }
     }
 
     /**
