@@ -296,7 +296,14 @@ for F0 in "$SRC"/*.java; do
         TRET=$(javap -p -classpath "$MCJAR" "$OWNER" 2>/dev/null | grep -m1 "[ .]$M(" \
                | sed 's/^ *//; s/^\(public\|private|protected\|static\| \)*//' | awk '{for(i=1;i<=NF;i++) if($i ~ /'"$M"'\(/) {print $(i-1); exit}}')
         # Compare only the simple name — javap prints fully-qualified types, the source may import them.
-        TSHORT="${TRET##*.}"; RSHORT="${RET##*.}"; RSHORT="${RSHORT%%<*}"
+        # Strip generics from BOTH sides FIRST. javap prints the target's declared signature, so a generic
+        # return comes back fully parameterised: java.util.Optional<net.minecraft.item.tooltip.TooltipData>.
+        # Taking ##*. before stripping <...> grabbed the text after the last dot — which sits INSIDE the
+        # generic — and yielded "TooltipData>", false-alarming against a handler returning Optional. Mixin
+        # compares the ERASED descriptor (Ljava/util/Optional;), where the parameter is gone on both sides;
+        # the check must erase it too. (Fourth false positive this file has cost — see the type-variable note.)
+        TRET="${TRET%%<*}"; RET="${RET%%<*}"
+        TSHORT="${TRET##*.}"; RSHORT="${RET##*.}"
         # A TYPE VARIABLE (T, E, ...) erases to Object, and a handler returning Object is then correct.
         # Without this the script called MixinSimpleOption broken on the SHIPPING 1.21.1 build — the third
         # false positive calibration has caught, and the reason 1.21.1 is run first every single time.

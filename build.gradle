@@ -209,14 +209,21 @@ test {
 // Offline icon SDF atlas (Stage 11). Sources: tools/icons/src/<HHHH>_<name>.svg (HHHH = PUA code
 // point). Generator lives in buildSrc (club.tools.IconAtlasGen) — exact stroke SDF, no external
 // tool. Run manually after adding/editing icons: ./gradlew genIconAtlas
+//
+// rootProject.file, NOT file: under Stonecutter this task is created on each version NODE, whose projectDir
+// is versions/<v>/. A bare file("tools/icons/src") resolves THERE, where nothing exists — the task died with
+// "no SVG icons in versions/1.21.8/tools/icons/src". Worse, the OUTPUTS are shared source resources: a bare
+// file() would have written the atlas into a node's phantom src/ instead of the one tree every node compiles.
+// Same class of bug the LICENSE `from(...)` hit at the multiversion migration — a relative path that used to
+// mean root, and silently stopped, the day this stopped being a single-project build.
 tasks.register("genIconAtlas") {
 	group = "club"
 	description = "Generate the icon SDF atlas from tools/icons/src into assets/club/ui/icon/msdf."
 	doLast {
 		club.tools.IconAtlasGen.run(
-			file("tools/icons/src"),
-			file("src/main/resources/assets/club/ui/icon/msdf/icons.png"),
-			file("src/main/resources/assets/club/ui/icon/msdf/icons.json"))
+			rootProject.file("tools/icons/src"),
+			rootProject.file("src/main/resources/assets/club/ui/icon/msdf/icons.png"),
+			rootProject.file("src/main/resources/assets/club/ui/icon/msdf/icons.json"))
 	}
 }
 
@@ -227,8 +234,8 @@ tasks.register("genIconPreviews") {
 	description = "Render a preview board of the icon atlas at 17/24/40/72px + ghost."
 	doLast {
 		club.tools.IconPreview.run(
-			file("tools/icons/src"),
-			file("build/icon-previews/board.png"),
+			rootProject.file("tools/icons/src"),   // rootProject.file: node projectDir has no tools/ — see genIconAtlas
+			rootProject.file("build/icon-previews/board.png"),
 			0xF4F6FA)   // textHi — neutral judgement tint; category tints come with the cards
 	}
 }
@@ -242,8 +249,8 @@ tasks.register("genDiscordEmoji") {
 	doLast {
 		System.setProperty("java.awt.headless", "true")
 		club.tools.EmojiGen.run(
-			file("tools/icons/src"),
-			file("build/discord/emoji"),
+			rootProject.file("tools/icons/src"),   // rootProject.file: node projectDir has no tools/ — see genIconAtlas
+			rootProject.file("build/discord/emoji"),
 			0x7CABFF)   // accent — docs/DESIGN.md; flat, never a gradient
 	}
 }

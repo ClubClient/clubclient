@@ -19,7 +19,8 @@
     "MixinParticleManager",
     "MixinParticleManagerVisibility",
     "MixinBlockEntityRenderDispatcher",
-    "MixinMinecraftClientFps"
+    "MixinMinecraftClientFps",
+    "MixinItemStackShulkerTooltip"
   ],
   "injectors": {
     "defaultRequire": 1

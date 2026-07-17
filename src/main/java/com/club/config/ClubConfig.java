@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 10; // bumped when new fields are added, for migration
+    public int version = 11; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -32,6 +32,7 @@ public class ClubConfig {
     public boolean noHurtCam = true;
     public boolean noFireOverlay = true;
     public boolean noBobbing = true;
+    public boolean shulkerTooltip = true; // hover a shulker box to see its contents as an item grid; on by default (QoL)
     public boolean fullbright = false; // gamma READ override (15.0) — off by default, mirrored in FullbrightModule
     // Per-module toggle keybinds (Stage 43): module name → InputUtil translation key ("key.keyboard.r").
     // Bound from each module's popover; fired by ModuleBinds on key edges while no screen is open.
@@ -434,6 +435,14 @@ public class ClubConfig {
                 changed = true;
             }
             version = 10;
+            changed = true;
+        }
+        if (version < 11) {
+            // Shulker tooltip (v0.1.5) ships ON — a new boolean whose field initializer is already `true`,
+            // so a v10 file that lacks the key keeps the right value with no data to carry over. This step
+            // exists only to keep `version` telling the truth about the schema (line 23), and to be the one
+            // place a future safety-net default would go, the way v6 seeded the v0.1 kit for partial files.
+            version = 11;
             changed = true;
         }
         if (changed) save();
