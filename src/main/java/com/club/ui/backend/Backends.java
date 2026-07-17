@@ -27,7 +27,22 @@ public final class Backends {
     public static final LegacyBackend LEGACY_R = new LegacyBackend();
     public static final LegacyText    LEGACY_T = new LegacyText();
 
+    /** The DrawContext of the pass in flight — see {@link #current()}. */
+    private static DrawContext current;
+
+    /**
+     * The DrawContext of the pass currently being rendered, or null outside one.
+     *
+     * <p>{@link com.club.ui.UiContext} deliberately exposes only a renderer and a text backend: a component
+     * is not supposed to know Minecraft is underneath it. {@link SpriteIcons} is the one caller that must,
+     * because from 1.21.5 an icon is drawn by {@code DrawContext.drawTexture} rather than by either of
+     * those two. Both backends already stash this same reference from {@link #begin}; this exposes the one
+     * they were all handed instead of inventing a second way to get it.</p>
+     */
+    public static DrawContext current() { return current; }
+
     public static void begin(DrawContext ctx) {
+        current = ctx;
         //? if <1.21.5 {
         MODERN_R.begin(ctx); MODERN_T.begin(ctx);
         //?}

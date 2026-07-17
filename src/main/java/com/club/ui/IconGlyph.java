@@ -14,10 +14,18 @@ import com.club.ui.text.Weight;
  * this same glyph drawn large at low alpha. Unlike the retired procedural Icon enum, diagonals
  * are fully supported (no R8 limitation on this path).</p>
  *
- * <p>On the LEGACY backend the glyph path cannot draw ({@link #draw} no-ops, no vanilla '?'
- * boxes). Surfaces that would lose identity check {@link #available()} and fall back to a
- * LETTER initial (Stage 26): menu card chips, Effects rows, Armor slots, the footer chip;
- * the header simply stops reserving the logo's width.</p>
+ * <p>There are TWO ways to draw one, and {@link #draw} picks between them. On MODERN the icon
+ * rides the text pipeline as described above. From 1.21.5 MODERN does not compile, and the icon
+ * is drawn instead as what it physically is — one cell of the same MSDF atlas, through Club's own
+ * RenderPipeline ({@link com.club.ui.backend.SpriteIcons}, {@code com.club.compat.IconPipe}).
+ * Both paths read the same atlas and land the content box in the same place; they differ in who
+ * builds the quad, not in what is drawn.</p>
+ *
+ * <p>Where NEITHER path can draw — 1.21.1 with a failed shader load, or any version whose icon
+ * atlas is missing — {@link #draw} no-ops (no vanilla '?' boxes: a PUA code point is never handed
+ * to the vanilla TextRenderer). Surfaces that would lose identity check {@link #available()} and
+ * fall back to a LETTER initial (Stage 26): menu card chips, Effects rows, Armor slots, the footer
+ * chip; the header simply stops reserving the logo's width.</p>
  */
 public enum IconGlyph {
     // categories (rail)
@@ -91,17 +99,25 @@ public enum IconGlyph {
     /** The glyph as a 1-char string (PUA is BMP) — for direct text-pipeline composition. */
     public String str() { return str; }
 
-    /** Whether the SDF glyph path can draw at all (MODERN backend). Callers that must keep an
-     *  identity on LEGACY branch to a letter fallback when this is false. */
-    public static boolean available() { return Ui.backend() == Ui.Backend.MODERN; }
+    /** Whether an icon can actually be drawn — by EITHER path. Callers that would lose identity
+     *  branch to a letter fallback when this is false. */
+    public static boolean available() {
+        return Ui.backend() == Ui.Backend.MODERN || com.club.ui.backend.SpriteIcons.available();
+    }
 
     /** Draws the icon with its 24-grid content box at (x, y)..(x+size, y+size), tinted {@code color}. */
     public void draw(UiContext ctx, float x, float y, float size, int color) {
-        if (Ui.backend() != Ui.Backend.MODERN) return;
-        // The text pipeline places glyphs from the baseline (yTop + ascent). The icon plane puts the
-        // content top exactly 1em above the baseline, so shifting by (size - ascent) pins the content
-        // box's top-left to (x, y) regardless of the font's ascender value.
-        float yTop = y + size - ctx.text().ascent(Weight.MEDIUM, size);
-        ctx.text().draw(str, x, yTop, TextStyle.of(Weight.MEDIUM, size, color));
+        if (Ui.backend() == Ui.Backend.MODERN) {
+            // The text pipeline places glyphs from the baseline (yTop + ascent). The icon plane puts the
+            // content top exactly 1em above the baseline, so shifting by (size - ascent) pins the content
+            // box's top-left to (x, y) regardless of the font's ascender value.
+            float yTop = y + size - ctx.text().ascent(Weight.MEDIUM, size);
+            ctx.text().draw(str, x, yTop, TextStyle.of(Weight.MEDIUM, size, color));
+            return;
+        }
+        // No MODERN: draw the same atlas cell directly. SpriteIcons re-derives the baseline above from the
+        // glyph's own plane bounds, so it needs the caller's (x, y) untouched — not the shifted yTop.
+        com.club.ui.backend.SpriteIcons.draw(
+                com.club.ui.backend.Backends.current(), codePoint, x, y, size, color);
     }
 }
