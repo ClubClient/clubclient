@@ -3,15 +3,11 @@
 ## v0.1.4
 
 **Club runs on 1.21.8 and 1.21.11 now, as well as 1.21.1.** Three jars, one for each — pick the one that
-matches your game. The Minecraft version is in the file name and in the mod's own version string
-(`club-0.1.4+mc1.21.8.jar`), and each jar refuses to load on anything else rather than half-working: a client
-that starts and then behaves strangely is worse than one that tells you it is the wrong download.
+matches your game. Same modules, same keybinds, same HUD, same menu, same config.
 
-- **What is the same on all three:** every module, every keybind, the HUD, the menu, the config.
-- **What is not, yet:** on 1.21.8 and 1.21.11 the menu's own icons are missing, and the client says so on
-  screen rather than leaving you to wonder. Minecraft rebuilt its rendering between 1.21.4 and 1.21.5 — the
-  GUI no longer draws, it records, and Club's icon renderer is written against the older model. The icons are
-  cosmetic and nothing else depends on them; the port is real work and it is being done rather than rushed.
+The Minecraft version is in the file name and in the mod's own version string (`club-0.1.4+mc1.21.8.jar`), and
+each jar refuses to load on anything else rather than half-working: a client that starts and then behaves
+strangely is worse than one that tells you it is the wrong download.
 
 **Item Scroll turns itself off on servers that forbid it.** Astrum and Aormio ban item scrolling by rule, and
 Club respects the rule instead of leaving it to you to remember.

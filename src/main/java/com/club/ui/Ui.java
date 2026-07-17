@@ -67,6 +67,23 @@ public final class Ui {
         //?}
     }
 
+    /**
+     * Whether the MODERN path is BUILT on this Minecraft at all — a fact about the jar, not about this run.
+     *
+     * <p>Not the same question as {@link #modernAvailable()}, and the difference is the whole point: there
+     * they both answer "false" on 1.21.8, but for opposite reasons. On 1.21.1 a false means something BROKE —
+     * a resource pack, a shader that would not load — and the player should be told. On 1.21.5+ it means the
+     * shader path was never compiled in, so LEGACY is the road, not a parachute, and there is nothing to
+     * report. Telling that player to "check resource packs" is advice about a problem they do not have.
+     */
+    public static boolean modernSupported() {
+        //? if <1.21.5 {
+        return true;
+        //?} else {
+        /*return false;*/
+        //?}
+    }
+
     /** False wherever the shader path is not built (1.21.5+, until it is rewritten on RenderPipeline) —
      *  which sends {@link #backend()} down the LEGACY road it already takes when a shader fails to load. */
     public static boolean modernAvailable() {
