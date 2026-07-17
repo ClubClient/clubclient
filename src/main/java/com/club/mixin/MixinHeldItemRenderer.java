@@ -43,6 +43,11 @@ public class MixinHeldItemRenderer {
      *  equip by 0.6). Baked in, no setting — one edit here is the only way to retune it, by owner's design. */
     private static final float LOW_SHIELD_DROP = 0.45f;
 
+    /** Current eased drop, advanced once per frame while a shield renders. A short ease (not a hard step) so
+     *  the shield settles into and out of the lowered pose smoothly instead of snapping — see the block in
+     *  {@link #club$preItem} for why the gate is client-stable rather than the flickering isUsingItem() flag. */
+    private static float club$shieldDrop = 0f;
+
     /**
      * The call our pose brackets. Two independent changes hide in this one string, and BOTH are invisible to
      * the compiler — an {@code @At} target is text, and text does not fail to build. It fails at startup, and
@@ -242,22 +247,25 @@ public class MixinHeldItemRenderer {
         // Low Shield (owner: "как и щит… вшита внутрь и всегда включена") — baked in, no toggle, no setting,
         // the way the perf culls are. Vanilla's raised BLOCK pose fills a third of the screen; this drops it.
         //
-        // Only WHILE BLOCKING, and gated on vanilla's EXACT use-pose condition — all three of
-        // isUsingItem() && getItemUseTimeLeft() > 0 && getActiveHand() == hand, the same triple vanilla's own
-        // block pose uses (renderFirstPersonItem, measured). Dropping the getItemUseTimeLeft() clause is what
-        // caused the jitter the owner saw: on the LOCAL player, setCurrentHand writes activeHand and
-        // itemUseTimeLeft IMMEDIATELY but the isUsingItem() DataTracker flag only server-side, so it lags a
-        // round trip in BOTH directions (measured in LivingEntity.setCurrentHand: the putfields are
-        // unconditional, setLivingFlag is inside !isClient). On release, itemUseTimeLeft snaps to 0 at once —
-        // vanilla un-raises the shield immediately — while isUsingItem() stays true for ~1 RTT; a gate on
-        // isUsingItem() alone kept our drop applied for that window, so the shield hung too low, then snapped
-        // back. Matching vanilla's triple binds our drop to the exact frames vanilla is posing the raise, so
-        // the two can never desync. A translate in the item's own space, riding ON TOP of vanilla's brandish:
-        // the shield still raises to block, just lower. −Y is DOWN (applyEquipOffset lowers the same way).
-        // Items.SHIELD only — a modded shield keeps vanilla placement rather than risk an isShield guess.
-        if (item.isOf(Items.SHIELD) && player.isUsingItem() && player.getItemUseTimeLeft() > 0
-                && player.getActiveHand() == hand) {
-            matrices.translate(0.0f, -LOW_SHIELD_DROP, 0.0f);
+        // Low Shield, take two — the jitter was isUsingItem(). Measured in LivingEntity: setCurrentHand and
+        // clearActiveItem write activeHand and itemUseTimeLeft IMMEDIATELY on the local player, but the
+        // isUsingItem() DataTracker flag only server-side, so that flag lags a round trip AND flickers around
+        // the confirm/release edge — the server's "use started" packet can land a frame either side of the
+        // client's release. Gating on the flag (even alongside useTimeLeft) let that flicker toggle the drop:
+        // off → on → off in a couple of frames, exactly the "туда-сюда" the owner hit on a medium-length hold.
+        //
+        // getItemUseTimeLeft() > 0 is the CLIENT-STABLE truth instead: set the instant you press, cleared the
+        // instant you release, never touched by the flag. It is true cleanly for the whole block and for a
+        // shield is only ever true while blocking, so it needs no isUsingItem() and cannot flicker. The short
+        // ease then absorbs the one honest transition each way (press/release) so the shield settles rather
+        // than snaps — and absorbs vanilla's OWN brief raise-flash too, which we cannot remove but no longer
+        // amplify. Advanced once per frame, here, because this branch runs only for the hand holding a shield.
+        // −Y is DOWN (applyEquipOffset lowers the same way). Items.SHIELD only — a modded shield keeps vanilla
+        // placement rather than risk an isShield guess.
+        if (item.isOf(Items.SHIELD)) {
+            float target = (player.getItemUseTimeLeft() > 0 && player.getActiveHand() == hand) ? LOW_SHIELD_DROP : 0f;
+            club$shieldDrop += (target - club$shieldDrop) * 0.3f;
+            if (club$shieldDrop > 0.001f) matrices.translate(0.0f, -club$shieldDrop, 0.0f);
         }
 
         // Custom attack pose — only on the hand that actually swung (vanilla gates the swing it
