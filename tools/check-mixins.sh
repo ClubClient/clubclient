@@ -166,6 +166,102 @@ for F0 in "$SRC"/*.java; do
         fi
     done
 
+    # ---- @Inject : the handler's PARAMETERS must be the target's --------------------------------
+    # The SEVENTH shape, and the one that cost the owner the 1.21.11 launch before last. 1.21.9 changed
+    # renderFirstPersonItem's OWN 9th parameter (VertexConsumerProvider -> OrderedRenderCommandQueue). The
+    # name resolved, the @At target resolved, javac was happy — and mixin refused it at startup with
+    # "Scanned 0 target(s)", because an @Inject handler is matched against its target's parameter list.
+    #
+    # Read out of sponge-mixin's own CallbackInjector$Callback.checkDescriptor bytecode, not assumed. It
+    # accepts THREE shapes, and two of them would make a naive "handler == target" rule cry wolf:
+    #   1. (targetArgs..., CallbackInfo)             — getDescriptor().equals(desc)
+    #   2. (CallbackInfo)                            — Target.getSimpleCallbackDescriptor(): args omitted
+    #   3. (targetArgs..., CallbackInfo, locals...)  — @Local/LocalCapture, compared per-Type with getSort()
+    # So CallbackInfo is the boundary: what precedes it is the target's parameter list, what follows is
+    # locals. Shape 2 (nothing before it) is legal and skipped rather than reported.
+    #
+    # SIMPLE names, not descriptors. The previous attempt at this check resolved every type through the
+    # file's imports into a JVM descriptor, and when that resolution failed it printed nothing — a silent
+    # pass over the exact bug it was written for. Simple names need no imports and cannot fail that way. A
+    # collision (two classes, one simple name) is possible and would under-report; a wrong type almost never
+    # keeps its name, and "VertexConsumerProvider" vs "OrderedRenderCommandQueue" is the case that matters.
+    perl -0ne '
+        while (/\@Inject\s*\(\s*method\s*=\s*"([a-zA-Z0-9_\$]+)[("]/gs) {
+            my $target = $1; my $rest = substr($_, pos($_));
+            # [\w\$], not \w: in perl, \w excludes the dollar sign, and EVERY handler in this mod is named
+            # club$something. The first cut of this check used \w, matched no signature at all, printed
+            # nothing, and passed the very bug it was written for — the same silence that got the previous
+            # attempt reverted. A checker that cannot fail is worse than no checker.
+            next unless $rest =~ /(?:private|public|protected)\s+(?:static\s+)?(<[^>]*>)?[\w\s<>\[\],.\$]*?\s[\w\$]+\s*\(([^)]*)\)/s;
+            my ($tparams, $params) = ($1, $2);
+            # A handler may be generic: club$cull is declared <E extends BlockEntity> and takes an E. Java
+            # erases E to its bound, and mixin only ever sees the erased descriptor — so "E" here IS
+            # BlockEntity, and comparing the letter against the class is how this check first cried wolf on
+            # 1.21.1, a version that ships and works. Resolve the letters to their bounds instead.
+            my %bound;
+            if (defined $tparams) {
+                for my $tp (split /\s*,\s*/, substr($tparams, 1, -1)) {
+                    if ($tp =~ /^\s*(\w+)\s+extends\s+([\w.]+)/) { my ($n,$b)=($1,$2); $b =~ s/.*\.//; $bound{$n}=$b; }
+                    elsif ($tp =~ /^\s*(\w+)\s*$/)               { $bound{$1} = "Object"; }
+                }
+            }
+            my @types;
+            for my $p (split /\s*,\s*/, $params) {
+                $p =~ s/^\s+|\s+$//g; next unless $p;
+                my @w = split /\s+/, $p;
+                next unless @w >= 2;
+                my $t = $w[-2];
+                $t =~ s/<.*//; $t =~ s/.*\.//;      # drop generics and package
+                $t = $bound{$t} if exists $bound{$t};
+                push @types, $t;
+            }
+            my @before;
+            for my $t (@types) { last if $t =~ /^CallbackInfo/; push @before, $t; }
+            next unless @before;                     # shape 2: args omitted entirely — legal
+            print "$target|" . join(",", @before) . "\n";
+        }' "$F" | sort -u | while IFS='|' read -r TGT HTYPES; do
+        # Compare against the DESCRIPTOR, not javap's generic signature — because that is what mixin compares
+        # (Type.getArgumentTypes over the descriptor, read out of CallbackInjector$Callback.checkDescriptor).
+        # The difference is not academic: BlockEntityRenderManager.render is declared render(S state, ...) and
+        # javap prints the type VARIABLE "S", which matches no handler and no reality. Descriptors are erased,
+        # so S is already BlockEntityRenderState there — and a bare "S" would otherwise read as short. The
+        # generic form produced a false alarm on a mixin that demonstrably works on 1.21.11.
+        DESCS=$(javap -s -p -classpath "$MCJAR" "$OWNER" 2>/dev/null | grep -A1 -E "[ .]$TGT\(" \
+                | grep -oP 'descriptor: \K\S+')
+        [ -n "$DESCS" ] || continue               # target not found by name: other checks own that
+        # Any OVERLOAD whose parameters equal the handler's is a match — mixin binds by descriptor, and a
+        # name with two overloads is a selector question the BAD OVERLOAD check above already owns.
+        MATCH=""
+        for D in $DESCS; do
+            T=$(printf '%s' "$D" | perl -ne '
+                my %P=(B=>"byte",C=>"char",D=>"double",F=>"float",I=>"int",J=>"long",S=>"short",Z=>"boolean");
+                s/^\(//; s/\).*$//; my @o;
+                while (/\G(\[*)(?:([BCDFIJSZ])|L([^;]+);)/gc) {
+                    my ($a,$p,$c)=($1,$2,$3);
+                    my $n = defined $p ? $P{$p} : do { my $x=$c; $x =~ s{.*/}{}; $x =~ s/\$/./g; $x };
+                    $n .= "[]" x length($a); push @o,$n;
+                }
+                print join(",",@o);')
+            [ "$T" = "$HTYPES" ] && { MATCH=1; break; }
+        done
+        if [ -z "$MATCH" ]; then
+            T1=$(printf '%s' "$(echo "$DESCS" | head -1)" | perl -ne '
+                my %P=(B=>"byte",C=>"char",D=>"double",F=>"float",I=>"int",J=>"long",S=>"short",Z=>"boolean");
+                s/^\(//; s/\).*$//; my @o;
+                while (/\G(\[*)(?:([BCDFIJSZ])|L([^;]+);)/gc) {
+                    my ($a,$p,$c)=($1,$2,$3);
+                    my $n = defined $p ? $P{$p} : do { my $x=$c; $x =~ s{.*/}{}; $x =~ s/\$/./g; $x };
+                    $n .= "[]" x length($a); push @o,$n;
+                }
+                print join(",",@o);')
+            echo "  INJECT ARGS  $B  ->  $OWNER::$TGT parameters differ from the handler's in $MC"
+            echo "               target: ($T1)"
+            echo "               handler: ($HTYPES)"
+            echo "               (mixin says 'Scanned 0 target(s)' at STARTUP; javac cannot see this)"
+            echo x >> "$FAILFILE"
+        fi
+    done
+
     # ---- @Shadow : the field or method must EXIST in the target ----------------------------------
     # The SIXTH shape, and it cost the owner a launch of 1.21.11 that this script had just called clean.
     # @Shadow is not a string like @Accessor's — the member is named by ordinary Java syntax, so it LOOKS
