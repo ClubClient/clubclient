@@ -32,8 +32,25 @@ jobs:
       - name: cache gradle
         uses: gradle/actions/setup-gradle@v6
 
+      # Stonecutter makes root `build` depend on every version node, so this one line builds all of them.
+      # Verified with `./gradlew build --dry-run`: :1.21.1:build, :1.21.8:build and :1.21.11:build all appear.
       - name: build
         run: ./gradlew build
+
+      # One jar per Minecraft version, and the release must carry ALL of them. The glob below points into the
+      # version nodes because that is where Stonecutter puts them — the old one read build/libs at the repo
+      # root, which the multiversion layout leaves empty, so this workflow would have failed at the publish
+      # step (fail_on_unmatched_files) or, worse, shipped nothing.
+      #
+      # This step exists so that a MISSING version is loud here rather than a quiet gap on the release page:
+      # a player on 1.21.8 who finds only a 1.21.1 jar has no way to know whether we forgot or never supported
+      # it. Count the jars against the nodes and refuse to publish a partial set.
+      - name: every version produced a jar
+        run: |
+          NODES=$(ls -d versions/*/ | wc -l)
+          JARS=$(ls versions/*/build/libs/club-*.jar | wc -l)
+          echo "nodes=$NODES jars=$JARS"; ls -la versions/*/build/libs/club-*.jar
+          [ "$NODES" = "$JARS" ] || { echo "::error::$NODES version nodes but $JARS jars — refusing to publish a partial release"; exit 1; }
 
       # The tag is the source of truth for the version; if gradle.properties disagrees, the jar we are about
       # to publish is not the one the tag names. Fail loudly rather than ship a mislabelled artifact.
@@ -60,7 +77,7 @@ jobs:
         with:
           name: Club ${{ github.ref_name }}
           body_path: RELEASE_BODY.md
-          files: build/libs/club-*.jar
+          files: versions/*/build/libs/club-*.jar
           fail_on_unmatched_files: true
 
       # A proper Discord announcement, not the bare "github-actions[bot] New release published" one-liner.
@@ -97,7 +114,7 @@ jobs:
                   { name: "📥 Download", value: "[Modrinth](https://modrinth.com/mod/clubclient)", inline: true },
                   { name: "📄 Full notes", value: "[GitHub release](https://github.com/\($repo)/releases/tag/\($tag))", inline: true }
                 ],
-                footer: { text: "Fabric 1.21.1 · client-side · MIT" }
+                footer: { text: "Fabric · client-side · MIT" }
               }]
             }' > payload.json
           curl -sS -X POST -H "Content-Type: application/json" -d @payload.json "$DISCORD_WEBHOOK" && echo "announced"

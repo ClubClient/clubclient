@@ -3,7 +3,16 @@ plugins {
 	id 'maven-publish'
 }
 
-version = project.mod_version
+// "0.1.4+mc1.21.8" — the mod version, then the Minecraft it was built against, in semver's build-metadata
+// slot (the part after '+', which comparators ignore, so 0.1.4 is still 0.1.4 to Fabric).
+//
+// Every node used to produce "club-0.1.4.jar": one name, three different Minecraft versions. Harmless while
+// they sit in separate build directories and fatal the moment they meet — a GitHub release attaches files BY
+// NAME, so three identical names is one upload and two silent losses. And the player who ends up with the
+// wrong one gets "mod refused to load" with nothing on the jar to tell them which one they have. The
+// Minecraft version is part of this artifact's identity; it belongs in the name, and in what the mod reports
+// about itself.
+version = "${project.mod_version}+mc${project.minecraft_version}"
 group = project.maven_group
 
 base {

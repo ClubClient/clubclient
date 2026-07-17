@@ -2,6 +2,27 @@
 
 ## v0.1.4
 
+**Club runs on 1.21.8 and 1.21.11 now, as well as 1.21.1.** Three jars, one for each — pick the one that
+matches your game. The Minecraft version is in the file name and in the mod's own version string
+(`club-0.1.4+mc1.21.8.jar`), and each jar refuses to load on anything else rather than half-working: a client
+that starts and then behaves strangely is worse than one that tells you it is the wrong download.
+
+- **What is the same on all three:** every module, every keybind, the HUD, the menu, the config.
+- **What is not, yet:** on 1.21.8 and 1.21.11 the menu's own icons are missing, and the client says so on
+  screen rather than leaving you to wonder. Minecraft rebuilt its rendering between 1.21.4 and 1.21.5 — the
+  GUI no longer draws, it records, and Club's icon renderer is written against the older model. The icons are
+  cosmetic and nothing else depends on them; the port is real work and it is being done rather than rushed.
+
+**Item Scroll turns itself off on servers that forbid it.** Astrum and Aormio ban item scrolling by rule, and
+Club respects the rule instead of leaving it to you to remember.
+
+- Join one of those servers and the feature is simply not there — no card in the menu, no hotkey, nothing to
+  toggle. Leave, and it comes back on its own.
+- It is one jar. There is no "clean version" to install and no switch to flip, because a switch a player can
+  flip is a bypass we shipped ourselves.
+- The list of addresses is compiled into the mod, not stored in your config, for the same reason. Both of that
+  server's doors are covered, including the ones we found rather than were given.
+
 **Particles — choose what you see.** A new category holding every particle the game has, sorted into groups you
 can reason about: Combat, Blocks, Ambient, Fire & Light, Water, Explosions and Status.
 
