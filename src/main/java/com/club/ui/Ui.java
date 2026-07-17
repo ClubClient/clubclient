@@ -75,6 +75,12 @@ public final class Ui {
      * a resource pack, a shader that would not load — and the player should be told. On 1.21.5+ it means the
      * shader path was never compiled in, so LEGACY is the road, not a parachute, and there is nothing to
      * report. Telling that player to "check resource packs" is advice about a problem they do not have.
+     *
+     * <p><b>Whoever finishes the RenderPipeline port: this is the switch.</b> The moment {@code ModernBackend}
+     * and {@code ModernText} compile into the 1.21.5+ jars (drop their exclusions in {@code build.gradle}),
+     * the branch below is {@code true} everywhere and this method should stop being version-guarded at all.
+     * That same change brings {@link LegacyNotice} back to life on those versions, which is the point: once
+     * MODERN can run there, a fallback there means something broke again, and the player wants to know.
      */
     public static boolean modernSupported() {
         //? if <1.21.5 {
