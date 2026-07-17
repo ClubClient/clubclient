@@ -203,7 +203,7 @@ Discord **сам** заводит боту роль при приглашени�
   не мешая людям.
 - **Описание сервера** (оно видно в окне приглашения):
 
-  > Club — a first-person utility client for Minecraft (Fabric 1.21.1). Open source, MIT. Not a cheat client.
+  > Club — a first-person utility client for Minecraft (Fabric 1.21.1 / 1.21.8 / 1.21.11). Open source, MIT. Not a cheat client.
 
 ---
 
@@ -297,7 +297,7 @@ Discord понимает настоящий markdown: `#` и `##` — загол
 
 ```
 # Club
-A first-person utility client for Minecraft 1.21.1 · Fabric · MIT
+A first-person utility client for Minecraft 1.21.1 / 1.21.8 / 1.21.11 · Fabric · MIT
 
 **Download** · <https://modrinth.com/mod/clubclient>
 **Source** · <https://github.com/ClubClient/clubclient>
