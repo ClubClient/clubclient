@@ -53,10 +53,20 @@ dependencies {
 }
 
 // ---- the shader path is not built past 1.21.4 (yet) ---------------------------------------------
-// Minecraft deleted the immediate-mode render API in 1.21.5 — BufferRenderer, VertexFormat and most of
-// RenderSystem went at once, and Fabric's CoreShaderRegistrationCallback with them. These four files ARE
-// that API: they are not a few renamed calls but the SDF/MSDF renderer built on it, and porting them to
-// RenderPipeline is its own piece of work.
+// This comment used to say Minecraft "deleted BufferRenderer, VertexFormat and most of RenderSystem" in
+// 1.21.5. Measured against the 1.21.8 jar, that is false and would have sent the next reader hunting for
+// replacements that already exist:
+//
+//   net/minecraft/client/render/VertexFormat    GONE — but only MOVED, to com/mojang/blaze3d/vertex
+//   net/minecraft/client/render/BufferRenderer  GONE — genuinely
+//   Tessellator, RenderSystem, ShaderProgram    ALIVE
+//   CoreShaderRegistrationCallback              GONE from fabric-rendering-v1 (present in 5.x for 1.21.1)
+//
+// The real obstacle is not a deleted API, it is an inverted one. DrawContext no longer DRAWS — it RECORDS:
+// it holds a private GuiRenderState and its methods take a RenderPipeline (javap -p DrawContext, 1.21.8),
+// and GuiRenderer decides order and layers afterwards. These four files are an immediate-mode renderer that
+// draws now and owns its own flush, and that mode no longer exists inside the GUI pass. So the port is not
+// renamed calls: it is the same pixels re-expressed as recorded state.
 //
 // Until then the newer versions build the LEGACY backend only. That is not a hack bolted on for the port:
 // Ui.backend() has always read `modernAvailable() ? MODERN : LEGACY`, because a shader that fails to load
