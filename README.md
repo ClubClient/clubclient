@@ -2,9 +2,9 @@
 
 # Club
 
-A clean, **flat** first-person utility client for Minecraft (Fabric 1.21.1). Zoom, fullbright, freelook,
-item scrolling, a movable HUD, custom hands & attack animations, and per-module hotkeys — all behind one
-calm menu. No glass, no glow, no clutter.
+A clean, **flat** first-person utility client for Minecraft (Fabric **1.21.1**, **1.21.8** and **1.21.11**).
+Zoom, fullbright, freelook, item scrolling, a movable HUD, custom hands & attack animations, and per-module
+hotkeys — all behind one calm menu. No glass, no glow, no clutter.
 
 Open the menu with **Right Shift**.
 
@@ -80,13 +80,18 @@ settings popover.
 
 ## Install
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for **Minecraft 1.21.1**.
-2. Download [Fabric API](https://modrinth.com/mod/fabric-api) (1.21.1) and drop it in `mods/`.
+1. Install [Fabric Loader](https://fabricmc.net/use/) for **1.21.1**, **1.21.8** or **1.21.11**.
+2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for that same version and drop it in `mods/`.
 3. Get Club from [Modrinth](https://modrinth.com/mod/clubclient) or
-   [Releases](https://github.com/ClubClient/clubclient/releases), and drop the jar in `mods/`.
+   [Releases](https://github.com/ClubClient/clubclient/releases) — **one jar per Minecraft version**, named
+   for the one it is built against (`club-0.1.4+mc1.21.8.jar`). Drop it in `mods/`.
 4. Launch. Press **Right Shift** to open the menu.
 
-**Requirements:** Minecraft 1.21.1 · Fabric Loader ≥ 0.15 · Fabric API · Java 21.
+Each jar declares the single Minecraft version it was built for and will not load on another. That is
+deliberate: a client that starts and then behaves strangely is worse than one that says you have the wrong
+download.
+
+**Requirements:** Minecraft 1.21.1 / 1.21.8 / 1.21.11 · Fabric Loader ≥ 0.15 · Fabric API · Java 21.
 **Compatible with:** Sodium, Iris (shaderpacks included), Freecam — the gallery images were shot with all
 three loaded at once.
 
