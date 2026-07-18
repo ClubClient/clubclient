@@ -402,11 +402,12 @@ public final class ClubHarness {
                         && mc.options.getPerspective() == prevP);
             });
 
-            // Shulker tooltip: hovering a container item hands back vanilla's OWN BundleTooltipData grid — the
-            // one cross-version-stable seam (ItemStack.getTooltipData -> Optional<TooltipData>) — so Club draws
-            // none of it and the version fork stays inside Minecraft's renderer. This proves the MIXIN FIRES and
-            // GATES right on whichever node the harness runs; the pixels of the grid are vanilla's own, and the
-            // owner confirms those with the jar. FQNs, not imports — one self-contained block, the harness style.
+            // Shulker tooltip: hovering a container item fills the empty getTooltipData Optional with our OWN
+            // ShulkerTooltipData (the cross-version-stable seam), and MixinTooltipComponentOf maps THAT to our
+            // ShulkerTooltipComponent — which vanilla's of() would otherwise throw IllegalArgumentException on.
+            // This proves the whole chain FIRES and GATES right on whichever node the harness runs (data -> of
+            // -> component); the grid's pixels are drawn by our component and the owner confirms those with the
+            // jar. FQNs, not imports — one self-contained block, the harness style.
             step(2, () -> {
                 boolean prevShulker = cfg.shulkerTooltip;
                 cfg.shulkerTooltip = true;
@@ -417,9 +418,18 @@ public final class ClubHarness {
                                 new net.minecraft.item.ItemStack(net.minecraft.item.Items.DIAMOND, 5),
                                 new net.minecraft.item.ItemStack(net.minecraft.item.Items.EMERALD, 12))));
                 java.util.Optional<net.minecraft.item.tooltip.TooltipData> data = box.getTooltipData();
-                check("shulker: a filled box gets a tooltip grid on hover", data.isPresent());
-                check("shulker: and it is vanilla's own BundleTooltipData (Club draws none of it)",
-                        data.orElse(null) instanceof net.minecraft.item.tooltip.BundleTooltipData);
+                check("shulker: a filled box gets tooltip data on hover", data.isPresent());
+                check("shulker: and it is Club's ShulkerTooltipData (not the bundle chrome)",
+                        data.orElse(null) instanceof com.club.ui.tooltip.ShulkerTooltipData);
+                // The render half: our Fabric TooltipComponentCallback must map the data to our own component.
+                if (data.orElse(null) instanceof com.club.ui.tooltip.ShulkerTooltipData sd) {
+                    net.minecraft.client.gui.tooltip.TooltipComponent comp =
+                            net.fabricmc.fabric.api.client.rendering.v1.TooltipComponentCallback.EVENT.invoker().getComponent(sd);
+                    check("shulker: the Fabric callback maps it to our ShulkerTooltipComponent",
+                            comp instanceof com.club.ui.tooltip.ShulkerTooltipComponent);
+                    check("shulker: the component reports a non-empty grid size",
+                            comp != null && comp.getWidth(mc.textRenderer) > 0);
+                }
 
                 // An emptied box (has the component, but nothing in it): nothing to preview.
                 net.minecraft.item.ItemStack emptied = new net.minecraft.item.ItemStack(net.minecraft.item.Items.SHULKER_BOX);

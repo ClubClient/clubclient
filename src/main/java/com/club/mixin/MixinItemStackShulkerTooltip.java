@@ -1,12 +1,11 @@
 package com.club.mixin;
 
 import com.club.config.ClubConfig;
+import com.club.ui.tooltip.ShulkerTooltipData;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.BundleContentsComponent;
 import net.minecraft.component.type.ContainerComponent;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.tooltip.BundleTooltipData;
 import net.minecraft.item.tooltip.TooltipData;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,18 +14,19 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Shulker tooltip (v0.1.5): hover a shulker box and see what is inside it, as the same item grid vanilla
- * already draws for a bundle — no need to place the box and open it.
+ * Shulker tooltip (v0.1.5): hover a shulker box and see what is inside it, as a plain item grid — no need to
+ * place the box and open it.
  *
- * <h2>Why this seam, and why it is the SAME on all three versions</h2>
+ * <h2>Why this seam</h2>
  *
- * <p>The one thing measured to be identical across 1.21.1 / 1.21.8 / 1.21.11 is {@code ItemStack.getTooltipData()}
- * — {@code Optional<TooltipData>} on every one. Everything ELSE about tooltips forked hard: {@code TooltipComponent}
- * changed {@code getHeight}/{@code drawText}/{@code drawItems} between 1.21.1 and 1.21.8, and the render path
- * inverted at 1.21.5 (a hand-drawn component would risk dropping the client on an invalid pipeline). So Club draws
- * NOTHING. It hands back vanilla's own {@link BundleTooltipData}, and vanilla's {@code BundleTooltipComponent}
- * lays out the grid, each version with its own renderer. The version fork stays entirely inside Minecraft, where
- * it is already handled.</p>
+ * <p>{@code ItemStack.getTooltipData() -> Optional<TooltipData>} is identical across 1.21.1 / 1.21.8 / 1.21.11,
+ * so this half is version-agnostic: fill the empty Optional with our {@link ShulkerTooltipData}. The RENDER
+ * half forked hard ({@code TooltipComponent.getHeight}/{@code drawItems} and the count-overlay method all
+ * changed at 1.21.8) and lives in {@code com.club.ui.tooltip.ShulkerTooltipComponent}, on a single measured
+ * {@code //?} boundary. It first shipped handing back vanilla's {@code BundleTooltipData} to dodge that fork
+ * entirely, but the bundle renderer's chrome — dark slot cells, a fill bar, a "Full" label a box of 64-stacks
+ * always tripped — was wrong for a shulker, so the grid is drawn by our own component now (through vanilla's
+ * {@code DrawContext.drawItem}, so still no custom pipeline and no 1.21.5+ crash risk).</p>
  *
  * <p>A shulker's {@code getTooltipData()} is empty by default — the box's own text lines come from a different
  * path ({@code ContainerComponent.appendTooltip}). So this fills a hole rather than fighting vanilla for the slot.</p>
@@ -52,6 +52,9 @@ public class MixinItemStackShulkerTooltip {
         List<ItemStack> items = container.streamNonEmpty().toList();
         if (items.isEmpty()) return original;   // an empty box has nothing to preview
 
-        return Optional.of(new BundleTooltipData(new BundleContentsComponent(items)));
+        // Our OWN data, not vanilla's BundleTooltipData: the bundle type drags in the bundle renderer's chrome
+        // (dark slot cells, a fill bar, a "Full" label that a box of 64-stacks always trips). ShulkerTooltipData
+        // maps to ShulkerTooltipComponent — a plain grid — via MixinTooltipComponentOf.
+        return Optional.of(new ShulkerTooltipData(items));
     }
 }

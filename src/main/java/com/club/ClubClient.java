@@ -128,6 +128,16 @@ public class ClubClient implements ClientModInitializer {
         // (Perf has no init any more: the two culls are baked in and gate straight off the config, and the
         //  Sodium notice that PerfMenu.init() registered belonged to cards that no longer exist.)
 
+        // Shulker tooltip render half: map the ShulkerTooltipData that MixinItemStackShulkerTooltip produces to
+        // our own grid component. This is Fabric's callback, NOT a mixin on TooltipComponent.of — that method is
+        // on an INTERFACE, which a class mixin cannot target, and vanilla's of() throws on any unknown data
+        // anyway. The event is the sanctioned seam for exactly this, and it exists in fabric-rendering-v1 on all
+        // three versions (measured).
+        net.fabricmc.fabric.api.client.rendering.v1.TooltipComponentCallback.EVENT.register(data ->
+                data instanceof com.club.ui.tooltip.ShulkerTooltipData shulker
+                        ? new com.club.ui.tooltip.ShulkerTooltipComponent(shulker.items())
+                        : null);
+
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ClubConfig.close());
 
