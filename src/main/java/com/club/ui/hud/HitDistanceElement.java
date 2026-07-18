@@ -90,9 +90,8 @@ public final class HitDistanceElement extends HudElement {
 
         float cw = 2 * PAD_X + Ui.text().width(NUM_TEMPLATE, Weight.MEDIUM, TEXT_SIZE)
                 + GAP + Ui.text().width(UNIT, Weight.MEDIUM, UNIT_SIZE);
-        // Same dense ground as the Sprint chip (bg1 at 0.72), legible over a bright PvP world without a loud panel.
-        ctx.renderer().roundedRect(ox, oy, cw * s, CONTENT_H * s, HudPaint.CHIP_RAD * s,
-                Color.scaleAlpha(Tokens.surface().bg1(), 0.72f * alpha));
+        // The shared V4 chip ground (bg2 @ 0.55) — same opacity as the Effects/potions HUD (owner, 2026-07).
+        HudPaint.chip(ctx, ox, oy, cw * s, CONTENT_H * s, HudPaint.CHIP_RAD * s, alpha);
 
         // Number and unit share a baseline (the smaller unit sits ON the number's baseline, not floating).
         float lhNum = Ui.text().lineHeight(Weight.MEDIUM, TEXT_SIZE);

@@ -33,6 +33,13 @@ public final class HudSnap {
         return Math.max(0, Math.min(pos, screen - size));
     }
 
+    /** Clamp with a {@code margin} inset on both edges — the element's OUTER box cannot cross the margin
+     *  frame (the same line the edge magnet snaps to), so it can't be dragged past the limit (owner p.2/3).
+     *  Editor-only: the in-world clamp stays {@link #clampAxis} (a margin there would shove the live HUD off-edge). */
+    public static int clampAxisInset(int pos, int size, int screen, int margin) {
+        return Math.max(margin, Math.min(pos, screen - size - margin));
+    }
+
     /** True if the {@code w×h} box at (x,y) overlaps the {x,y,w,h} rect {@code o} (touching edges is not
      *  overlap). Pure — used by the editor's no-overlap constraint and its test. */
     public static boolean overlaps(int x, int y, int w, int h, int[] o) {

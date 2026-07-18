@@ -107,15 +107,15 @@ public final class HudCanvas extends Container {
             HudSnap.Snap s = HudSnap.snapAxis(ny, h, screenH);
             if (s.guide() != HudSnap.NO_GUIDE && (s.pos() - oy) * dy > 0) { ny = s.pos(); gy = s.guide(); }
         }
-        nx = HudSnap.clampAxis(nx, w, screenW);
-        ny = HudSnap.clampAxis(ny, h, screenH);
+        nx = HudSnap.clampAxisInset(nx, w, screenW, HudSnap.MARGIN);
+        ny = HudSnap.clampAxisInset(ny, h, screenH, HudSnap.MARGIN);
         // No overlap (owner, v0.1.3): a nudge that would drive onto a neighbour is refused; one that lands
         // clear commits. A push off a snap line drops that line's guide.
         int desiredX = nx, desiredY = ny;
         int[][] others = otherBoxes(e);
         int[] res = HudSnap.avoidOverlap(nx, ny, w, h, others);
-        nx = HudSnap.clampAxis(res[0], w, screenW);
-        ny = HudSnap.clampAxis(res[1], h, screenH);
+        nx = HudSnap.clampAxisInset(res[0], w, screenW, HudSnap.MARGIN);
+        ny = HudSnap.clampAxisInset(res[1], h, screenH, HudSnap.MARGIN);
         if (HudSnap.overlapsAny(nx, ny, w, h, others) || (nx == ox && ny == oy)) return new int[]{0, 0};
         if (nx != desiredX) gx = HudSnap.NO_GUIDE;
         if (ny != desiredY) gy = HudSnap.NO_GUIDE;
@@ -147,14 +147,23 @@ public final class HudCanvas extends Container {
         int w = (int) pressed.width(), h = (int) pressed.height();
         int nx = (int) mx - grabX, ny = (int) my - grabY;
 
-        // Edge/center magnetism first (always shows guide lines); grid is the fallback lattice when grid-snap is on.
-        HudSnap.Snap sx = HudSnap.snapAxis(nx, w, screenW);
-        HudSnap.Snap sy = HudSnap.snapAxis(ny, h, screenH);
-        guideX = sx.guide(); guideY = sy.guide();
-        nx = sx.guide() != HudSnap.NO_GUIDE ? sx.pos() : (gridSnap ? HudSnap.snapToGrid(nx, GRID_STEP) : nx);
-        ny = sy.guide() != HudSnap.NO_GUIDE ? sy.pos() : (gridSnap ? HudSnap.snapToGrid(ny, GRID_STEP) : ny);
-        nx = HudSnap.clampAxis(nx, w, screenW);
-        ny = HudSnap.clampAxis(ny, h, screenH);
+        // Grid mode (owner p.4): snap to the cell lattice ONLY — no magnet pull — but still show the
+        // alignment line as reference (it tracks the grid-snapped edge). Non-grid: edge/center magnetism.
+        if (gridSnap) {
+            nx = HudSnap.snapToGrid(nx, GRID_STEP);
+            ny = HudSnap.snapToGrid(ny, GRID_STEP);
+            guideX = HudSnap.snapAxis(nx, w, screenW).guide();
+            guideY = HudSnap.snapAxis(ny, h, screenH).guide();
+        } else {
+            HudSnap.Snap sx = HudSnap.snapAxis(nx, w, screenW);
+            HudSnap.Snap sy = HudSnap.snapAxis(ny, h, screenH);
+            guideX = sx.guide(); guideY = sy.guide();
+            if (sx.guide() != HudSnap.NO_GUIDE) nx = sx.pos();
+            if (sy.guide() != HudSnap.NO_GUIDE) ny = sy.pos();
+        }
+        // p.3: the outer box can't cross the margin frame (edge line) — inset clamp, editor-only.
+        nx = HudSnap.clampAxisInset(nx, w, screenW, HudSnap.MARGIN);
+        ny = HudSnap.clampAxisInset(ny, h, screenH, HudSnap.MARGIN);
 
         // No overlap (owner, v0.1.3: "чтобы худы не могли заехать друг на друга"): slide out of any neighbour,
         // then re-clamp. If the push corners it against a screen edge and it still overlaps, hold the last
@@ -162,8 +171,8 @@ public final class HudCanvas extends Container {
         int desiredX = nx, desiredY = ny;
         int[][] others = otherBoxes(pressed);
         int[] res = HudSnap.avoidOverlap(nx, ny, w, h, others);
-        nx = HudSnap.clampAxis(res[0], w, screenW);
-        ny = HudSnap.clampAxis(res[1], h, screenH);
+        nx = HudSnap.clampAxisInset(res[0], w, screenW, HudSnap.MARGIN);
+        ny = HudSnap.clampAxisInset(res[1], h, screenH, HudSnap.MARGIN);
         if (HudSnap.overlapsAny(nx, ny, w, h, others)) { guideX = guideY = HudSnap.NO_GUIDE; return true; }
         if (nx != desiredX) guideX = HudSnap.NO_GUIDE;
         if (ny != desiredY) guideY = HudSnap.NO_GUIDE;
@@ -202,7 +211,7 @@ public final class HudCanvas extends Container {
             int w = (int) e.width(), h = (int) e.height(), x = (int) e.xLeft(), y = (int) e.yTop();
             if (!HudSnap.overlapsAny(x, y, w, h, reserved)) continue;
             int[] res = HudSnap.avoidOverlap(x, y, w, h, otherBoxes(e));
-            int nx = HudSnap.clampAxis(res[0], w, screenW), ny = HudSnap.clampAxis(res[1], h, screenH);
+            int nx = HudSnap.clampAxisInset(res[0], w, screenW, HudSnap.MARGIN), ny = HudSnap.clampAxisInset(res[1], h, screenH, HudSnap.MARGIN);
             if (nx != x || ny != y) { e.cfgX(nx); e.cfgY(ny); e.layout(nx, ny, w, h); moved = true; }
         }
         if (moved) saver.run();

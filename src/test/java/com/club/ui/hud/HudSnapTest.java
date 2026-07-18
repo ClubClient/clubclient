@@ -35,6 +35,11 @@ class HudSnapTest {
         assertEquals(350, HudSnap.clampAxis(999, 50, 400)); // screen-size
         assertEquals(100, HudSnap.clampAxis(100, 50, 400));
     }
+    @Test void clampInsetKeepsOuterBoxInsideMarginFrame() {   // owner p.2/3: can't cross the edge line
+        assertEquals(4,   HudSnap.clampAxisInset(-10, 50, 400, 4)); // left edge stops AT the margin, not 0
+        assertEquals(346, HudSnap.clampAxisInset(999, 50, 400, 4)); // right: screen-size-margin = 400-50-4
+        assertEquals(100, HudSnap.clampAxisInset(100, 50, 400, 4)); // interior untouched
+    }
 
     // ---- no-overlap constraint (owner, v0.1.3) ----
     @Test void overlapsDetectsIntersectionButNotTouching() {

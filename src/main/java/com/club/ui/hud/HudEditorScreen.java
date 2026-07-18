@@ -101,7 +101,7 @@ public final class HudEditorScreen extends Screen {
     // Compact floating toolbar centred at the top: "Grid snap" [toggle]  [Reset]  [Done].
     // A tight overlay so the whole screen underneath stays usable for positioning HUD elements.
     private static final float TB_TOGGLE_W = 40, TB_TOGGLE_H = 22, TB_BTN_W = 92, TB_BTN_H = 26,
-                              TB_GAP = 12, TB_PAD = 14, TB_LABEL_W = 66;
+                              TB_GAP = 12, TB_PAD = 14, TB_LABEL_W = 32;   // "Grid" (p.7) — was 66 for "Grid snap"
     private static final float TB_RISE = 10f;   // toolbar slide-in distance on the entrance curve (owner #6)
     private Toggle tbGrid;
     private Button tbDone;
@@ -131,7 +131,7 @@ public final class HudEditorScreen extends Screen {
         tbH = 40;
         tbW = TB_PAD + TB_LABEL_W + 8 + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP + TB_BTN_W + TB_PAD;
         tbX = (canvasW - tbW) / 2f;
-        tbY = 8;
+        tbY = canvasH - tbH - 8;   // bottom-centre (owner p.6): nobody parks a HUD over the hotbar, so it's clear there
         tbGrid = new Toggle(canvas.gridSnap()).accent(QUIET_ACC).onChange(canvas::setGridSnap);
         // Stage 35: Reset wipes EVERY element's position — it asks first. Click 1 arms it to the
         // soft-accent "Confirm?" (Stage 50); click 2 within the hold executes; the arm decays back in
@@ -157,7 +157,9 @@ public final class HudEditorScreen extends Screen {
         tbDone.layout(toggleX + TB_TOGGLE_W + TB_GAP + TB_BTN_W + TB_GAP, btnY, TB_BTN_W, TB_BTN_H);
     }
 
-    private static final int POP_HEAD = 28, POP_ROW = 26, POP_PAD_B = 8;
+    // p.8: no title row (identity is the on-canvas selection outline) + tighter rows. POP_HEAD is now just
+    // the top pad above the first row; was 28 (title). POP_ROW 26→22, POP_PAD_B 8→6.
+    private static final int POP_HEAD = 8, POP_ROW = 22, POP_PAD_B = 6;
     private final java.util.List<Label> popLabels = new java.util.ArrayList<>();
     private float popNeeded;    // widest [label + control] row → popW grows to fit (3-way segments)
     private boolean popClosing; // deselected: the popover plays its grow-in in reverse, then drops
@@ -196,7 +198,7 @@ public final class HudEditorScreen extends Screen {
             addRow("Value", new Segmented(new String[]{"Percent", "Count"}, h().armorPercent ? 0 : 1,
                     i -> { h().armorPercent = (i == 0); save(); }));
         }
-        popW = Math.max(178, Math.round(popNeeded) + 24);
+        popW = Math.max(150, Math.round(popNeeded) + 20);   // p.8: tighter min width + inset
         popH = POP_HEAD + popover.children().size() * POP_ROW + POP_PAD_B;
         if (!inPlace) popReveal = null;   // replay the grow-in ONLY for a (re)selection, never mid-edit
     }
@@ -223,13 +225,13 @@ public final class HudEditorScreen extends Screen {
         popX = Math.max(8, Math.min(ex, width - popW - 8));
         int above = ey - popH - 8;
         popY = above >= 8 ? above : Math.max(8, Math.min(height - popH - 8, ey + eh + 8));
-        int ix = popX + 12, iw = popW - 24, y = popY + POP_HEAD;
+        int ix = popX + 10, iw = popW - 20, y = popY + POP_HEAD;   // p.8: tighter inset (12→10)
         var ctrls = popover.children();
         for (int i = 0; i < ctrls.size(); i++) {
             Component ctrl = ctrls.get(i);
-            if (i < popLabels.size()) popLabels.get(i).layout(ix, y + 3, iw, 14);
-            float cw = ctrl instanceof Slider ? 88 : ctrl.measure(iw, 22).w(); if (cw <= 0) cw = 88;
-            ctrl.layout(ix + iw - cw, y, cw, 22);
+            if (i < popLabels.size()) popLabels.get(i).layout(ix, y + 2, iw, 14);
+            float cw = ctrl instanceof Slider ? 88 : ctrl.measure(iw, 20).w(); if (cw <= 0) cw = 88;
+            ctrl.layout(ix + iw - cw, y, cw, 20);   // p.8: 22→20 to fit the 22px row
             y += POP_ROW;
         }
     }
@@ -298,7 +300,9 @@ public final class HudEditorScreen extends Screen {
 
         canvas.setScreen(Math.round(canvasW), Math.round(canvasH));
         canvas.layoutFromConfig(mc);
-        Decals.watermark(uiCtx); Decals.crosshair(uiCtx, Math.round(canvasW), Math.round(canvasH));
+        // No watermark in the editor (owner p.5): the CLUB logo/title/version blocked the view and served
+        // nothing here. The crosshair reference stays.
+        Decals.crosshair(uiCtx, Math.round(canvasW), Math.round(canvasH));
 
         // armed Reset decays back to the quiet ghost when the hold expires (Stage 35)
         if (tbResetArmed && uiCtx.time() - tbResetArmAt > RESET_ARM_HOLD) disarmReset();
@@ -307,19 +311,20 @@ public final class HudEditorScreen extends Screen {
         canvas.mouseMoved(mx, my);
         canvas.render(uiCtx);
 
-        // compact floating toolbar — slides DOWN into place on the same entrance curve the ground fades on,
-        // so the editor ASSEMBLES rather than snapping whole (owner #6). At ep=0 it sits TB_RISE above its
-        // resting line; at ep=1 the offset is zero and it is exactly where it always was.
-        float tbYOff = -(1f - ep) * TB_RISE;
+        // compact floating toolbar at the BOTTOM — slides UP into place on the same entrance curve the ground
+        // fades on, so the editor ASSEMBLES rather than snapping whole. At ep=0 it sits TB_RISE below its
+        // resting line; at ep=1 the offset is zero.
+        float tbYOff = (1f - ep) * TB_RISE;
         layoutToolbar(tbYOff);
         float tby = tbY + tbYOff;
         float tbR = Tokens.radius().md();
         sheet(r, tbX, tby, tbW, tbH, tbR);
-        uiCtx.text().draw("Grid snap", tbX + TB_PAD, tby + (tbH - ty.label().lineHeight()) / 2f, stToolLabel);
+        uiCtx.text().draw("Grid", tbX + TB_PAD, tby + (tbH - ty.label().lineHeight()) / 2f, stToolLabel);
         toolbar.mouseMoved(mx, my); toolbar.render(uiCtx);
 
-        // hint, tucked at the very bottom (out of the way of element positioning)
-        uiCtx.text().draw("Left-drag to move · Right-click for settings", canvasW / 2f, canvasH - 18, stHint);
+        // hint, tucked directly ABOVE the bottom toolbar (owner p.6) — out of the way of element positioning
+        uiCtx.text().draw("Left-drag to move · Right-click for settings",
+                canvasW / 2f, tby - ty.label().lineHeight() - 4, stHint);
 
         // popover — compact, re-anchored each frame; grows in on selection, plays the reveal in
         // reverse on deselection (dropped only once fully collapsed), content clipped to the eased height
@@ -344,8 +349,7 @@ public final class HudEditorScreen extends Screen {
                 float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
                 sheet(r, popX, popY, popW, drawnH, Tokens.radius().md());
                 r.pushClip(popX, popY, popW, drawnH);
-                r.roundedRect(popX + 12, popY + 11, 6, 6, 2, Tokens.accent().accent());
-                uiCtx.text().draw(titleOf(popSel), popX + 24, popY + 7, stPop);
+                // p.8: no title row — the selected element's on-canvas outline already says which chip this is.
                 for (Label l : popLabels) l.render(uiCtx);
                 popover.mouseMoved(mx, my); popover.render(uiCtx);
                 r.popClip();
@@ -416,6 +420,14 @@ public final class HudEditorScreen extends Screen {
         focus.clickFocus(mx, my);
         if (toolbar.mouseClicked(mx, my, b)) { pressOwner = 1; return true; }
         if (hasPopover && !popClosing && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH) { popover.mouseClicked(mx, my, b); pressOwner = 2; return true; }
+        // p.9: settings open ⇒ NO hud dragging. Left-click on empty closes the popover; left-click on a chip
+        // is swallowed so nothing starts dragging. (Right-click still falls through to open/switch/close.)
+        // With the element frozen while open, positionPopover no longer flip-flops above↔below — the jump dies.
+        if (hasPopover && !popClosing && b == 0) {
+            if (canvas.elementAt(mx, my) == null) canvas.clearSelection();   // fires onSelectionChanged → animated close
+            pressOwner = 0;
+            return true;
+        }
         if (canvas.mouseClicked(mx, my, b)) { pressOwner = 3; return true; }
         pressOwner = 0;
         return false;
