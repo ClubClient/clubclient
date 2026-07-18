@@ -402,6 +402,43 @@ public final class ClubHarness {
                         && mc.options.getPerspective() == prevP);
             });
 
+            // Shulker tooltip: hovering a container item hands back vanilla's OWN BundleTooltipData grid — the
+            // one cross-version-stable seam (ItemStack.getTooltipData -> Optional<TooltipData>) — so Club draws
+            // none of it and the version fork stays inside Minecraft's renderer. This proves the MIXIN FIRES and
+            // GATES right on whichever node the harness runs; the pixels of the grid are vanilla's own, and the
+            // owner confirms those with the jar. FQNs, not imports — one self-contained block, the harness style.
+            step(2, () -> {
+                boolean prevShulker = cfg.shulkerTooltip;
+                cfg.shulkerTooltip = true;
+
+                net.minecraft.item.ItemStack box = new net.minecraft.item.ItemStack(net.minecraft.item.Items.SHULKER_BOX);
+                box.set(net.minecraft.component.DataComponentTypes.CONTAINER,
+                        net.minecraft.component.type.ContainerComponent.fromStacks(java.util.List.of(
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.DIAMOND, 5),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.EMERALD, 12))));
+                java.util.Optional<net.minecraft.item.tooltip.TooltipData> data = box.getTooltipData();
+                check("shulker: a filled box gets a tooltip grid on hover", data.isPresent());
+                check("shulker: and it is vanilla's own BundleTooltipData (Club draws none of it)",
+                        data.orElse(null) instanceof net.minecraft.item.tooltip.BundleTooltipData);
+
+                // An emptied box (has the component, but nothing in it): nothing to preview.
+                net.minecraft.item.ItemStack emptied = new net.minecraft.item.ItemStack(net.minecraft.item.Items.SHULKER_BOX);
+                emptied.set(net.minecraft.component.DataComponentTypes.CONTAINER,
+                        net.minecraft.component.type.ContainerComponent.DEFAULT);
+                check("shulker: an emptied box previews nothing", emptied.getTooltipData().isEmpty());
+
+                // Feature off: the return is left exactly as vanilla gave it (a shulker's own data is empty).
+                cfg.shulkerTooltip = false;
+                check("shulker: with the feature off the tooltip is untouched", box.getTooltipData().isEmpty());
+                cfg.shulkerTooltip = true;
+
+                // A plain item carries no CONTAINER, so the mixin steps aside.
+                check("shulker: a plain item (no container) is untouched",
+                        new net.minecraft.item.ItemStack(net.minecraft.item.Items.STICK).getTooltipData().isEmpty());
+
+                cfg.shulkerTooltip = prevShulker;
+            });
+
             // Module TOGGLE keybinds: assign/label, conflict-steal, clear, malformed self-heal (no crash).
             step(2, () -> {
                 ModuleBinds.set("No Bobbing", "key.keyboard.k");
