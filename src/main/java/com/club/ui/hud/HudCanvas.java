@@ -59,6 +59,12 @@ public final class HudCanvas extends Container {
     /** True while a left-drag gesture owns an element — the keyboard nudge must not fight it (Stage 38). */
     public boolean dragging() { return pressed != null; }
     public void clearSelection() { if (selected != null) { selected = null; onSelectionChanged.run(); } }
+    /** Harness hook: select the element by its display name so the editor's selection affordance can be
+     *  screenshotted and judged. No effect outside the editor. */
+    public void selectByDisplayName(String name) {
+        if (!editor) return;
+        for (HudElement e : elements) if (e.displayName().equals(name)) { selected = e; onSelectionChanged.run(); return; }
+    }
     public int guideX() { return guideX; }
     public int guideY() { return guideY; }
 
@@ -282,19 +288,21 @@ public final class HudCanvas extends Container {
         if (gya > 0.001f && lastGuideY != HudSnap.NO_GUIDE) r.rect(0, lastGuideY, screenW, 1, Color.scaleAlpha(g, gya));
     }
 
-    /** A padded outline around an element. Padding shows in the interior, but on any side whose element edge
-     *  sits within the snap margin of the screen, the outline hugs the element edge instead — so a snapped
-     *  element's outline lands exactly on the magnet line and never spills past it, while edge/grid elements
-     *  at x/y 0..MARGIN keep their content (text) inside the frame. Always within the screen. */
+    /** A padded outline around an element, clamped to stay on screen. Every element gets the SAME {@code pad}
+     *  of air between its content and the frame — the clamp only pulls the frame in for an element actually
+     *  pressed against the screen edge (where the pad would spill off), which still lands it on that edge.
+     *
+     *  <p>The old form special-cased any element within {@link HudSnap#MARGIN} of an edge and hugged the box
+     *  outright, no pad. That is why the Sprint chip (default x=8, inside the margin) read as "$print" when
+     *  selected: the frame sat right on its short label instead of 4px out, and the accent line merged with
+     *  the "S". The clamp alone already prevents spilling, so the hug bought nothing and cost the breathing
+     *  room every other element had. (owner: "в редакторе вот так")</p> */
     private void outline(UiRenderer r, HudElement e, float pad, float thick, int color) {
-        int m = HudSnap.MARGIN;
         float ex = e.xLeft(), ey = e.yTop(), ew = e.width(), eh = e.height();
-        float l = ex <= m ? ex : ex - pad;
-        float t = ey <= m ? ey : ey - pad;
-        float rt = ex + ew >= screenW - m ? ex + ew : ex + ew + pad;
-        float b = ey + eh >= screenH - m ? ey + eh : ey + eh + pad;
-        l = Math.max(0, l); t = Math.max(0, t);
-        rt = Math.min(screenW, rt); b = Math.min(screenH, b);
+        float l  = Math.max(0, ex - pad);
+        float t  = Math.max(0, ey - pad);
+        float rt = Math.min(screenW, ex + ew + pad);
+        float b  = Math.min(screenH, ey + eh + pad);
         r.border(l, t, rt - l, b - t, Tokens.radius().sm(), thick, color);
     }
 }

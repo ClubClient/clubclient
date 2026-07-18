@@ -22,25 +22,28 @@ import net.minecraft.client.MinecraftClient;
  * value, the hue is only an additive cue.
  */
 public final class TargetElement extends HudElement {
-    // Stage 19 (owner: the Target got quiet next to the pixel-icon elements — "чуть улучшить"):
-    // HP steps 16 → 18, the live edge 3 → 4px. Same anatomy, more presence.
-    private static final float HP_SIZE = 18f, UNIT_SIZE = 12f, NAME_SIZE = 13f;
-    private static final int   GAP = 10;            // HP-group ↔ name gap (unscaled)
-    private static final float PAD_X = 10f, PAD_TOP = 6f;   // hero keeps a touch more air than the 8px rows
+    // v0.1.5 (owner: "таргет слишком длинный… выглядит огромным"): the whole chip slimmed ~17% — every
+    // dimension scaled together so the anatomy and the HP-first hierarchy are unchanged, it just reads
+    // smaller. HP 18→15 stays the loudest text (name 11, unit 10); height and the name field came down with
+    // it so the capsule is shorter AND less long. Stage-19 note kept for history: HP had been 16→18 for
+    // "more presence"; the owner has now asked for the opposite.
+    private static final float HP_SIZE = 15f, UNIT_SIZE = 10f, NAME_SIZE = 11f;
+    private static final int   GAP = 8;             // HP-group ↔ name gap (unscaled)
+    private static final float PAD_X = 8f, PAD_TOP = 5f;
     // Item 11 (owner: the bar must read as a MEANS OF INFORMATION, not as a backing plate). 4 → 6px: the
     // next step on the HUD's own 2px bar grid (Armor/Effects row lines are 2px; this edge was 4). 8px — the
     // doubling, spacing.sm — was rejected: at 8 the bar stops being an edge and becomes a second surface
     // competing with the capsule, and the owner asked for "чуть" (slightly) wider. At 6 the Target still owns
     // the loudest bar in the HUD (3× a row line), which is the hero rank HUD-LANGUAGE §1/§2 grants it.
-    private static final float BAR_H = 6f;          // live edge height — the HP gauge
+    private static final float BAR_H = 5f;          // live edge height — the HP gauge (slimmed with the chip)
     // ...and the chip absorbs exactly what the bar took, DOWNWARD, so no type moves:
     //     bar top = CONTENT_H - BAR_H - EDGE_BOT   →   old: 34-4-2 = 28    new: 36-6-2 = 28   (identical)
     // So the text band is untouched and the HP number keeps its exact position, size and air — the gauge grew
     // into the chip's own bottom margin, never into the type. 36 also lands the chip on the 4px spacing grid
     // for the first time (34 is not divisible by 4) and makes the height an exact 4 × CHIP_RAD.
-    private static final int   CONTENT_H = 36;      // full chip height (text band + edge zone)
-    private static final float NAME_MAX_W = 80f;    // FIXED name field — longer names ellipsize here
-    private static final float MIN_W = 92f;
+    private static final int   CONTENT_H = 30;      // full chip height (text band + edge zone) — slimmed from 36
+    private static final float NAME_MAX_W = 62f;    // FIXED name field — longer names ellipsize here (was 80)
+    private static final float MIN_W = 76f;         // was 92
     private static final String UNIT = " HP";
 
     // HP tone C: number a touch brighter than the name-support tone, the "HP" unit dimmer — a micro-hierarchy

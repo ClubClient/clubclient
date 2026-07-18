@@ -1438,6 +1438,11 @@ public final class ClubHarness {
             // HUD editor
             step(6, () -> mc.setScreen(new HudEditorScreen()));
             step(2, () -> shot("editor"));
+            // The Sprint chip SELECTED — the owner reported its editor look is wrong ("$print"). Shot it so
+            // the selection affordance over the placeholder is judged off a frame, not their screen.
+            step(2, () -> { if (mc.currentScreen instanceof HudEditorScreen ed) ed.selectForHarness("Sprint"); });
+            step(6, () -> {});
+            step(2, () -> shot("editor-sprint-selected"));
 
             step(4, () -> mc.setScreen(null));
         }

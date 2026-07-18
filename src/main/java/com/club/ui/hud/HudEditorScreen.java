@@ -53,6 +53,9 @@ public final class HudEditorScreen extends Screen {
             new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
     private TextStyle stHint, stPop, stToolLabel;
     private int pressOwner;   // which surface owns the active gesture: 0 none, 1 toolbar, 2 popover, 3 canvas
+
+    /** Harness hook: select an element by name so its selected-state affordance can be screenshotted. */
+    public void selectForHarness(String name) { canvas.selectByDisplayName(name); }
     private final Screen parent;
 
     // Toolbar Reset confirmation (Stage 35): first click arms, second executes; the arm decays.

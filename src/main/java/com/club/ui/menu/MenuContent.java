@@ -156,8 +156,9 @@ public final class MenuContent {
                 // package. This anchor must survive any refactor of this file (see docs/NEXT-PLAN.md).
                 com.club.modules.itemscroll.ItemScrollMenu.card(),   // null where the server forbids it
                 com.club.modules.perf.PerfMenu.backgroundFps(),
-                flag("Shulker Tooltip", "Hover a shulker box to see what's inside it.", IconGlyph.SHULKER_TOOLTIP, () -> c.shulkerTooltip, v -> { c.shulkerTooltip = v; save(); }),
-                flag("Hide Effects", "Hide Minecraft's own potion icons.", IconGlyph.HIDE_EFFECTS, () -> c.hud.hideVanillaEffects, v -> { c.hud.hideVanillaEffects = v; save(); })))
+                // Hiding the vanilla effect overlay behind our own is baked in now (owner: "always on, drop the
+                // card") — see MixinInGameHud, which gates on hud.potions alone.
+                flag("Shulker Tooltip", "Hover a shulker box to see what's inside it.", IconGlyph.SHULKER_TOOLTIP, () -> c.shulkerTooltip, v -> { c.shulkerTooltip = v; save(); })))
         );
     }
 

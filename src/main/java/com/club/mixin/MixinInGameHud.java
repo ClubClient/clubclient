@@ -10,18 +10,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Hide the vanilla status-effect HUD overlay so it doesn't clash with our Potion HUD.
  *
- * <p>Only while ours is actually drawing (Stage 62). The cancel used to hang off {@code hideVanillaEffects}
- * alone, while the Club element hangs off {@code hud.potions} — two flags for one job, and turning the
- * Club Effects chip OFF left the player with no effect display at all: not ours, and not the game's. A
- * replacement is only entitled to hide the original while it is on screen.</p>
+ * <p>Only while ours is actually drawing: gated on {@code hud.potions} alone. It USED to also require a
+ * {@code hideVanillaEffects} toggle, but the owner cut that card (baked in, always on) — a replacement that
+ * is on screen is always entitled to hide the original, and the toggle only ever let the two clash. The one
+ * rule that still matters is the other half: the Club Effects chip OFF means {@code hud.potions} is false, so
+ * the game's own overlay comes back rather than leaving the player with no effect display at all.</p>
  */
 @Mixin(InGameHud.class)
 public class MixinInGameHud {
 
     @Inject(method = "renderStatusEffectOverlay", at = @At("HEAD"), cancellable = true)
     private void club$hideVanillaEffects(CallbackInfo ci) {
-        ClubConfig.Hud hud = ClubConfig.get().hud;
-        if (hud.hideVanillaEffects && hud.potions) {
+        if (ClubConfig.get().hud.potions) {
             ci.cancel();
         }
     }

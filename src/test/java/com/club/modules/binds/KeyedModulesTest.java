@@ -41,7 +41,8 @@ class KeyedModulesTest {
         // setting that stayed a card, Background FPS, is a set-once preference and belongs on this list.
         for (String setOnce : new String[] {
                 "Hands", "Animations", "Screen Stretch", "HUD Editor",
-                "No Hurt Cam", "No Fire Overlay", "No Bobbing", "Hide Effects",
+                "No Hurt Cam", "No Fire Overlay", "No Bobbing",
+                // ("Hide Effects" dropped its card — hiding the vanilla overlay is baked in now.)
                 "Background FPS",
                 // Item Scroll lost its key in v0.1.3 (owner: "зачем итемскроллу кнопка бинда"). It is not a
                 // mid-fight toggle — you set your gestures once. Its bind, if any old file carries one, is
