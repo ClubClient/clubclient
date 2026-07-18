@@ -2,6 +2,22 @@
 
 ## v0.1.5
 
+**See inside a shulker box without opening it.** Hover one and its contents show as a little chest-slot grid —
+the real items, with their counts, sitting in real inventory slots. Just what's in the box: no name, no text
+list, no clutter. Prefer Minecraft's plain version? Turn Shulker Tooltip off in Misc. (Asked for on Reddit.)
+
+**Small Totem.** The totem-of-undying pop stops filling the middle of the screen — it is smaller now and lifted
+up out of the way, so the pop that just saved you no longer blocks the fight it saved you from. Baked in,
+always on, no card.
+
+**Low Shield.** Raise a shield to block and it drops low instead of covering half your view. Baked in, always
+on, no card.
+
+**A slimmer, quieter HUD.** The Target chip is about a sixth smaller — the same HP, name and health bar, just
+less bulk in your face. The sprint pill is a touch more transparent, the FPS readout a touch brighter. And
+hiding Minecraft's own potion icons behind Club's Effects chip is automatic now: no toggle to find, it just
+happens while the Club chip is on, and the game's icons come back if you turn the chip off.
+
 **Freelook turns itself off on Astrum.** Astrum's rules ban Perspective Mod — the mod whose whole job is letting
 you look around while your aim and your movement keep pointing where they were. That is exactly what Club's
 Freelook does, so the name it ships under changes nothing: on Astrum it is a banned mod, and Club stops handing
@@ -21,10 +37,9 @@ our name is never going to be on it. A ban list names *functions*, and the only 
 moderator sees when they watch you play.
 
 **Every module, and what it sends — in one table.** Asked for on Reddit, and now on the Modrinth page and in
-the README: all twenty modules, what each one does, and what each one sends to the server. The right-hand
-column says **Nothing** eighteen times, and names the two rows where that is not the answer — Item Scroll
-sends slot clicks (the same ones your own hand sends), and Toggle Sprint holds a vanilla key down so the game
-sends what it always would.
+the README: every module, what each one does, and what each one sends to the server. The right-hand column says
+**Nothing** for all but two rows, and names those two — Item Scroll sends slot clicks (the same ones your own
+hand sends), and Toggle Sprint holds a vanilla key down so the game sends what it always would.
 
 **The promise above that table is new, because the old one was not true.** It said "nothing in Club gives you
 information the game doesn't". Fullbright hands you brightness 15.0 where the game's own slider stops at 1.0 —

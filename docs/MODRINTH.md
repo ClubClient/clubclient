@@ -45,6 +45,20 @@ a card for its own settings. The whole menu is keyboard-navigable, and every mod
 - ✋ **Hands** — reposition and scale the first-person hands, each hand independently.
 - ⚔️ **Custom attack animations** — pick a style, then tune its speed and swing.
 
+## ⚔️ In a fight
+
+- 🛡️ **Low Shield** — a raised, blocking shield drops out of your face instead of covering half the screen.
+- ✝️ **Small Totem** — the totem-of-undying pop is smaller and lifted out of the centre, so the pop that just
+  saved you doesn't blind you to the fight it saved you from.
+
+Both are always on, drawing-only, and the block and the totem work exactly as the game intends underneath.
+
+## 📦 See inside a shulker
+
+**Shulker Tooltip** — hover a shulker box (or any container item) and its contents appear as a chest-slot grid,
+the real items with their counts, without placing and opening it. Prefer Minecraft's plain text list? Turn it
+off in Misc.
+
 ## ✨ Particles — choose what you see
 
 Every particle the game has, sorted into groups you can reason about: Combat, Blocks, Ambient, Fire & Light,
@@ -118,7 +132,7 @@ three loaded at once.
 
 Client-side only: Club works on any server and installs on none of them. Java 21, requires **Fabric API**.
 
-**One jar per Minecraft version.** The file says which one it is (`club-0.1.4+mc1.21.8.jar`), and each jar
+**One jar per Minecraft version.** The file says which one it is (`club-0.1.5+mc1.21.8.jar`), and each jar
 refuses to load on anything else rather than half-working — a client that starts and then behaves strangely is
 worse than one that tells you it is the wrong download.
 
@@ -150,7 +164,8 @@ that server, with no switch for you to flip.
 ### Every module, and what it sends
 
 You asked for this table, so here it is — the whole mod, nothing left out. The right-hand column is the answer
-to "is this a cheat", and it says the same word eighteen times. The source is public: check any row of it.
+to "is this a cheat", and it says the same word — **Nothing** — for every module but the two it names. The
+source is public: check any row of it.
 
 **Visuals**
 
@@ -176,6 +191,8 @@ to "is this a cheat", and it says the same word eighteen times. The source is pu
 | Module | What it does | What goes to the server |
 |---|---|---|
 | **Animations** | Replaces the vanilla first-person swing with one of your own, with speed and amplitude. Drawing only — the swing the server sees is vanilla's, at vanilla's timing. | Nothing |
+| **Small Totem** | Shrinks the totem-of-undying pop and lifts it out of the centre of the screen. Always on, no card. Drawing only — the totem still works exactly as the game intends. | Nothing |
+| **Low Shield** | Drops a raised (blocking) shield low so it stops covering your view. Always on, no card. A first-person camera offset only — the block itself is vanilla's. | Nothing |
 
 **Particles**
 
@@ -205,7 +222,7 @@ to "is this a cheat", and it says the same word eighteen times. The source is pu
 | Module | What it does | What goes to the server |
 |---|---|---|
 | **Background FPS** | Caps the frame rate while the game sits behind another window. Not in the 1.21.8 and 1.21.11 builds: Minecraft has done this itself since 1.21.2. | Nothing |
-| **Hide Effects** | Hides Minecraft's own potion icons. | Nothing |
+| **Shulker Tooltip** | Hover a shulker box (or any container item) to see its contents as a chest-slot grid, without placing and opening it. Reads what is already in the item; no packet. | Nothing |
 
 ---
 
@@ -232,9 +249,9 @@ back. It takes about five minutes.
 The jars come from the GitHub release the tag builds, or from `versions/*/build/libs/` locally:
 
 ```
-club-0.1.4+mc1.21.1.jar
-club-0.1.4+mc1.21.8.jar
-club-0.1.4+mc1.21.11.jar
+club-0.1.5+mc1.21.1.jar
+club-0.1.5+mc1.21.8.jar
+club-0.1.5+mc1.21.11.jar
 ```
 
 ## Do this three times — once per jar
@@ -243,18 +260,18 @@ Modrinth → your project → **Versions** → **Create version**.
 
 | Field | 1.21.1 | 1.21.8 | 1.21.11 |
 |---|---|---|---|
-| **Version number** | `0.1.4+mc1.21.1` | `0.1.4+mc1.21.8` | `0.1.4+mc1.21.11` |
-| **Version name** | `Club 0.1.4 — MC 1.21.1` | `Club 0.1.4 — MC 1.21.8` | `Club 0.1.4 — MC 1.21.11` |
+| **Version number** | `0.1.5+mc1.21.1` | `0.1.5+mc1.21.8` | `0.1.5+mc1.21.11` |
+| **Version name** | `Club 0.1.5 — MC 1.21.1` | `Club 0.1.5 — MC 1.21.8` | `Club 0.1.5 — MC 1.21.11` |
 | **Loaders** | Fabric | Fabric | Fabric |
 | **Game versions** | `1.21.1` **only** | `1.21.8` **only** | `1.21.11` **only** |
-| **File** | `club-0.1.4+mc1.21.1.jar` | `club-0.1.4+mc1.21.8.jar` | `club-0.1.4+mc1.21.11.jar` |
+| **File** | `club-0.1.5+mc1.21.1.jar` | `club-0.1.5+mc1.21.8.jar` | `club-0.1.5+mc1.21.11.jar` |
 | **Release channel** | Release | Release | Release |
 | **Changelog** | the same text in all three | ← | ← |
 
-The version number is already inside the jar (`fabric.mod.json` says `0.1.4+mc1.21.8`), so the field and the
+The version number is already inside the jar (`fabric.mod.json` says `0.1.5+mc1.21.8`), so the field and the
 artifact agree by construction — nothing to keep in sync by hand.
 
-**Changelog:** paste the `## v0.1.4` section of `docs/CHANGELOG.md`. Same text in all three entries — it is one
+**Changelog:** paste the `## v0.1.5` section of `docs/CHANGELOG.md`. Same text in all three entries — it is one
 release that happens to ship three files, and a player on 1.21.8 should read the same notes as one on 1.21.1.
 
 ## Why not one entry with three game versions
