@@ -76,6 +76,13 @@ public final class HitDistanceElement extends HudElement {
     @Override public int[] contentSize(MinecraftClient mc, boolean live) {
         float w = 2 * PAD_X + Ui.text().width(NUM_TEMPLATE, Weight.MEDIUM, TEXT_SIZE)
                 + GAP + Ui.text().width(UNIT, Weight.MEDIUM, UNIT_SIZE);
+        if (!live) {
+            // Editor only: the placeholder draws the NAME ("Hit Distance"), which is wider than the readout
+            // — the box must fit it with the same PAD_X of air, or the name touches the frame. In-world the
+            // narrow readout box is untouched, so the live "2.34 blocks" pill stays short.
+            var body = Tokens.type().body();
+            w = Math.max(w, Ui.text().width(displayName(), body.weight(), body.size()) + 2 * PAD_X);
+        }
         return new int[]{ Math.round(w), CONTENT_H };
     }
 
