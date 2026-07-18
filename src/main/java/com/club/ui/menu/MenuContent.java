@@ -122,7 +122,7 @@ public final class MenuContent {
     public static List<Category> build(Runnable openHudEditor) {
         ClubConfig c = ClubConfig.get();
         return List.of(
-            new Category("Combat", IconGlyph.COMBAT, List.of(animations(c), hitDistance(c))),
+            new Category("Combat", IconGlyph.COMBAT, List.of(animations(c), hitDistance(c), hitboxes(c))),
             new Category("Visuals", IconGlyph.VISUALS, List.of(
                 zoom(c),
                 screenStretch(c),
@@ -216,6 +216,30 @@ public final class MenuContent {
         return new Module("Hit Distance", "See how far away the entity under your crosshair is.",
             IconGlyph.HIT_DISTANCE,
             () -> c.hud.hitDistance, set, () -> set.accept(false), List.of());
+    }
+
+    /**
+     * Hitboxes recolours the vanilla F3+B debug hitbox and can strip its clutter. The two "colour" rows store
+     * an INDEX into {@link com.club.combat.HitboxColors} — the enum-ordinal dropdown shape (see {@link
+     * #animations}, {@link #screenStretch}), only here the backing value IS the int index, not an enum name.
+     * "On player" is used while the crosshair is on another player, "Default" the rest of the time. Reset
+     * returns to OFF — a debug overlay is opt-in — with clean lines and the accent/white colour defaults.
+     */
+    private static Module hitboxes(ClubConfig c) {
+        return new Module("Hitboxes",
+            "Recolour the debug hitbox outline, hide its clutter, and flash a colour when your crosshair lands on a player.",
+            IconGlyph.HITBOXES,
+            () -> c.hitboxes.enabled, v -> { c.hitboxes.enabled = v; save(); },
+            () -> { c.hitboxes.enabled = false; c.hitboxes.cleanLines = true;
+                    c.hitboxes.colorA = com.club.combat.HitboxColors.ACCENT;
+                    c.hitboxes.colorB = com.club.combat.HitboxColors.WHITE; save(); },
+            List.of(
+                new DropdownSetting("On player", com.club.combat.HitboxColors.NAMES,
+                        () -> c.hitboxes.colorA, i -> { c.hitboxes.colorA = i; save(); }),
+                new DropdownSetting("Default", com.club.combat.HitboxColors.NAMES,
+                        () -> c.hitboxes.colorB, i -> { c.hitboxes.colorB = i; save(); }),
+                new ToggleSetting("Clean lines",
+                        () -> c.hitboxes.cleanLines, v -> { c.hitboxes.cleanLines = v; save(); })));
     }
 
     /** Fullbright is a flag module whose state must ALSO mirror into the module's static (the gamma

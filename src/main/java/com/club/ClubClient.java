@@ -127,6 +127,7 @@ public class ClubClient implements ClientModInitializer {
 
         // [SEAM:init] Module registration. One line per workstream, logic lives in the module's own package.
         com.club.modules.itemscroll.ItemScrollModule.init();
+        com.club.combat.HitboxModule.init();
         // (Perf has no init any more: the two culls are baked in and gate straight off the config, and the
         //  Sodium notice that PerfMenu.init() registered belonged to cards that no longer exist.)
 

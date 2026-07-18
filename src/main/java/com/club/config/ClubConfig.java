@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 12; // bumped when new fields are added, for migration
+    public int version = 13; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -45,6 +45,7 @@ public class ClubConfig {
     public com.club.modules.itemscroll.ItemScrollConfig itemScroll = new com.club.modules.itemscroll.ItemScrollConfig();
     public Perf perf = new Perf();
     public Particles particles = new Particles();
+    public Hitboxes hitboxes = new Hitboxes();
 
     /** Performance. Only techniques that cannot change what the player sees may default to ON. */
     public static final class Perf {
@@ -79,6 +80,18 @@ public class ClubConfig {
      *  perf culls this DOES change what you see — on purpose; it is a visibility preference, not an optimisation. */
     public static final class Particles {
         public java.util.Set<String> hidden = new java.util.HashSet<>();
+    }
+
+    /** Hitboxes: recolour the debug (F3+B) entity hitbox outline and strip the vanilla "junk" lines
+     *  (the blue view-direction vector and the red eye-level box). OFF by default — it changes nothing
+     *  until F3+B is on and the player opts in. {@code colorA}/{@code colorB} are INDICES into
+     *  {@link com.club.combat.HitboxColors} (accent when the crosshair is on a player, white otherwise);
+     *  storing an index — not a packed int — keeps the dropdown and the palette the single source of truth. */
+    public static final class Hitboxes {
+        public boolean enabled = false;
+        public boolean cleanLines = true;   // true = strip the junk (view vector + eye box); the clean look
+        public int colorA = com.club.combat.HitboxColors.ACCENT;   // "On player"
+        public int colorB = com.club.combat.HitboxColors.WHITE;    // "Default"
     }
 
     public Hud hud = new Hud();
@@ -324,6 +337,9 @@ public class ClubConfig {
         // hand-edited "particles": null — or a partial file — must be a default, never an NPE mid-frame.
         if (particles == null) particles = new Particles();
         if (particles.hidden == null) particles.hidden = new java.util.HashSet<>();
+        // Read every client tick by HitboxModule (config -> HitboxState) and by the render mixins that
+        // gate on it — a hand-edited "hitboxes": null must be a default, never an NPE mid-frame.
+        if (hitboxes == null) hitboxes = new Hitboxes();
         if (hud == null) hud = new Hud();
         // Canonicalize armorLayout ONCE here (Stage 29) instead of clamping at every read site: an
         // old/hand-edited value (e.g. the retired 2, or junk) self-heals to 0/1 on load.
@@ -460,6 +476,14 @@ public class ClubConfig {
             // with the right values and nothing to carry over. This step only keeps `version` honest about
             // the schema (line 23); it is also the one place a future safety-net default would go.
             version = 12;
+            changed = true;
+        }
+        if (version < 13) {
+            // Hitboxes module (v0.1.6) ships OFF, cleanLines ON, colors at their palette-index defaults —
+            // every field initializer above is already the shipped value, so a v12 file that lacks the
+            // "hitboxes" section loads correct with nothing to carry over. This step only keeps `version`
+            // honest about the schema (line 23), the one place a future safety-net default would go.
+            version = 13;
             changed = true;
         }
         if (changed) save();
