@@ -17,6 +17,7 @@
     "MixinWorldRendererFrustum",
     "MixinParticleManagerVisibility",
     "MixinBlockEntityRenderDispatcher",
+    "MixinEntityHitboxDebugRenderer",
     "MixinMinecraftClientFps",
     "DrawContextStateAccessor",
     "MixinItemStackShulkerTooltip"

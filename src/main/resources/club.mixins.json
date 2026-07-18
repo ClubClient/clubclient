@@ -19,6 +19,7 @@
     "MixinParticleManager",
     "MixinParticleManagerVisibility",
     "MixinBlockEntityRenderDispatcher",
+    "MixinEntityRenderDispatcher",
     "MixinMinecraftClientFps",
     "MixinItemStackShulkerTooltip"
   ],
