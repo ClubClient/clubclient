@@ -449,6 +449,38 @@ public final class ClubHarness {
                 cfg.shulkerTooltip = prevShulker;
             });
 
+            // Shulker tooltip — a REAL render pass, screenshotted, so its LOOK is judged off a frame the
+            // instrument produced rather than round-tripped through the owner's eye. Draws our tooltip on a
+            // blank screen; drawItemTooltip runs getTooltipData -> our data -> callback -> our component, so
+            // the shot is the whole thing: panel, slots, icons, counts and the tooltip frame around them.
+            // Screen.render and drawItemTooltip are byte-identical on all three versions (measured), no //?.
+            step(2, () -> {
+                net.minecraft.item.ItemStack box = new net.minecraft.item.ItemStack(net.minecraft.item.Items.SHULKER_BOX);
+                box.set(net.minecraft.component.DataComponentTypes.CONTAINER,
+                        net.minecraft.component.type.ContainerComponent.fromStacks(java.util.List.of(
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.DIAMOND, 64),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.OAK_PLANKS, 64),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.FURNACE, 3),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.EMERALD, 12),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.STICK, 64),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.COAL, 40),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.IRON_INGOT, 27),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.GOLD_INGOT, 2),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.REDSTONE, 5),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.LAPIS_LAZULI, 33),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.BREAD, 8),
+                                new net.minecraft.item.ItemStack(net.minecraft.item.Items.ARROW, 64))));
+                mc.setScreen(new net.minecraft.client.gui.screen.Screen(net.minecraft.text.Text.empty()) {
+                    @Override public void render(net.minecraft.client.gui.DrawContext ctx, int mx, int my, float delta) {
+                        super.render(ctx, mx, my, delta);
+                        ctx.drawItemTooltip(mc.textRenderer, box, 90, 70);
+                    }
+                });
+            });
+            step(6, () -> {});                              // let a frame actually draw the tooltip
+            step(2, () -> shot("shulker-tooltip"));
+            step(2, () -> mc.setScreen(null));
+
             // Module TOGGLE keybinds: assign/label, conflict-steal, clear, malformed self-heal (no crash).
             step(2, () -> {
                 ModuleBinds.set("No Bobbing", "key.keyboard.k");

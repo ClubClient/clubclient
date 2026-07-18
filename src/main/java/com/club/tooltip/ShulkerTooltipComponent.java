@@ -40,6 +40,15 @@ public class ShulkerTooltipComponent implements TooltipComponent {
     private static final int SLOT_LIGHT  = 0xFFFFFFFF;   // bottom + right edge
     private static final int SLOT_FACE   = 0xFF8B8B8B;   // interior
 
+    // The panel the slots sit in — a RAISED bevel (the inverse of the slots), the chest GUI's own body grey.
+    // It is drawn OVER the tooltip's dark padding so no black ring shows around the grid: the tooltip insets
+    // its content by PAD=3 (measured in TooltipBackgroundRenderer), so the panel reaches out that far to meet
+    // the frame. Owner: "why is the border black — make the interface proper."
+    private static final int PAD        = 3;
+    private static final int PANEL_HI   = 0xFFFFFFFF;   // top + left edge (raised)
+    private static final int PANEL_LO   = 0xFF555555;   // bottom + right edge
+    private static final int PANEL_FACE = 0xFFC6C6C6;   // body
+
     private final List<ItemStack> items;
 
     public ShulkerTooltipComponent(List<ItemStack> items) { this.items = items; }
@@ -64,11 +73,17 @@ public class ShulkerTooltipComponent implements TooltipComponent {
 
     /** The one place the grid is drawn. Both {@code drawItems} arities land here. */
     private void paint(TextRenderer textRenderer, int x, int y, DrawContext context) {
-        for (int i = 0; i < items.size(); i++) {
-            ItemStack stack = items.get(i);
-            int cx = x + (i % COLS) * CELL;
-            int cy = y + (i / COLS) * CELL;
+        int c = cols(), r = rows();
+        // Panel first, reaching PAD into the tooltip's padding on every side so the dark bg never rings the grid.
+        panel(context, x - PAD, y - PAD, x + c * CELL + PAD, y + r * CELL + PAD);
+        // A slot for EVERY cell of the c*r rectangle — the trailing cells of the last row are empty slots, not
+        // blank panel, so a part-full box still reads as a chest and not a ragged strip.
+        for (int i = 0; i < c * r; i++) {
+            int cx = x + (i % c) * CELL;
+            int cy = y + (i / c) * CELL;
             slot(context, cx, cy);
+            if (i >= items.size()) continue;
+            ItemStack stack = items.get(i);
             int ix = cx + 1, iy = cy + 1;   // the 16px icon sits inside the 1px bevel
             context.drawItem(stack, ix, iy);
             //? if <1.21.8 {
@@ -84,5 +99,12 @@ public class ShulkerTooltipComponent implements TooltipComponent {
         context.fill(cx, cy, cx + CELL, cy + CELL, SLOT_SHADOW);               // dark base (top + left show)
         context.fill(cx + 1, cy + 1, cx + CELL, cy + CELL, SLOT_LIGHT);        // light base (bottom + right show)
         context.fill(cx + 1, cy + 1, cx + CELL - 1, cy + CELL - 1, SLOT_FACE); // grey face inside both bevels
+    }
+
+    /** The raised chest-body panel behind the slots, from {@code (x0,y0)} to {@code (x1,y1)}. */
+    private void panel(DrawContext context, int x0, int y0, int x1, int y1) {
+        context.fill(x0, y0, x1, y1, PANEL_HI);              // light base (top + left show)
+        context.fill(x0 + 1, y0 + 1, x1, y1, PANEL_LO);      // dark base (bottom + right show)
+        context.fill(x0 + 1, y0 + 1, x1 - 1, y1 - 1, PANEL_FACE); // body inside both bevels
     }
 }
