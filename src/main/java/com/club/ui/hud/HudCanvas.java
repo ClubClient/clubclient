@@ -297,21 +297,23 @@ public final class HudCanvas extends Container {
         if (gya > 0.001f && lastGuideY != HudSnap.NO_GUIDE) r.rect(0, lastGuideY, screenW, 1, Color.scaleAlpha(g, gya));
     }
 
-    /** A padded outline around an element, clamped to stay on screen. Every element gets the SAME {@code pad}
-     *  of air between its content and the frame — the clamp only pulls the frame in for an element actually
-     *  pressed against the screen edge (where the pad would spill off), which still lands it on that edge.
+    /** A padded outline around an element. Every element gets the SAME {@code pad} of air between its content
+     *  and the frame.
      *
-     *  <p>The old form special-cased any element within {@link HudSnap#MARGIN} of an edge and hugged the box
-     *  outright, no pad. That is why the Sprint chip (default x=8, inside the margin) read as "$print" when
-     *  selected: the frame sat right on its short label instead of 4px out, and the accent line merged with
-     *  the "S". The clamp alone already prevents spilling, so the hug bought nothing and cost the breathing
-     *  room every other element had. (owner: "в редакторе вот так")</p> */
+     *  <p><b>An element pressed to the edge drops the frame side at that edge (owner: "обводка у трёх сторон
+     *  если худ у края").</b> The box itself is clamped to the {@link HudSnap#MARGIN} frame, but the outline
+     *  sits {@code pad} further out, so at the edge it used to poke PAST the margin line — reading as if the
+     *  HUD spilled over the limit. Clipping the whole frame to the margin box cuts the crossing side away: a
+     *  chip on the left edge shows top/right/bottom flush with the line, the left side gone. A corner element
+     *  drops two sides. Interior elements are untouched — their padded frame lies fully inside the margin box.
+     *
+     *  <p>The old form special-cased any element within MARGIN of an edge and hugged the box; that made the
+     *  Sprint chip read as "$print" when selected (frame on the label). Padding + margin-clip keeps the 4px of
+     *  air everywhere it fits and only removes the side that would cross the line.</p> */
     private void outline(UiRenderer r, HudElement e, float pad, float thick, int color) {
         float ex = e.xLeft(), ey = e.yTop(), ew = e.width(), eh = e.height();
-        float l  = Math.max(0, ex - pad);
-        float t  = Math.max(0, ey - pad);
-        float rt = Math.min(screenW, ex + ew + pad);
-        float b  = Math.min(screenH, ey + eh + pad);
-        r.border(l, t, rt - l, b - t, Tokens.radius().sm(), thick, color);
+        r.pushClip(HudSnap.MARGIN, HudSnap.MARGIN, screenW - 2 * HudSnap.MARGIN, screenH - 2 * HudSnap.MARGIN);
+        r.border(ex - pad, ey - pad, ew + 2 * pad, eh + 2 * pad, Tokens.radius().sm(), thick, color);
+        r.popClip();
     }
 }

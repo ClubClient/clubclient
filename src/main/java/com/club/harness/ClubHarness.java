@@ -1494,6 +1494,14 @@ public final class ClubHarness {
             step(6, () -> {});
             step(2, () -> shot("editor-hit-distance-selected"));
 
+            // Selection frame at the EDGE (owner: 3 sides, not crossing the line). Park Target on the left
+            // margin and select it — the frame must drop its left side at the margin, not poke past it.
+            step(2, () -> { cfg.hud.targetX = 2; });
+            step(2, () -> { if (mc.currentScreen instanceof HudEditorScreen ed) ed.selectForHarness("Target"); });
+            step(6, () -> {});
+            step(2, () -> shot("editor-frame-at-edge"));
+            step(2, () -> { cfg.hud.targetX = -1; });   // restore auto-centre
+
             // Placeholder at a SMALL Size (owner-reported bug, and it hit EVERY element): shrink several
             // elements and prove the name scales WITH its box instead of spilling past the edges. The editor
             // lays out from config every frame, so the boxes and labels resize live. Restore Size after.
