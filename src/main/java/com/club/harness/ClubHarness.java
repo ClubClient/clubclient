@@ -420,13 +420,13 @@ public final class ClubHarness {
                 java.util.Optional<net.minecraft.item.tooltip.TooltipData> data = box.getTooltipData();
                 check("shulker: a filled box gets tooltip data on hover", data.isPresent());
                 check("shulker: and it is Club's ShulkerTooltipData (not the bundle chrome)",
-                        data.orElse(null) instanceof com.club.ui.tooltip.ShulkerTooltipData);
+                        data.orElse(null) instanceof com.club.tooltip.ShulkerTooltipData);
                 // The render half: our Fabric TooltipComponentCallback must map the data to our own component.
-                if (data.orElse(null) instanceof com.club.ui.tooltip.ShulkerTooltipData sd) {
+                if (data.orElse(null) instanceof com.club.tooltip.ShulkerTooltipData sd) {
                     net.minecraft.client.gui.tooltip.TooltipComponent comp =
                             net.fabricmc.fabric.api.client.rendering.v1.TooltipComponentCallback.EVENT.invoker().getComponent(sd);
                     check("shulker: the Fabric callback maps it to our ShulkerTooltipComponent",
-                            comp instanceof com.club.ui.tooltip.ShulkerTooltipComponent);
+                            comp instanceof com.club.tooltip.ShulkerTooltipComponent);
                     check("shulker: the component reports a non-empty grid size",
                             comp != null && comp.getWidth(mc.textRenderer) > 0);
                 }

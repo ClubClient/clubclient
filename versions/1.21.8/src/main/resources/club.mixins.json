@@ -21,7 +21,8 @@
     "MixinBlockEntityRenderDispatcher",
     "MixinMinecraftClientFps",
     "DrawContextStateAccessor",
-    "MixinItemStackShulkerTooltip"
+    "MixinItemStackShulkerTooltip",
+    "MixinContainerComponentTooltip"
   ],
   "injectors": {
     "defaultRequire": 1

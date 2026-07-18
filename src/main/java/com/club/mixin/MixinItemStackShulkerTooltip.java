@@ -1,7 +1,7 @@
 package com.club.mixin;
 
 import com.club.config.ClubConfig;
-import com.club.ui.tooltip.ShulkerTooltipData;
+import com.club.tooltip.ShulkerTooltipData;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.ContainerComponent;
@@ -22,7 +22,7 @@ import java.util.Optional;
  * <p>{@code ItemStack.getTooltipData() -> Optional<TooltipData>} is identical across 1.21.1 / 1.21.8 / 1.21.11,
  * so this half is version-agnostic: fill the empty Optional with our {@link ShulkerTooltipData}. The RENDER
  * half forked hard ({@code TooltipComponent.getHeight}/{@code drawItems} and the count-overlay method all
- * changed at 1.21.8) and lives in {@code com.club.ui.tooltip.ShulkerTooltipComponent}, on a single measured
+ * changed at 1.21.8) and lives in {@code com.club.tooltip.ShulkerTooltipComponent}, on a single measured
  * {@code //?} boundary. It first shipped handing back vanilla's {@code BundleTooltipData} to dodge that fork
  * entirely, but the bundle renderer's chrome — dark slot cells, a fill bar, a "Full" label a box of 64-stacks
  * always tripped — was wrong for a shulker, so the grid is drawn by our own component now (through vanilla's

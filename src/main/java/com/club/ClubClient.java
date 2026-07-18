@@ -134,8 +134,8 @@ public class ClubClient implements ClientModInitializer {
         // anyway. The event is the sanctioned seam for exactly this, and it exists in fabric-rendering-v1 on all
         // three versions (measured).
         net.fabricmc.fabric.api.client.rendering.v1.TooltipComponentCallback.EVENT.register(data ->
-                data instanceof com.club.ui.tooltip.ShulkerTooltipData shulker
-                        ? new com.club.ui.tooltip.ShulkerTooltipComponent(shulker.items())
+                data instanceof com.club.tooltip.ShulkerTooltipData shulker
+                        ? new com.club.tooltip.ShulkerTooltipComponent(shulker.items())
                         : null);
 
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
