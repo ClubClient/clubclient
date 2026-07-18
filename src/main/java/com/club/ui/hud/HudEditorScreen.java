@@ -41,7 +41,7 @@ public final class HudEditorScreen extends Screen {
 
     private final HudCanvas canvas = new HudCanvas(true)
             .add(new EffectsElement()).add(new TargetElement()).add(new InfoElement()).add(new ArmorElement())
-            .add(new SprintElement());
+            .add(new SprintElement()).add(new HitDistanceElement());
     private final Pane toolbar = new Pane();
     private float tbX, tbY, tbW, tbH;   // compact floating toolbar (top-centre overlay)
     private final Pane popover = new Pane();
@@ -176,7 +176,10 @@ public final class HudEditorScreen extends Screen {
         popSel = sel; popClosing = false;
         popover.clear(); popLabels.clear(); focus.clear(); hasPopover = true;
         popNeeded = 0;
-        addRow("Enabled", new Toggle(sel.cfgEnabled()).accent(QUIET_ACC).onChange(v -> { setEnabled(sel, v); save(); }));
+        // Hit Distance owns its visibility on the Combat card, not here (the v0.1.3 "two switches, one pixel"
+        // rule): the editor shows it Size only, so the card toggle stays the single source of truth.
+        if (!(sel instanceof HitDistanceElement))
+            addRow("Enabled", new Toggle(sel.cfgEnabled()).accent(QUIET_ACC).onChange(v -> { setEnabled(sel, v); save(); }));
         // Stage 29: sliders apply live (onChange) and write to disk once per gesture (onRelease).
         addRow("Size", new Slider(sel.cfgScale(), 0.5f, 2f, 0.05f).onChange(v -> setScale(sel, v)).onRelease(this::save));
         if (sel instanceof EffectsElement) {
@@ -236,6 +239,7 @@ public final class HudEditorScreen extends Screen {
         else if (e instanceof TargetElement) h().target = v;
         else if (e instanceof ArmorElement) h().armor = v;
         else if (e instanceof SprintElement) h().sprint = v;
+        else if (e instanceof HitDistanceElement) h().hitDistance = v;   // no Enabled row here, but never fall through to Info
         else h().info = v;
     }
     private void setScale(HudElement e, float v) {
@@ -243,6 +247,7 @@ public final class HudEditorScreen extends Screen {
         else if (e instanceof TargetElement) h().targetScale = v;
         else if (e instanceof ArmorElement) h().armorScale = v;
         else if (e instanceof SprintElement) h().sprintScale = v;
+        else if (e instanceof HitDistanceElement) h().hitDistanceScale = v;
         else h().infoScale = v;
     }
     private void save() { ClubConfig.save(); }
@@ -251,6 +256,7 @@ public final class HudEditorScreen extends Screen {
         ClubConfig.Hud c = h();
         c.potionX = 8; c.potionY = 70; c.targetX = -1; c.targetY = -1; c.infoX = 8; c.infoY = 120; c.armorX = 8; c.armorY = 8;
         c.sprintX = -1; c.sprintY = -1;
+        c.hitDistanceX = -1; c.hitDistanceY = -1;
         save(); canvas.clearSelection(); rebuildPopover();
     }
 

@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 11; // bumped when new fields are added, for migration
+    public int version = 12; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -168,6 +168,13 @@ public class ClubConfig {
         public int sprintX = -1;
         public int sprintY = -1;
         public float sprintScale = 1.0f;
+        // V2 HUD: Hit Distance readout (v0.1.6) — blocks to the crosshair target, green in reach / red out.
+        // Visibility is owned by the Combat card (MenuContent.hitDistance), not the editor's Enabled row.
+        // OFF by default: a new combat overlay is opt-in. -1/-1 = auto (centred just below the crosshair).
+        public boolean hitDistance = false;
+        public int hitDistanceX = -1;
+        public int hitDistanceY = -1;
+        public float hitDistanceScale = 1.0f;
 
         /**
          * Which coordinate space the saved x/y above are in (Stage 63).
@@ -445,6 +452,14 @@ public class ClubConfig {
             // exists only to keep `version` telling the truth about the schema (line 23), and to be the one
             // place a future safety-net default would go, the way v6 seeded the v0.1 kit for partial files.
             version = 11;
+            changed = true;
+        }
+        if (version < 12) {
+            // Hit Distance HUD (v0.1.6) ships OFF — its boolean initializer is already `false`, and the
+            // x/y/scale carry their own auto/default initializers, so an v11 file that lacks the keys loads
+            // with the right values and nothing to carry over. This step only keeps `version` honest about
+            // the schema (line 23); it is also the one place a future safety-net default would go.
+            version = 12;
             changed = true;
         }
         if (changed) save();

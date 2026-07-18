@@ -122,7 +122,7 @@ public final class MenuContent {
     public static List<Category> build(Runnable openHudEditor) {
         ClubConfig c = ClubConfig.get();
         return List.of(
-            new Category("Combat", IconGlyph.COMBAT, List.of(animations(c))),
+            new Category("Combat", IconGlyph.COMBAT, List.of(animations(c), hitDistance(c))),
             new Category("Visuals", IconGlyph.VISUALS, List.of(
                 zoom(c),
                 screenStretch(c),
@@ -202,6 +202,20 @@ public final class MenuContent {
             () -> c.toggleSprint.enabled, v -> { c.toggleSprint.enabled = v; save(); },
             () -> { c.toggleSprint.enabled = true; save(); },
             List.of());
+    }
+
+    /**
+     * Hit Distance is a HUD element, but its VISIBILITY lives on this card — the single switch for it (the
+     * v0.1.3 "two switches, one pixel" rule: {@link com.club.ui.hud.HitDistanceElement} reads {@code
+     * hud.hitDistance}, and the HUD editor shows this element Size only). Size is set in the editor like every
+     * other chip. A flag-style card with no extra rows; reset returns to OFF — a new combat overlay is opt-in,
+     * so its default is not "on", the way {@link #fullbright} keeps surprise brightness off.
+     */
+    private static Module hitDistance(ClubConfig c) {
+        BoolConsumer set = v -> { c.hud.hitDistance = v; save(); };
+        return new Module("Hit Distance", "See how far away the entity under your crosshair is.",
+            IconGlyph.HIT_DISTANCE,
+            () -> c.hud.hitDistance, set, () -> set.accept(false), List.of());
     }
 
     /** Fullbright is a flag module whose state must ALSO mirror into the module's static (the gamma

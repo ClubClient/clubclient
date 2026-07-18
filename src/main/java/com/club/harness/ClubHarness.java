@@ -1094,6 +1094,40 @@ public final class ClubHarness {
             step(6, () -> {});
             step(2, () -> shot("sprint-chip"));
 
+            // Hit Distance readout — the two colour states, pinned to a known distance so the shot is
+            // deterministic (a self-driving test can't aim the real raycast). Green while the target is in
+            // reach (owner: "ровно пока дотягиваешься, 3 блока"), red once it slips past, then the neutral
+            // no-target 0.00 — the chip stays on screen instead of blinking away.
+            step(2, () -> { cfg.hud.hitDistance = true; });
+            step(2, () -> com.club.hud.TargetHud.harnessHit(mc.player, 2.34));
+            step(8, () -> {});
+            step(2, () -> shot("hit-distance-green"));
+            step(2, () -> com.club.hud.TargetHud.harnessHit(mc.player, 4.20));
+            step(8, () -> {});
+            step(2, () -> shot("hit-distance-red"));
+            step(2, () -> com.club.hud.TargetHud.clearHarnessHit());
+            step(8, () -> {});
+            step(2, () -> shot("hit-distance-neutral"));
+            step(0, () -> {
+                check("hit-distance: green latch reaches at 3.0, goes red past the deadband",
+                        com.club.ui.hud.HitDistanceElement.greenLatch(false, false, 3.0)
+                        && !com.club.ui.hud.HitDistanceElement.greenLatch(true, true, 3.20));
+                check("hit-distance: readout is two-decimal ROOT",
+                        com.club.ui.hud.HitDistanceElement.readout(2.34).equals("2.34 blocks"));
+            });
+            step(2, () -> { cfg.hud.hitDistance = false; });
+
+            // Combat category — the Hit Distance CARD (icon + name) lives here now, beside Animations.
+            step(4, () -> mc.setScreen(new ClubMenuScreen()));
+            step(2, () -> { if (mc.currentScreen instanceof ClubMenuScreen cs) cs.selectCategory("Combat"); });
+            step(8, () -> {});
+            step(2, () -> shot("menu-combat"));
+            step(0, () -> {
+                if (mc.currentScreen instanceof ClubMenuScreen cs)
+                    check("hit-distance: the Combat category exposes the card",
+                            cs.cardEnabledByName("Hit Distance") != null);
+            });
+
             // menu
             step(6, () -> mc.setScreen(new ClubMenuScreen()));
             step(2, () -> shot("menu"));
@@ -1443,6 +1477,12 @@ public final class ClubHarness {
             step(2, () -> { if (mc.currentScreen instanceof HudEditorScreen ed) ed.selectForHarness("Sprint"); });
             step(6, () -> {});
             step(2, () -> shot("editor-sprint-selected"));
+
+            // Hit Distance selected — the popover must show Size ONLY (no Enabled row): its visibility is the
+            // Combat card's job, so a toggle here would be the "two switches, one pixel" bug all over again.
+            step(2, () -> { if (mc.currentScreen instanceof HudEditorScreen ed) ed.selectForHarness("Hit Distance"); });
+            step(6, () -> {});
+            step(2, () -> shot("editor-hit-distance-selected"));
 
             step(4, () -> mc.setScreen(null));
         }

@@ -1,0 +1,8 @@
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- hit distance: target reticle above a measured span (distance to the crosshair target) -->
+  <circle cx="12" cy="8" r="4.5" stroke-width="2"/>
+  <circle cx="12" cy="8" r="1.4" fill="solid"/>
+  <line x1="3" y1="18" x2="21" y2="18" stroke-width="2"/>
+  <line x1="3" y1="15.5" x2="3" y2="20.5" stroke-width="2"/>
+  <line x1="21" y1="15.5" x2="21" y2="20.5" stroke-width="2"/>
+</svg>
