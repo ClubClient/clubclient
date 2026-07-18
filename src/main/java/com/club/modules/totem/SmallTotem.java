@@ -26,8 +26,9 @@ package com.club.modules.totem;
 public final class SmallTotem {
     private SmallTotem() {}
 
-    /** Uniform shrink of the pop. 0.5 → half the vanilla size. */
-    private static final float SCALE = 0.50f;
+    /** Uniform shrink of the pop. 0.425 → 15% smaller than the 0.5 it first shipped at (owner), ~0.34 of
+     *  vanilla on screen. */
+    private static final float SCALE = 0.425f;
 
     /** &lt;1.21.6: the translate Y is the screen centre (height/2·sway, +Y down). Multiply it down to lift
      *  toward the top. 0.45 → from mid-screen up to ~the upper quarter. */
