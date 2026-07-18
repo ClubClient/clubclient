@@ -1,48 +1,53 @@
 package com.club.ui.hud;
 
+import com.club.hud.HitDistanceTracker;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The Hit Distance readout's two decisions, as pure functions: the green/red hysteresis latch and the
- * "d.dd blocks" formatting. Green means "within reach" (<= 3.0 blocks); the deadband (±0.15 around 3.0)
- * stops a target hovering right at reach from flashing green/red frame to frame.
+ * The Hit Distance readout's pure pieces: the "d.dd" number formatting, the eye→nearest-hitbox-point
+ * distance (the reach of the hit), and the 10-second visibility window.
  */
 class HitDistanceLogicTest {
 
-    // --- acquire (rising edge): seed the verdict straight from the distance, no stale carry ---
-    @Test void acquireInReachIsGreen() {
-        assertTrue(HitDistanceElement.greenLatch(false, false, 2.0));
+    // --- number formatting: two decimals, ROOT locale (a dot, never a comma) ---
+    @Test void numberTwoDecimals() {
+        assertEquals("2.34", HitDistanceElement.numberText(2.34));
     }
-    @Test void acquireOutOfReachIsRed() {
-        assertFalse(HitDistanceElement.greenLatch(true, false, 4.0));
+    @Test void numberRootLocaleUsesDot() {
+        assertEquals("4.20", HitDistanceElement.numberText(4.2));
     }
-    @Test void acquireExactlyAtReachIsGreen() {   // <= 3.0 is "you can reach"
-        assertTrue(HitDistanceElement.greenLatch(false, false, 3.0));
-    }
-
-    // --- hysteresis: inside the deadband the previous verdict is held ---
-    @Test void greenHeldJustPastReach() {         // 3.10 is >3.0 but < 3.15 → stays green
-        assertTrue(HitDistanceElement.greenLatch(true, true, 3.10));
-    }
-    @Test void greenFlipsRedPastTheBand() {       // 3.20 >= 3.15 → red
-        assertFalse(HitDistanceElement.greenLatch(true, true, 3.20));
-    }
-    @Test void redHeldJustInsideReach() {         // 2.90 is <3.0 but > 2.85 → stays red
-        assertFalse(HitDistanceElement.greenLatch(false, true, 2.90));
-    }
-    @Test void redFlipsGreenBelowTheBand() {      // 2.80 <= 2.85 → green
-        assertTrue(HitDistanceElement.greenLatch(false, true, 2.80));
+    @Test void numberZero() {
+        assertEquals("0.00", HitDistanceElement.numberText(0));
     }
 
-    // --- formatting: always two decimals, ROOT locale (a '.' decimal, never a comma) ---
-    @Test void readoutTwoDecimals() {
-        assertEquals("2.34 blocks", HitDistanceElement.readout(2.34));
+    // --- nearest-hitbox distance: component-wise clamp of the eye into the box ---
+    @Test void nearestStraightAhead() {                 // box 2 blocks ahead on X, eye level with it
+        double d = HitDistanceTracker.nearestDistance(new Vec3d(0, 0.5, 0.5), new Box(2, 0, 0, 3, 1, 1));
+        assertEquals(2.0, d, 1e-9);
     }
-    @Test void readoutZeroIsTheNeutralText() {
-        assertEquals("0.00 blocks", HitDistanceElement.readout(0));
+    @Test void nearestIsZeroWhenEyeInsideBox() {
+        double d = HitDistanceTracker.nearestDistance(new Vec3d(0.5, 0.5, 0.5), new Box(0, 0, 0, 1, 1, 1));
+        assertEquals(0.0, d, 1e-9);
     }
-    @Test void readoutRootLocaleUsesDot() {
-        assertEquals("4.20 blocks", HitDistanceElement.readout(4.2));
+    @Test void nearestDiagonal() {                       // clamps on X and Z, level on Y → sqrt(3^2+3^2)
+        double d = HitDistanceTracker.nearestDistance(new Vec3d(0, 3.5, 0), new Box(3, 3, 3, 4, 4, 4));
+        assertEquals(Math.sqrt(18), d, 1e-9);
+    }
+
+    // --- visibility window: live for 10 s after the hit, hidden before any hit ---
+    @Test void withinRightAfterHit() {
+        assertTrue(HitDistanceTracker.within(1_000_000, 1_000_000));
+    }
+    @Test void withinJustBeforeTenSeconds() {
+        assertTrue(HitDistanceTracker.within(1_000_000 + 9_999, 1_000_000));
+    }
+    @Test void notWithinAtTenSeconds() {
+        assertFalse(HitDistanceTracker.within(1_000_000 + 10_000, 1_000_000));
+    }
+    @Test void notWithinBeforeAnyHit() {                 // lastHitAt == 0 → never shown
+        assertFalse(HitDistanceTracker.within(1_000_000, 0));
     }
 }

@@ -86,6 +86,8 @@ public class ClubClient implements ClientModInitializer {
 
         // HUD elements
         HudManager.init();
+        // Hit Distance readout: capture the distance of each landed attack (the element reads it for 10 s)
+        com.club.hud.HitDistanceTracker.init();
 
         // duotone HUD icons bake lazily from live textures — drop the cache when packs change
         ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(

@@ -1094,28 +1094,38 @@ public final class ClubHarness {
             step(6, () -> {});
             step(2, () -> shot("sprint-chip"));
 
-            // Hit Distance readout — the two colour states, pinned to a known distance so the shot is
-            // deterministic (a self-driving test can't aim the real raycast). Green while the target is in
-            // reach (owner: "ровно пока дотягиваешься, 3 блока"), red once it slips past, then the neutral
-            // no-target 0.00 — the chip stays on screen instead of blinking away.
+            // Hit Distance readout — pin a landed hit at a known distance (a self-driving test can't swing at
+            // a mob) and shoot the white "X.XX blocks" that appears. The canvas fades it in on the hit and out
+            // when the 10 s window lapses; the number is white, no colour states, and "blocks" is the smaller
+            // second word that keeps the pill short.
             step(2, () -> { cfg.hud.hitDistance = true; });
-            step(2, () -> com.club.hud.TargetHud.harnessHit(mc.player, 2.34));
-            step(8, () -> {});
-            step(2, () -> shot("hit-distance-green"));
-            step(2, () -> com.club.hud.TargetHud.harnessHit(mc.player, 4.20));
-            step(8, () -> {});
-            step(2, () -> shot("hit-distance-red"));
-            step(2, () -> com.club.hud.TargetHud.clearHarnessHit());
-            step(8, () -> {});
-            step(2, () -> shot("hit-distance-neutral"));
-            step(0, () -> {
-                check("hit-distance: green latch reaches at 3.0, goes red past the deadband",
-                        com.club.ui.hud.HitDistanceElement.greenLatch(false, false, 3.0)
-                        && !com.club.ui.hud.HitDistanceElement.greenLatch(true, true, 3.20));
-                check("hit-distance: readout is two-decimal ROOT",
-                        com.club.ui.hud.HitDistanceElement.readout(2.34).equals("2.34 blocks"));
+            // REAL path first: swing at a loaded entity so the actual AttackEntityCallback fires (not the seam),
+            // proving the hook wires up and the tracker records a live distance. Then the seam gives the clean
+            // deterministic 2.34 shot below.
+            step(2, () -> {
+                com.club.hud.HitDistanceTracker.clear();
+                net.minecraft.entity.LivingEntity tgt = null;
+                for (net.minecraft.entity.Entity e : mc.world.getEntities())
+                    if (e instanceof net.minecraft.entity.LivingEntity le && le != mc.player) { tgt = le; break; }
+                if (tgt != null && mc.interactionManager != null) {
+                    mc.interactionManager.attackEntity(mc.player, tgt);
+                    check("hit-distance: a real swing at an entity fires the capture hook",
+                            com.club.hud.HitDistanceTracker.hasHit(System.currentTimeMillis())
+                            && com.club.hud.HitDistanceTracker.distance() > 0);
+                } else report.add("SKIP  hit-distance: no loaded entity to swing at");
             });
-            step(2, () -> { cfg.hud.hitDistance = false; });
+            step(2, () -> { com.club.hud.HitDistanceTracker.clear(); });
+            step(2, () -> com.club.hud.HitDistanceTracker.recordForHarness(2.34));
+            step(8, () -> {});
+            step(2, () -> shot("hit-distance"));
+            step(0, () -> {
+                check("hit-distance: number is two-decimal ROOT",
+                        com.club.ui.hud.HitDistanceElement.numberText(2.34).equals("2.34"));
+                check("hit-distance: a fresh hit is inside the 10 s window, an old one is not",
+                        com.club.hud.HitDistanceTracker.within(1_000_000, 1_000_000)
+                        && !com.club.hud.HitDistanceTracker.within(1_000_000 + 10_000, 1_000_000));
+            });
+            step(2, () -> { com.club.hud.HitDistanceTracker.clear(); cfg.hud.hitDistance = false; });
 
             // Combat category — the Hit Distance CARD (icon + name) lives here now, beside Animations.
             step(4, () -> mc.setScreen(new ClubMenuScreen()));
@@ -1483,6 +1493,20 @@ public final class ClubHarness {
             step(2, () -> { if (mc.currentScreen instanceof HudEditorScreen ed) ed.selectForHarness("Hit Distance"); });
             step(6, () -> {});
             step(2, () -> shot("editor-hit-distance-selected"));
+
+            // Placeholder at a SMALL Size (owner-reported bug, and it hit EVERY element): shrink several
+            // elements and prove the name scales WITH its box instead of spilling past the edges. The editor
+            // lays out from config every frame, so the boxes and labels resize live. Restore Size after.
+            step(2, () -> {
+                cfg.hud.sprintScale = 0.5f; cfg.hud.hitDistanceScale = 0.5f;
+                cfg.hud.targetScale = 0.5f; cfg.hud.infoScale = 0.5f; cfg.hud.armorScale = 0.5f;
+            });
+            step(6, () -> {});
+            step(2, () -> shot("editor-small-scale"));
+            step(2, () -> {
+                cfg.hud.sprintScale = 1.0f; cfg.hud.hitDistanceScale = 1.0f;
+                cfg.hud.targetScale = 1.0f; cfg.hud.infoScale = 1.0f; cfg.hud.armorScale = 1.0f;
+            });
 
             step(4, () -> mc.setScreen(null));
         }

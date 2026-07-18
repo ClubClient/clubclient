@@ -129,9 +129,15 @@ public abstract class HudElement extends Component {
     public void renderPlaceholder(UiContext ctx) {
         HudPaint.chip(ctx, x, y, w, h, HudPaint.CHIP_RAD * cfgScale(), 1f);
         Typography.Role role = Tokens.type().body();
-        float ty = y + (h - role.lineHeight()) * 0.5f;
+        // The label must scale WITH the box. role.size()/lineHeight() are the Size-1 values; the box (w,h) is
+        // already scaled by cfgScale(), so a fixed-size label spilled past a shrunk box (owner-reported — it
+        // hit every element, not just Sprint/Hit Distance). Scale the font by the same cfgScale() and the
+        // name always sits inside the capsule; at Size 1.0 this is ×1, so nothing changes there.
+        float s = cfgScale();
+        float size = role.size() * s;
+        float ty = y + (h - role.lineHeight() * s) * 0.5f;
         ctx.text().draw(displayName(), x + w * 0.5f, ty,
-                TextStyle.of(role.weight(), role.size(), Tokens.palette().textMuted()).align(Align.CENTER));
+                TextStyle.of(role.weight(), size, Tokens.palette().textMuted()).align(Align.CENTER));
     }
 
     /** In-world (non-editor) visibility: an element with no real data hides instead of falling back to its
