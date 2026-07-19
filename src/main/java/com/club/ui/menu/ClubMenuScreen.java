@@ -229,8 +229,7 @@ public final class ClubMenuScreen extends Screen {
     private double cy(double my) { return my / canvasK; }
 
     private static final int GRID_COLS = 4;               // the IDEAL column count; layoutAll may drop to 3 or 2
-    private static final float CARD_CHROME = 42f;         // TILE_PAD + CHIP + NAME_GAP + TILE_PAD (fixed per card)
-    private static final float NAME_SLOT_MIN = 44f;       // a name slot narrower than this isn't worth a column
+    private static final float SQ_CARD_MIN_W = 84f;       // a square tile narrower than this isn't worth a column
     private boolean closing;   // Right-Shift close: plays the entrance in reverse, then really closes
 
     // Keyboard grid navigation (Stage 27): the card cursor. Two keyboard "zones" — the search field
@@ -1073,33 +1072,31 @@ public final class ClubMenuScreen extends Screen {
         search.layout(winX + winW - 12 - searchW, winY + (headH - searchH) / 2f, searchW, searchH);
 
         // Column count follows the width: 4 like the reference board when there's room, else 3 or 2. A
-        // card needs its fixed chrome (pad+chip+gap+pad) PLUS a readable name slot — below that the grid
-        // is just noise, so we drop a column instead of shrinking the type into illegibility.
+        // SQUARE tile needs a minimum width to hold a centred chip and a readable, centred name — below
+        // that the grid is just noise, so we drop a column instead of cramming the type.
         float gridW = wellW - 24;
         float sm = Tokens.spacing().sm();
         gridCols = 2;
         for (int c = GRID_COLS; c >= 2; c--) {
             float cw = (gridW - (c - 1) * sm) / c;
-            if (cw - CARD_CHROME >= NAME_SLOT_MIN) { gridCols = c; break; }
+            if (cw >= SQ_CARD_MIN_W) { gridCols = c; break; }
         }
         grid.cols(gridCols);
 
-        // One name size per category (11.7): the largest size <= NAME_BASE at which the LONGEST
-        // module name of the category still fits the card's text slot. All visible names share it —
-        // uniform look, nothing ever truncates OR overflows (the floor is sanity-only; with sane
-        // names sizes stay >= ~9px). Computed over the whole category (not the search subset) so
-        // the size doesn't jump while typing.
+        // One name size per category: the LARGEST size <= NAME_BASE at which EVERY module name of the
+        // category wraps into at most SQ_NAME_LINES centred lines within the tile's text slot. All visible
+        // names share it — uniform, aligned type, nothing truncates (the floor is sanity-only). Computed
+        // over the whole category (not the search subset) so the size doesn't jump while typing.
         float cellW = (gridW - (gridCols - 1) * sm) / gridCols;
-        float slot = Math.max(1f, cellW - CARD_CHROME);
+        float slot = Math.max(1f, cellW - 2f * SQ_NAME_PAD);
         cardNameSlot = slot;
-        // Fit against the slot MINUS a hair: the width∝size scaling is linear but glyph advances round,
-        // so an exact fit lands a pixel over and the clip shaves the last letter (Stage 59).
-        float fitSlot = Math.max(1f, slot - 3f);
-        float fit = NAME_BASE;
         var nameWeight = Tokens.type().heading().weight();
-        for (Module mod : cats.get(catIndex).modules()) {
-            float atBase = Ui.text().width(mod.name(), nameWeight, NAME_BASE);
-            if (atBase > fitSlot) fit = Math.min(fit, Math.max(NAME_MIN, fitSlot * NAME_BASE / atBase));
+        float fit = NAME_MIN;
+        for (float s = NAME_BASE; s >= NAME_MIN; s -= 0.5f) {
+            boolean ok = true;
+            for (Module mod : cats.get(catIndex).modules())
+                if (Ui.text().wrap(mod.name(), nameWeight, s, slot).size() > SQ_NAME_LINES) { ok = false; break; }
+            if (ok) { fit = s; break; }
         }
         cardNameSize = fit;
 
@@ -1694,45 +1691,38 @@ public final class ClubMenuScreen extends Screen {
 
     // ---- module card ---------------------------------------------------------
 
-    // Card anatomy (Stage 11, approved): icon chip + centered state stripe under it + name + ghost glyph
-    // — HORIZONTAL, per the reference board. Compact 4-column metrics (11.7): chip 22, tight pads; the
-    // name never truncates — its SIZE fits the space (one uniform size per category, see cardNameSize).
-    // State lives in COLOUR only (grey <-> category hue via one eased factor) — geometry never jumps.
-    private static final float TILE_H = 58f, TILE_PAD = 7f, NAME_GAP = 6f;
+    // Card anatomy (premium SQUARE tile, owner 2026-07-19): icon chip centred on TOP, name centred BELOW
+    // (up to SQ_NAME_LINES lines) — a compact vertical tile, not the old landscape row. State lives in
+    // COLOUR only (grey <-> category hue via one eased factor) — geometry never jumps. No under-chip stripe
+    // and no bleeding ghost glyph: the chip's tint alone carries state, which keeps the centred tile clean.
+    private static final float TILE_H_SQ = 70f;   // "not too tall" (owner: the 80px mock was too tall)
+    private static final float TILE_PAD = 7f;     // corner inset — beta mark + the "no settings" gear
     /** Modules shipping as beta — a "Beta" mark rides the card's top-right corner (v0.1.3 #5). */
     private static final java.util.Set<String> BETA = java.util.Set.of("Item Scroll");
-    private static final float CHIP = 22f, CHIP_RAD = 7f, CHIP_ICON = 13f;
-    private static final float STRIPE_W = 14f, STRIPE_H = 3f, STRIPE_GAP = 4f;
-    private static final float NAME_BASE = 12f;
-    private static final float NAME_MIN = 6f;   // hard sanity floor ONLY — the fit math guarantees no
-                                                // overflow (11.8 fix: a 9px floor let long names spill)
-    /** Module card: icon chip + centered state stripe + name + ghost underlay.
+    private static final float CHIP_SQ = 24f, CHIP_SQ_RAD = 8f, CHIP_SQ_ICON = 14f;
+    private static final float SQ_PAD_TOP = 10f;        // chip top inset (chips share one row across the grid)
+    private static final float SQ_CHIP_NAME_GAP = 6f;   // chip bottom → name zone
+    private static final float SQ_NAME_PAD = 6f;        // horizontal name inset / hard clip
+    private static final int   SQ_NAME_LINES = 2;       // the name may wrap to at most this many centred lines
+    private static final float NAME_BASE = 11f;         // uniform per-category name size cap (compact-premium)
+    private static final float NAME_MIN = 6f;           // hard sanity floor ONLY — the fit maths keeps names in-bounds
+    /** Module card: icon chip centred on top + name centred below (up to 2 lines).
      *  LMB = enable/disable (or run the action); RMB = load its settings into the docked panel. */
     private final class ModuleTile extends Component {
         private final Module m;
         private final int accent;        // this category's identity colour (palette A)
-        private final Transition onT;    // enabled → chip/stripe/name/ghost ride one eased factor
+        private final Transition onT;    // enabled → chip/name ride one eased factor
         private final Transition hoverT = // hover → tone lift, eased
                 new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().decelerate());
-        // Ghost geometry: deterministic per module NAME, so the underlays vary in size/position/crop
-        // and read organic instead of stamped (owner feedback 2026-07-02). Large + heavily cropped.
-        private final float ghostSz, ghostYOff, ghostBleed, ghostA;
         ModuleTile(Module m, int accent) {
             this.m = m;
             this.accent = accent;
             // action-only cards seed at 1 (always "available") — else every grid rebuild replays a grey->colour fade
             this.onT = new Transition(m.hasToggle() ? (m.enabled() ? 1f : 0f) : 1f,
                     Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
-            int hsh = m.name().hashCode();
-            // 11.8 "cleaner": smaller, quieter, tighter to the corner — near-invisible when OFF so a
-            // full grid doesn't read as noise; the ghost brightening is itself a state cue.
-            ghostSz    = 52f + (hsh & 11);                     // 52..63px
-            ghostYOff  = ((hsh >>> 4) % 9) - 4f;               // -4..+4px vertical drift
-            ghostBleed = 8f + ((hsh >>> 8) & 7);               // 8..15px past the right edge
-            ghostA     = 0.02f + ((hsh >>> 12) & 3) * 0.005f;  // 2..3.5% when OFF
         }
 
-        @Override public Size measure(float availW, float availH) { return new Size(150f, TILE_H); }
+        @Override public Size measure(float availW, float availH) { return new Size(150f, TILE_H_SQ); }
 
         @Override public void render(UiContext ctx) {
             UiRenderer r = ctx.renderer();
@@ -1769,10 +1759,10 @@ public final class ClubMenuScreen extends Screen {
             hoverT.target(hovered ? 1f : 0f, now);
             float onv = onT.value(now), hv = hoverT.value(now);
 
-            // 11.8: states pulled further apart — OFF sits low and quiet (faint everything), ON is
-            // unmistakable: category-tinted ground + tinted edge + full-colour chip/stripe/name/ghost.
-            // Stage 22: base lifted one tone step (surfaceHi ground, strong edge) — the old surface
-            // base sank into the deep content well.
+            // States pulled far apart — OFF sits low and quiet (faint everything), ON is unmistakable:
+            // category-tinted ground + tinted edge + full-colour chip + brighter name. Stage 22: base
+            // lifted one tone step (surfaceHi ground, strong edge) — the old surface base sank into the
+            // deep content well.
             int fillHov = Color.lerp(Tokens.surface().surfaceHi(), 0xFFFFFFFF, 0.05f);
             int fill = Color.lerp(Color.lerp(Tokens.surface().surfaceHi(), fillHov, hv),
                                   accent, 0.055f * onv);
@@ -1780,55 +1770,56 @@ public final class ClubMenuScreen extends Screen {
             int edge = Color.lerp(Color.lerp(Tokens.border().strong(), edgeHov, hv),
                                   accent, 0.35f * onv);
             r.roundedRect(x, y, w, h, rad, Color.scaleAlpha(fill, ta));
-
-            // Ghost underlay: the SAME glyph, cropped by the card — size, drift, bleed and alpha vary
-            // per module so the pattern never reads as stamped. Near-invisible OFF, present ON.
-            // Rect clip vs the rounded corner is invisible at this alpha (spec §7 risk — checked).
-            int ghostCol = Color.lerp(Tokens.palette().textDesc(), accent, onv);
-            r.pushClip(x, y, w, h);
-            m.icon().draw(ctx, x + w - ghostSz + ghostBleed, y + (h - ghostSz) / 2f + ghostYOff, ghostSz,
-                    Color.scaleAlpha(ghostCol, (ghostA + 0.05f * onv) * screenAlpha * ta));
-            r.popClip();
-
             r.border(x, y, w, h, rad, Tokens.border().thickness(), Color.scaleAlpha(edge, ta));
 
-            // Icon chip + the state stripe centered under it (one column, geometry constant).
-            float chipX = x + TILE_PAD;
-            float chipY = y + (h - (CHIP + STRIPE_GAP + STRIPE_H)) / 2f;
+            // Icon chip, centred on the tile's top. In the square layout the chip's TINT is the whole of
+            // the state cue — a faint neutral square when OFF, a category-tinted square with a full-colour
+            // glyph when ON. No under-chip stripe, no bleeding ghost: the centred tile stays clean and flat.
+            float chipX = x + (w - CHIP_SQ) / 2f;
+            float chipY = y + SQ_PAD_TOP;
             int chipBg = Color.lerp(Color.withAlpha(Tokens.palette().textFaint(), 0x12),
                                     Color.withAlpha(accent, 0x30), onv);
             int iconCol = Color.lerp(Tokens.palette().textFaint(), accent, onv);
-            r.roundedRect(chipX, chipY, CHIP, CHIP, CHIP_RAD, Color.scaleAlpha(chipBg, ta));
+            r.roundedRect(chipX, chipY, CHIP_SQ, CHIP_SQ, CHIP_SQ_RAD, Color.scaleAlpha(chipBg, ta));
             if (IconGlyph.available()) {
-                m.icon().draw(ctx, chipX + (CHIP - CHIP_ICON) / 2f, chipY + (CHIP - CHIP_ICON) / 2f, CHIP_ICON,
-                        Color.scaleAlpha(iconCol, screenAlpha * ta));
+                m.icon().draw(ctx, chipX + (CHIP_SQ - CHIP_SQ_ICON) / 2f, chipY + (CHIP_SQ - CHIP_SQ_ICON) / 2f,
+                        CHIP_SQ_ICON, Color.scaleAlpha(iconCol, screenAlpha * ta));
             } else {   // LEGACY letter fallback (Stage 26): the module's initial, not an empty square
                 String ini = m.name().isEmpty() ? "?" : m.name().substring(0, 1).toUpperCase(Locale.ROOT);
-                float iw = ctx.text().width(ini, Tokens.type().heading().weight(), 13f);
-                float ilh = ctx.text().lineHeight(Tokens.type().heading().weight(), 13f);
-                ctx.text().draw(ini, chipX + (CHIP - iw) / 2f, chipY + (CHIP - ilh) / 2f,
-                        TextStyle.of(Tokens.type().heading().weight(), 13f, Color.scaleAlpha(iconCol, screenAlpha * ta)));
+                float iw = ctx.text().width(ini, Tokens.type().heading().weight(), CHIP_SQ_ICON);
+                float ilh = ctx.text().lineHeight(Tokens.type().heading().weight(), CHIP_SQ_ICON);
+                ctx.text().draw(ini, chipX + (CHIP_SQ - iw) / 2f, chipY + (CHIP_SQ - ilh) / 2f,
+                        TextStyle.of(Tokens.type().heading().weight(), CHIP_SQ_ICON, Color.scaleAlpha(iconCol, screenAlpha * ta)));
             }
-            int stripeCol = Color.lerp(Tokens.border().strong(), accent, onv);
-            r.roundedRect(chipX + (CHIP - STRIPE_W) / 2f, chipY + CHIP + STRIPE_GAP,
-                    STRIPE_W, STRIPE_H, STRIPE_H / 2f, Color.scaleAlpha(stripeCol, ta));
 
-            // Name: uniform per-category size (cardNameSize, auto-fit in layoutAll). The fit maths keeps
-            // it inside the slot at any sane width — the clip is the hard guarantee it can NEVER bleed
-            // onto the next card, which is exactly what happened once the window got squeezed and the
-            // size hit its floor (Stage 59 audit).
+            // Name: centred UNDER the chip, up to SQ_NAME_LINES lines, uniform per-category size (auto-fit in
+            // layoutAll so it never truncates). Every tile's chip shares one row and the name block is centred
+            // in the constant space below it, so names sit balanced under their chips across the whole grid.
+            // The clip is the hard guarantee a name can NEVER bleed past the tile.
             int nameCol = Color.lerp(Tokens.palette().textDesc(), Tokens.palette().textHi(), onv);
+            Weight nw = Tokens.type().heading().weight();
             float ns = cardNameSize;
-            float nameLh = ctx.text().lineHeight(Tokens.type().heading().weight(), ns);
-            float nameX = chipX + CHIP + NAME_GAP;
-            r.pushClip(nameX, y, Math.max(1f, Math.min(cardNameSlot, x + w - TILE_PAD - nameX)), h);
-            ctx.text().draw(m.name(), nameX, y + (h - nameLh) / 2f,
-                    TextStyle.of(Tokens.type().heading().weight(), ns, Color.scaleAlpha(nameCol, screenAlpha * ta)));
+            float nameLh = ctx.text().lineHeight(nw, ns);
+            java.util.List<String> lines = ctx.text().wrap(m.name(), nw, ns, cardNameSlot);
+            int nLines = Math.max(1, Math.min(lines.size(), SQ_NAME_LINES));
+            float centreY = y + (SQ_PAD_TOP + CHIP_SQ + TILE_H_SQ) / 2f;   // midpoint of the space below the chip
+            float top = centreY - nLines * nameLh / 2f;
+            top = Math.max(top, y + SQ_PAD_TOP + CHIP_SQ + SQ_CHIP_NAME_GAP);   // always a breath below the chip
+            float cxCard = x + w / 2f;
+            r.pushClip(x + SQ_NAME_PAD, y, Math.max(1f, w - 2f * SQ_NAME_PAD), h);
+            for (int li = 0; li < nLines; li++) {
+                String ln = lines.get(li);
+                if (li == SQ_NAME_LINES - 1 && lines.size() > SQ_NAME_LINES)
+                    ln = ellipsizeTo(ln, nw, ns, cardNameSlot);   // more than 2 lines (floor hit) — trail the last
+                float lw = ctx.text().width(ln, nw, ns);
+                ctx.text().draw(ln, cxCard - lw / 2f, top + li * nameLh,
+                        TextStyle.of(nw, ns, Color.scaleAlpha(nameCol, screenAlpha * ta)));
+            }
             r.popClip();
 
             // A "Beta" mark, top-right (owner, v0.1.3 #5: shipping Item Scroll as beta while it settles). It
             // is a STATUS, not identity, so it wears the brand accent rather than the category hue — small,
-            // quiet, and out of the name's way. The name is centred and left; this corner is otherwise empty.
+            // quiet, and up in the corner above the chip, clear of the centred name below.
             if (BETA.contains(m.name())) {
                 float bs = 8.5f;
                 float bw = ctx.text().width("Beta", Tokens.type().label().weight(), bs);
