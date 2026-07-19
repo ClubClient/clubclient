@@ -708,6 +708,92 @@ public final class ClubHarness {
 
             // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
 
+            // ===== HITBOXES — the palette the dropdowns and the render hooks share is well-formed =====
+            // NAMES feeds the menu dropdowns; ARGB is the packed colour the mixin draws; the "On player" and
+            // "Default" dropdowns each store an INDEX into both. A names/colours length mismatch, a colour that
+            // lost its alpha, or argb() throwing on a stale hand-edited index would each surface only as a wrong
+            // or invisible outline in-world — so the palette is asserted here as plain data, no pixels.
+            step(2, () -> {
+                int[] argb = com.club.combat.HitboxColors.ARGB;
+                String[] names = com.club.combat.HitboxColors.NAMES;
+                check("hitboxes: the palette's names and colours are parallel and non-trivial",
+                        names.length == argb.length && argb.length >= 2);
+                boolean allOpaque = true;
+                for (int v : argb) if ((v & 0xFF000000) != 0xFF000000) allOpaque = false;
+                check("hitboxes: every palette colour is fully opaque (a see-through outline is a bug)", allOpaque);
+                // A config carrying a stale index (the palette shrank, or a hand edit) must clamp, never throw.
+                check("hitboxes: an out-of-range index clamps to the ends instead of throwing",
+                        com.club.combat.HitboxColors.argb(-1) == argb[0]
+                                && com.club.combat.HitboxColors.argb(argb.length + 5) == argb[argb.length - 1]);
+                // The two named index constants the defaults point at must still name the colours they claim to.
+                check("hitboxes: ACCENT indexes the accent (#7CABFF) and WHITE indexes white",
+                        com.club.combat.HitboxColors.argb(com.club.combat.HitboxColors.ACCENT) == 0xFF7CABFF
+                                && com.club.combat.HitboxColors.argb(com.club.combat.HitboxColors.WHITE) == 0xFFFFFFFF);
+            });
+
+            // ===== HITBOXES — the colour decision is a pure function of the two state fields =====
+            // The mixins never branch on "is a player under the crosshair" themselves; they draw resolveArgb().
+            // So the whole A-vs-B choice is testable here with two sentinels and no world: on a player ⇒ argbA,
+            // otherwise argbB. Restore the fields after — HitboxModule.tick would overwrite them, but leaking a
+            // sentinel into a later check is exactly the kind of cross-talk this discipline exists to prevent.
+            step(2, () -> {
+                int wasA = com.club.combat.HitboxState.argbA;
+                int wasB = com.club.combat.HitboxState.argbB;
+                boolean wasOn = com.club.combat.HitboxState.crosshairOnPlayer;
+                com.club.combat.HitboxState.argbA = 0x11223344;   // sentinel A
+                com.club.combat.HitboxState.argbB = 0x55667788;   // sentinel B
+                com.club.combat.HitboxState.crosshairOnPlayer = true;
+                check("hitboxes: crosshair on a player draws the 'On player' colour (argbA)",
+                        com.club.combat.HitboxState.resolveArgb() == 0x11223344);
+                com.club.combat.HitboxState.crosshairOnPlayer = false;
+                check("hitboxes: crosshair off a player draws the 'Default' colour (argbB)",
+                        com.club.combat.HitboxState.resolveArgb() == 0x55667788);
+                com.club.combat.HitboxState.argbA = wasA;
+                com.club.combat.HitboxState.argbB = wasB;
+                com.club.combat.HitboxState.crosshairOnPlayer = wasOn;
+            });
+
+            // ===== HITBOXES — "Clean lines" is exactly the inverse of drawing the junk =====
+            // cleanLines ON (the default) suppresses the vanilla view-vector + red eye box; OFF restores them.
+            // The mixins gate the junk on showJunk(), so this one-line inverse is the entire contract.
+            step(2, () -> {
+                boolean was = com.club.combat.HitboxState.cleanLines;
+                com.club.combat.HitboxState.cleanLines = true;
+                check("hitboxes: Clean lines ON hides the junk (showJunk() == false)",
+                        !com.club.combat.HitboxState.showJunk());
+                com.club.combat.HitboxState.cleanLines = false;
+                check("hitboxes: Clean lines OFF shows the junk (showJunk() == true)",
+                        com.club.combat.HitboxState.showJunk());
+                com.club.combat.HitboxState.cleanLines = was;
+            });
+
+            // ===== HITBOXES — a fresh config ships the frozen defaults, and the schema version is bumped =====
+            // The module ships OFF with the clean look and its colours at the palette-index defaults (accent on
+            // a player, white otherwise). version 13 is what tells migrate() an older file predates this section.
+            step(2, () -> {
+                ClubConfig.Hitboxes d = new ClubConfig.Hitboxes();
+                check("hitboxes: a fresh config is OFF with clean lines on",
+                        !d.enabled && d.cleanLines);
+                check("hitboxes: default colours are Accent 'On player' and White 'Default'",
+                        d.colorA == com.club.combat.HitboxColors.ACCENT
+                                && d.colorB == com.club.combat.HitboxColors.WHITE);
+                check("hitboxes: the config schema version is bumped to 13", new ClubConfig().version == 13);
+            });
+
+            // ===== HITBOXES — the module has a card, and it sits in Combat =====
+            // build() returns the same category list the menu renders; a missing card would mean the toggle is
+            // unreachable. Cheap to enumerate as data, so it is asserted here rather than left to the screenshot
+            // pass. The no-op openHudEditor runnable is never invoked by building the list.
+            step(2, () -> {
+                boolean inCombat = false;
+                for (com.club.ui.menu.MenuContent.Category cat : com.club.ui.menu.MenuContent.build(() -> {})) {
+                    if (!"Combat".equals(cat.name())) continue;
+                    for (com.club.ui.menu.MenuContent.Module m : cat.modules())
+                        if ("Hitboxes".equals(m.name())) inCombat = true;
+                }
+                check("hitboxes: a 'Hitboxes' module card exists in the Combat category", inCombat);
+            });
+
             // ===== PARTICLES — the pills are not dummies: a hidden type must not spawn =====
             // Drives the REAL path the menu drives — ParticleManager.addParticle, the method
             // MixinParticleManagerVisibility wraps — with a genuine vanilla type. Visible => a particle comes
