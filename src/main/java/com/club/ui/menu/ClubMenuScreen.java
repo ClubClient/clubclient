@@ -15,6 +15,7 @@ import com.club.ui.component.widget.Checkbox;
 import com.club.ui.component.widget.Label;
 import com.club.ui.component.widget.ScrollArea;
 import com.club.ui.component.widget.Slider;
+import com.club.ui.component.widget.Swatches;
 import com.club.ui.component.widget.TextEditState;
 import com.club.ui.component.widget.Toggle;
 import com.club.ui.hud.HudEditorScreen;
@@ -30,6 +31,7 @@ import com.club.ui.menu.MenuContent.Category;
 import com.club.ui.menu.MenuContent.CheckSetting;
 import com.club.ui.menu.MenuContent.DropdownSetting;
 import com.club.ui.menu.MenuContent.Module;
+import com.club.ui.menu.MenuContent.PaletteSetting;
 import com.club.ui.menu.MenuContent.Setting;
 import com.club.ui.menu.MenuContent.SliderSetting;
 import com.club.ui.menu.MenuContent.Tab;
@@ -844,6 +846,16 @@ public final class ClubMenuScreen extends Screen {
                 rr.add(new FixedW(new Label(s.label(), lblRole).color(Tokens.palette().textMuted()).ellipsize(true), labelW));
                 rr.add(ctrl, Sizing.fill());
                 col.add(new LaneRow(rr)); focus.register(ctrl);
+            } else if (s instanceof PaletteSetting p) {
+                // The palette is the one row too WIDE to sit beside its label: the swatch grid fills the panel
+                // body, so the label rides ABOVE it as a tight group (label → grid), the whole pair stretched
+                // to the inner width. The picked swatch carries the module's category accent as its ring.
+                int cur = Math.max(0, Math.min(p.get().getAsInt(), p.swatchesArgb().length - 1));
+                Swatches grid = new Swatches(p.swatchesArgb(), cur).accent(accent).onChange(p.set());
+                Column group = new Column().gap(Tokens.spacing().xs()).crossAlign(CrossAlign.STRETCH);
+                group.add(new Label(p.label(), lblRole).color(Tokens.palette().textMuted()).ellipsize(true));
+                group.add(grid);
+                col.add(group); focus.register(grid);
             } else {
                 Component ctrl = buildControl(s, accent);
                 Row rr = new Row().crossAlign(CrossAlign.CENTER).gap(Tokens.spacing().sm());

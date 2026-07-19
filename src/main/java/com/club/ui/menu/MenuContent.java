@@ -46,13 +46,19 @@ public final class MenuContent {
     // ---- descriptor types (data only, no UI) --------------------------------
 
     /** A settings row descriptor. The screen builds the matching widget from the concrete subtype. */
-    public sealed interface Setting permits SliderSetting, ToggleSetting, CheckSetting, DropdownSetting, ActionSetting {
+    public sealed interface Setting permits SliderSetting, ToggleSetting, CheckSetting, DropdownSetting, PaletteSetting, ActionSetting {
         String label();
     }
     public record SliderSetting(String label, float min, float max, float step, FloatGet get, FloatConsumer set) implements Setting {}
     public record ToggleSetting(String label, BooleanSupplier get, BoolConsumer set) implements Setting {}
     public record CheckSetting(String label, BooleanSupplier get, BoolConsumer set) implements Setting {}
     public record DropdownSetting(String label, String[] options, IntSupplier get, IntConsumer set) implements Setting {}
+    /**
+     * A colour PALETTE row: the screen draws {@code swatchesArgb} as a grid of flat swatches and the value is
+     * the INDEX of the picked one — the same int-index model as {@link DropdownSetting}, so a dropdown that
+     * stored an index into a colour array becomes a palette with no config migration (see {@link #hitboxes}).
+     */
+    public record PaletteSetting(String label, int[] swatchesArgb, IntSupplier get, IntConsumer set) implements Setting {}
     public record ActionSetting(String label, Runnable action) implements Setting {}
 
     /** A named group of settings shown behind a segment selector (e.g. Hands → Right / Left). */
@@ -219,9 +225,9 @@ public final class MenuContent {
     }
 
     /**
-     * Hitboxes recolours the vanilla F3+B debug hitbox and can strip its clutter. The two "colour" rows store
-     * an INDEX into {@link com.club.combat.HitboxColors} — the enum-ordinal dropdown shape (see {@link
-     * #animations}, {@link #screenStretch}), only here the backing value IS the int index, not an enum name.
+     * Hitboxes recolours the vanilla F3+B debug hitbox and can strip its clutter. The two "colour" rows are
+     * {@link PaletteSetting}s — a grid of flat swatches whose picked value is an INDEX into {@link
+     * com.club.combat.HitboxColors} (the same int-index model the old dropdowns used, so no config migration).
      * "On player" is used while the crosshair is on another player, "Default" the rest of the time. Reset
      * returns to OFF — a debug overlay is opt-in — with clean lines and the accent/white colour defaults.
      */
@@ -234,9 +240,9 @@ public final class MenuContent {
                     c.hitboxes.colorA = com.club.combat.HitboxColors.ACCENT;
                     c.hitboxes.colorB = com.club.combat.HitboxColors.WHITE; save(); },
             List.of(
-                new DropdownSetting("On player", com.club.combat.HitboxColors.NAMES,
+                new PaletteSetting("On player", com.club.combat.HitboxColors.ARGB,
                         () -> c.hitboxes.colorA, i -> { c.hitboxes.colorA = i; save(); }),
-                new DropdownSetting("Default", com.club.combat.HitboxColors.NAMES,
+                new PaletteSetting("Default", com.club.combat.HitboxColors.ARGB,
                         () -> c.hitboxes.colorB, i -> { c.hitboxes.colorB = i; save(); }),
                 new ToggleSetting("Clean lines",
                         () -> c.hitboxes.cleanLines, v -> { c.hitboxes.cleanLines = v; save(); })));

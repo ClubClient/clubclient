@@ -14,20 +14,34 @@ package com.club.combat;
 public final class HitboxColors {
     private HitboxColors() {}
 
-    /** Display names, parallel to {@link #ARGB}. English (project convention). */
+    /** Display names, parallel to {@link #ARGB}. English (project convention). Kept in lock-step with the
+     *  colour array — the palette swatch grid draws {@link #ARGB} and never reads a name, but ClubHarness
+     *  still asserts the two arrays are parallel, and a name is the honest label for each index. */
     public static final String[] NAMES = {
-        "White", "Accent", "Red", "Green", "Yellow", "Orange", "Cyan"
+        "White", "Accent", "Cyan", "Teal", "Green", "Lime", "Yellow", "Orange",
+        "Coral", "Red", "Pink", "Purple", "Indigo", "Blue", "Slate", "Gray"
     };
 
-    /** Packed {@code 0xAARRGGBB}, full alpha, parallel to {@link #NAMES}. Flat values — no glow. */
+    /** Packed {@code 0xAARRGGBB}, full alpha, parallel to {@link #NAMES}. Flat, slightly desaturated tones
+     *  that sit with the neutral-dark palette — no neon, no glow (the frozen design). Index 0 (White) and
+     *  index 1 (Accent) are pinned: the config defaults reference {@link #WHITE} and {@link #ACCENT}. */
     public static final int[] ARGB = {
         0xFFFFFFFF, // White  — vanilla's own hitbox colour
         0xFF7CABFF, // Accent — Club's flat accent (#7CABFF)
-        0xFFFF5555, // Red
-        0xFF55FF55, // Green
-        0xFFFFFF55, // Yellow
-        0xFFFFAA55, // Orange
-        0xFF55FFFF  // Cyan
+        0xFF78D7FF, // Cyan
+        0xFF4FC4B0, // Teal
+        0xFF6BD08B, // Green
+        0xFFB6E06B, // Lime
+        0xFFF2D06B, // Yellow
+        0xFFF2A65A, // Orange
+        0xFFF08267, // Coral
+        0xFFE0655F, // Red
+        0xFFE68FB8, // Pink
+        0xFFB98CE0, // Purple
+        0xFF8C8FE0, // Indigo
+        0xFF6E9BE0, // Blue
+        0xFF8C9BB5, // Slate
+        0xFFAAB2C0  // Gray
     };
 
     /** Index of White — the "Default" colour when no player is under the crosshair (matches vanilla). */
