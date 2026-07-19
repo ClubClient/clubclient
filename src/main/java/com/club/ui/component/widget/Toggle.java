@@ -31,6 +31,10 @@ public final class Toggle extends Control {
     /** Overrides the accent colour (ON track + focus ring); 0 restores the theme accent. */
     public Toggle accent(int color) { this.accent = color; return this; }
     public boolean value() { return value; }
+    /** Sets the displayed state WITHOUT firing {@code onChange} — for mirroring an external edit (e.g. the
+     *  Club menu's docked-panel master toggle following a left-click on the module's own card). The knob
+     *  re-eases toward the new state on the next render (render() re-targets the transition each frame). */
+    public void setValue(boolean v) { this.value = v; }
 
     @Override protected void activate() {
         value = !value;

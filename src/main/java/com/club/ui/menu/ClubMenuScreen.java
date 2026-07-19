@@ -34,11 +34,10 @@ import com.club.ui.menu.MenuContent.Setting;
 import com.club.ui.menu.MenuContent.SliderSetting;
 import com.club.ui.menu.MenuContent.Tab;
 import com.club.ui.menu.MenuContent.ToggleSetting;
-import com.club.ui.motion.Reveal;
 import com.club.ui.motion.Transition;
-import com.club.ui.motion.ValueTween;
 import com.club.ui.text.Align;
 import com.club.ui.text.TextStyle;
+import com.club.ui.text.Weight;
 import com.club.ui.theme.Tokens;
 import com.club.ui.theme.Typography;
 import net.minecraft.client.MinecraftClient;
@@ -55,10 +54,11 @@ import static org.lwjgl.glfw.GLFW.*;
 
 /**
  * V2 Club menu (Stage 6) — the main client interface, opened by Right Shift. Category rail (text only, with a
- * sliding accent indicator) │ a grid of compact module cards. LEFT-click a card = enable/disable (state reads
- * as an accent-lit surface with a soft accent↔violet edge); RIGHT-click a card = open/close a floating settings
- * popover beside it (dropdowns expand an inline pick-list). No always-on settings pane, no icons, no toggles on
- * cards. A thin view over {@link MenuContent} (pure data): the screen builds the widgets and wires them to config.
+ * sliding accent indicator) │ a grid of compact module cards │ a PERSISTENT settings panel docked to the
+ * window's right. LEFT-click a card = enable/disable ONLY (state reads as an accent-lit surface with a soft
+ * accent↔violet edge); RIGHT-click a card = load its settings into the docked panel. The window and panel form
+ * one composite that stays recentred; an empty-card category (Particles) retracts the panel into the window. A
+ * thin view over {@link MenuContent} (pure data): the screen builds the widgets and wires them to config.
  */
 public final class ClubMenuScreen extends Screen {
 
@@ -118,8 +118,6 @@ public final class ClubMenuScreen extends Screen {
     // buffer" around the window — owner). Cumulative ≈21% at the edge, ≈5% by 12px out.
     private static final float HALO_STEP = 2f;
     private static final int[] HALO_ALPHAS = {9, 8, 7, 6, 5, 4, 3, 3, 2, 2, 2, 1, 1, 1};
-    // Popover mini-halo (Stage 25): the same quadratic law, sheet-sized — 6 rings, ≈9% at the edge.
-    private static final int[] POP_HALO_ALPHAS = {8, 6, 4, 3, 2, 1};
     /** Footer version whisper — balances the profile chip on the content well's right axis. */
     private static final String VERSION = net.fabricmc.loader.api.FabricLoader.getInstance()
             .getModContainer("club")
@@ -140,14 +138,14 @@ public final class ClubMenuScreen extends Screen {
     private static final float RESET_ARM_HOLD = 3f;
     private boolean resetArmed;
     private float resetArmAt;
-    private Button popResetBtn;   // the live reset button of the open popover (null when none)
+    private Button panelResetBtn;   // the live reset button in the docked panel (null when none)
 
     // Module keybind capture (Stage 43): the popover's Bind button arms listening; the next
     // keyPressed assigns (Esc cancels, Backspace/Delete clears). Screen-level so it wins over
     // every other key route, including the menu-close key.
     private boolean bindListening;
     private Module bindModule;
-    private Button popBindBtn;   // the live Bind button of the open popover (focus handback after capture)
+    private Button panelBindBtn;   // the live Bind button in the docked panel (focus handback after capture)
     // The menu key is reserved (it opens/closes this screen). Pressing it while listening used to
     // silently CANCEL the capture — and the key's GLFW repeat then landed on the close route, so the
     // menu shut itself (owner, Stage 58). It now KEEPS listening and says why, so no repeat can leak.
@@ -157,61 +155,38 @@ public final class ClubMenuScreen extends Screen {
      *  the keyboard would otherwise stay "down" forever. */
     private final java.util.Set<Integer> keysDown = new java.util.HashSet<>();
 
-    // settings popover (RMB), anchored to a card
-    private Module popModule;
-    private Column popCol;
-    private ScrollArea popScroll;   // wraps popCol so long settings/dropdown lists scroll instead of overflowing
+    // ---- docked settings panel (replaces the RMB popover) --------------------------------------------
+    // RMB a card loads its settings into a PERSISTENT panel docked to the window's right; LMB just toggles
+    // the module. The panel is the window's twin surface (same tone/border/radius). The whole window+panel
+    // PAIR is recentred every frame (layoutAll) so the composite sits balanced — owner #1 priority is a calm,
+    // not-oversized footprint. An empty-card category (Particles) RETRACTS the panel into the window.
+    private Module selectedModule;      // the module whose settings fill the panel (null → "Select a function")
+    private Column panelCol;            // the built setting rows (reuses buildSettings — unchanged)
+    private ScrollArea panelScroll;     // wraps panelCol so long lists scroll INSIDE the body
+    private Toggle panelMaster;         // header master toggle (null for action-only / hold modules)
+    private final Pane panelRoot = new Pane();   // input routing for the panel's live widgets (capture chain)
     private int tabIndex;
-    private Transition segSlide;    // segmented-tab pill position — outer, so it survives popover rebuilds
-    private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the popover
-    private float popX, popY, popW, popH, popAX, popAY, popAW, popAH, popContentH, popInnerW;
-    private float popBaseH;   // the sheet's height with dropdowns CLOSED — the accordion push is sized to THIS,
-                              // so expanding a dropdown grows the sheet over the cards without shoving them (owner, pack 4 #5)
+    private Transition segSlide;        // segmented-tab pill position — outer, so it survives panel rebuilds
+    private DropdownSetting openDrop;   // the dropdown whose pick-list is expanded in the panel
+    // Panel geometry (Club units), recomputed in layoutAll.
+    private float panelX, panelY, panelVisW, panelH, panelBodyX, panelBodyY, panelBodyW, panelBodyH;
+    private float panelContentH;        // measured height of panelCol (harness seam)
+    private float panelInnerW = PANEL_INNER_W;   // width the rows lay out to (stable across the retract)
+    private static final float PANEL_W = 150f;    // docked width at rest — slim, so the composite stays calm
+    private static final float PANEL_GAP = 8f;    // breath between the window and the panel
+    private static final float PANEL_PAD = 12f;   // panel inner padding
+    private static final float PANEL_INNER_W = PANEL_W - 2 * PANEL_PAD;
+    // Retract animation: width fraction 1 (a card category) → 0 (Particles, empty-card). Reuses the popover
+    // glide's pacing (normal 0.28s, standard easing) — same facility, same feel.
+    private Transition panelReveal;
+
     // "Nothing to configure here" flash (owner, v0.1.3 pack 5 #5, variant A): a right-click on a settingless
     // module marks it for NO_SET_FLASH seconds — a muted gear with a red slash top-right + a very quiet red
     // outline round the card. Transient feedback, so a dead right-click reads as "no settings", not "broken".
     private static final float NO_SET_FLASH = 1.1f;
     private Module noSetFlashMod;
     private float noSetFlashAt;
-    // Accordion push, applied rigidly at render (see Grid.split / TileMotion note, pack 6 #4): the cards in
-    // column bandCol below row bandRow slide down by bandPx — a value that ramps with the sheet's reveal.
-    private int bandCol = -1, bandRow = -1;
-    private float bandPx;
-    private float popRoom;   // vertical room the sheet was allowed — the denominator of "maximal" (harness seam)
-    private int pressOwner;
-    // Popover open/close/resize motion: reveal grows it in / out; popHTween eases the target height
-    // (dropdown expand, tab switch). Content is clipped to the eased height so any resize reveals smoothly.
-    private Reveal popReveal;
-    private boolean popClosing;
-    private final ValueTween popHTween =
-            new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().decelerate());
-
-    /**
-     * THE SHEET SLIDES; IT DOES NOT DIE AND RESPAWN (owner, v0.1.3 item 7).
-     *
-     * <p>His report was three symptoms of one omission: "анимация скрытия не проигрывается при нажатии на
-     * другой поповер + в таком раскладе половина анимации входа второго поповера съедается". And the code
-     * agreed with him — right-clicking a DIFFERENT card went straight to {@code openPopover}, which sets
-     * {@code popReveal = null}. The old sheet was not closed. It was ERASED, in the same frame, and a new one
-     * began growing from zero. The eye waits for an exit it never gets, so it reads the entrance as an
-     * offcut.
-     *
-     * <p>The obvious fix — play the close, then the open — costs a full 280ms of nothing on every switch, and
-     * he flagged that himself. The right one is that a switch is not a close followed by an open: the player
-     * did not shut the sheet, he MOVED it. So the sheet stays alive and GLIDES to the new card's column,
-     * easing its position and its height, with the new content inside. Nothing vanishes, so nothing can be
-     * truncated.
-     *
-     * <p>Not a content cross-fade, and the reason is a rule bought with a bug: text does not dim through
-     * {@code pushOpacity} in this stack (Stage 9 — only {@code Color.scaleAlpha} works), and the widgets
-     * inside the sheet paint themselves straight from the tokens. A fade would have silently faded the
-     * grounds and left the labels at full strength. The glide needs no alpha at all.
-     */
-    private final ValueTween popXTween =
-            new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
-    private final ValueTween popYTween =
-            new ValueTween(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
-    private boolean popSwapping;   // a live sheet is gliding to another card — do NOT restart the reveal
+    private int pressOwner;   // mouse release/drag routing: 2 = root (grid/search), 3 = the panel's widgets
 
     private float winX, winY, winW, winH, bodyY, bodyH, headH, footH;
 
@@ -280,7 +255,8 @@ public final class ClubMenuScreen extends Screen {
 
     @Override protected void init() {
         headH = 48; footH = 36;   // footer slimmed with its divider gone (Stage 22)
-        query = ""; popModule = null; popCol = null; openDrop = null; pressOwner = 0;
+        query = ""; selectedModule = null; panelCol = null; panelScroll = null; panelMaster = null;
+        panelRoot.clear(); openDrop = null; pressOwner = 0;
         gridFocused = false; gridFocus = null;
         bindListening = false; bindModule = null; bindReserved = false; keysDown.clear();
         // gui-move mirrors the raw key state and only acts on EDGES — so it must forget what it thinks is
@@ -290,10 +266,9 @@ public final class ClubMenuScreen extends Screen {
         // again to move at all.
         if (moveWasDown != null) java.util.Arrays.fill(moveWasDown, false);
         search = new SearchField("Search modules")
-                // Typing in search closes any open sheet (owner, v0.1.3 #7: "начать искать — поповер не
-                // пропадает"). It was left anchored to a card that the filter may have just removed, floating
-                // over the results. The search is a new context; the sheet belongs to the old one.
-                .onChange(q -> { query = q; if (popModule != null) closePopover(); rebuildGrid(GridRebuild.SEARCH); layoutAll(); })
+                // The docked panel is not anchored to a tile, so searching no longer strands it — it simply
+                // keeps showing whatever module was last selected while the grid filters underneath.
+                .onChange(q -> { query = q; rebuildGrid(GridRebuild.SEARCH); layoutAll(); })
                 .onSubmit(this::submitSearch);   // Enter activates the first result
         gridScroll = new ScrollArea(grid).overlayScrollbar(true);   // bar floats on top — cards never jerk narrower (final pass #2)
         particleSearch = new SearchField("Search").noSlashHint().onChange(q -> particlesPane.setFilter(q));
@@ -388,7 +363,8 @@ public final class ClubMenuScreen extends Screen {
         catIndex = i; lastCatIndex = i;
         railBarBlend = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         railBarBlend.target(1f, now);
-        closePopover();
+        // The docked panel keeps its selection across category switches (it is no longer anchored to a tile);
+        // an empty-card category simply retracts it — see layoutAll's panelReveal.
         query = "";
         if (search != null) search.clear();
         rebuildGrid(GridRebuild.CATEGORY);
@@ -470,8 +446,12 @@ public final class ClubMenuScreen extends Screen {
     }
 
     private void activate(Module m) {
-        if (m.hasToggle()) m.setEnabled(!m.enabled());   // rail counts are read live in render()
-        else for (Setting s : m.settings()) if (s instanceof ActionSetting a) { a.action().run(); return; }
+        if (m.hasToggle()) {
+            m.setEnabled(!m.enabled());   // rail counts are read live in render()
+            // If this module's settings are showing in the panel, its header master toggle must follow the
+            // card (the card ↔ panel are two views of the same boolean).
+            if (m == selectedModule && panelMaster != null) panelMaster.setValue(m.enabled());
+        } else for (Setting s : m.settings()) if (s instanceof ActionSetting a) { a.action().run(); return; }
     }
 
     /**
@@ -535,24 +515,11 @@ public final class ClubMenuScreen extends Screen {
         return out;
     }
 
-    /** The live tile for a module (for popover anchoring), or null if it isn't shown. */
-    private ModuleTile tileOf(Module m) {
-        for (var c : grid.children()) { ModuleTile t = (ModuleTile) c; if (t.m == m) return t; }
-        return null;
-    }
-
-    /** The grid row a module sits in (for the accordion band), or -1 if it isn't shown. */
-    private int rowOf(Module m) {
-        var ch = grid.children();
-        for (int i = 0; i < ch.size(); i++) if (((ModuleTile) ch.get(i)).m == m) return i / gridCols;
-        return -1;
-    }
-
-    /** The grid column a module sits in — the sheet is card-wide, so only this column's lower cards move. */
-    private int colOf(Module m) {
-        var ch = grid.children();
-        for (int i = 0; i < ch.size(); i++) if (((ModuleTile) ch.get(i)).m == m) return i % gridCols;
-        return -1;
+    /** The category index a module belongs to (the panel speaks the SELECTED module's category colour, even
+     *  while another category's grid is on screen), or the current category as a fallback. */
+    private int categoryOf(Module m) {
+        for (int i = 0; i < cats.size(); i++) if (cats.get(i).modules().contains(m)) return i;
+        return catIndex;
     }
 
     /** Enter activates the first result — toggles it or runs its action. */
@@ -597,9 +564,9 @@ public final class ClubMenuScreen extends Screen {
                 idx -= gridCols; break;
             case GLFW_KEY_DOWN:  idx = Math.min(mods.size() - 1, idx + gridCols); break;
             case GLFW_KEY_ENTER, GLFW_KEY_KP_ENTER: activate(mods.get(idx)); gridFocus = mods.get(idx); return true;
-            case GLFW_KEY_SPACE: {   // open the sheet if there is one; otherwise a toggle-only card just toggles
+            case GLFW_KEY_SPACE: {   // load the panel if there is anything to show; else a toggle-only card toggles
                 Module fm = mods.get(idx);
-                if (hasConfigurable(fm)) openPopoverForFocused(fm); else activate(fm);
+                if (hasConfigurable(fm)) openSettingsForFocused(fm); else activate(fm);
                 gridFocus = fm; return true;
             }
             default: return false;
@@ -608,91 +575,84 @@ public final class ClubMenuScreen extends Screen {
         return true;
     }
 
-    /** Space on a focused card opens (or closes) its settings popover, anchored to the card. The
-     *  grid zone hands off to the popover controls while it's open (one keyboard owner at a time)
-     *  and is restored when the popover closes via keyboard. */
-    private void openPopoverForFocused(Module m) {
+    /** Space on a focused card loads its settings into the docked panel and hands the keyboard zone to the
+     *  panel controls (one keyboard owner at a time); Esc hands the zone back. The RMB no-op guard lives in
+     *  {@link #selectModule} — pressing Space on the already-shown module just (re)takes the zone. */
+    private void openSettingsForFocused(Module m) {
         if (!hasConfigurable(m)) return;
-        ModuleTile t = tileOf(m);
-        if (t == null) return;
-        if (popModule == m && !popClosing) closePopover();
-        else {
-            openPopover(m, t.xLeft(), t.yTop(), t.width(), t.height());
-            gridFocused = false; popFromGrid = true;
-        }
+        selectModule(m);
+        gridFocused = false; popFromGrid = true;
     }
 
-    // ---- popover -------------------------------------------------------------
+    // ---- docked panel --------------------------------------------------------
 
-    private void openPopover(Module m, float ax, float ay, float aw, float ah) {
-        // A LIVE sheet switching cards is a MOVE, not a close-then-open. Keep the reveal — erasing it here is
-        // exactly what made the second popover's entrance look like an offcut (item 7). The position and
-        // height tweens then carry the sheet to the new card on their own.
-        popSwapping = popModule != null && popModule != m && !popClosing && popReveal != null;
-
-        popModule = m; popAX = ax; popAY = ay; popAW = aw; popAH = ah; tabIndex = 0; openDrop = null;
-        resetArmed = false;                     // a fresh popover never opens pre-armed
-        popClosing = false;
-        if (!popSwapping) popReveal = null;     // a cold open: render() plays the grow-in on the first frame
+    /** Loads a module's settings into the panel. RMB on the already-shown module is a NO-OP (no repopulate,
+     *  no re-animate) — that is the whole of item 3, and it must stay the first line. */
+    private void selectModule(Module m) {
+        if (selectedModule == m) return;
+        selectedModule = m;
+        tabIndex = 0; openDrop = null; resetArmed = false;
+        bindListening = false; bindModule = null; bindReserved = false;   // drop any capture from the old module
         segSlide = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
-        rebuildPopover();
+        rebuildPanel();
     }
 
-    private void rebuildPopover() {
-        float prevOffset = (popScroll != null) ? popScroll.scrollOffset() : 0f;   // survive dropdown-expand / tab-switch rebuild
+    /** Clears the panel back to the "Select a function" empty state (Esc / menu close). */
+    private void deselectModule() {
+        boolean keepSearch = search != null && focus.focused() == search;
+        selectedModule = null; panelCol = null; panelScroll = null; panelMaster = null; panelContentH = 0f;
+        openDrop = null; resetArmed = false; panelResetBtn = null;
+        bindListening = false; bindModule = null; bindReserved = false; panelBindBtn = null;
+        panelRoot.clear();
+        focus.clear();
+        if (search != null) focus.register(search);
+        if (keepSearch) focus.focusKeyboard(search);                 // stay in the search — the player is typing
+        else if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // hand the zone back (Space → Esc round-trip)
+    }
+
+    private void rebuildPanel() {
+        float prevOffset = (panelScroll != null) ? panelScroll.scrollOffset() : 0f;   // survive dropdown/tab rebuild
         focus.clear();
         focus.register(search);
-        // Width FIRST — the rows size their label column against it. The sheet is EXACTLY its card's width
-        // (owner, v0.1.3 #11 + pack 3: "ужми слайдеры… видел как у hands, там всё влезло"). A row that does
-        // not fit that width squeezes (the slider track gives ground) or ellipsizes (a long label gets "…"),
-        // and the sheet NEVER widens past the card it belongs to — that is the whole point of it dropping out
-        // of the card. The POP_W_MIN floor only guards a pathologically squeezed window from collapsing it.
-        popW = Math.max(POP_W_MIN, popAW);
-        float innerW = popW - 2 * POP_PAD;
-        popInnerW = innerW;
-        popCol = buildSettings(popModule);
-        popContentH = popCol.measure(innerW, 99999f).h();
-        popScroll = new ScrollArea(popCol);
-        positionPopover();   // sets popY + popH below the card grid, capped so long content scrolls
-        popScroll.scrollOffset(prevOffset);                  // restore scroll after layout has set the clamp bounds
+        panelRoot.clear();
+        if (selectedModule == null) { panelCol = null; panelScroll = null; panelMaster = null; panelContentH = 0f; return; }
+        // The rows lay out to the panel's fixed inner width (stable across the retract), and the sheet speaks
+        // the SELECTED module's category colour. buildSettings is reused verbatim — sliders, dropdowns, tabs,
+        // the keybind row and the reset-confirm all build exactly as they did in the popover.
+        panelInnerW = PANEL_INNER_W;
+        int accent = catAccent(categoryOf(selectedModule));
+        panelCol = buildSettings(selectedModule);
+        panelContentH = panelCol.measure(panelInnerW, 99999f).h();
+        panelScroll = new ScrollArea(panelCol);   // reserved-lane bar so slider values never sit under it
+        panelMaster = selectedModule.hasToggle()
+                ? new Toggle(selectedModule.enabled()).onChange(v -> selectedModule.setEnabled(v)).accent(accent)
+                : null;
+        if (panelMaster != null) panelRoot.add(panelMaster);
+        panelRoot.add(panelScroll);
+        layoutPanelWidgets();                 // lay out now (last-known geometry) so the scroll clamp is set…
+        panelScroll.scrollOffset(prevOffset); // …then restore the scroll position across the rebuild
     }
 
-    /** The sheet drops out of its OWN card (owner, v0.1.3 #4): anchored to the clicked tile's LIVE position,
-     *  so it follows the card as the grid scrolls, and it inherits the card's X so it reads as that card's
-     *  settings. Height is what the content wants, capped to the well — a taller sheet scrolls inside itself
-     *  (ScrollArea draws the side bar). The rows below the card slide down by this height (the accordion band
-     *  set in layoutAll), so nothing is ever covered. The whole sheet is clipped to the well when it draws. */
-    private void positionPopover() {
-        ModuleTile t = tileOf(popModule);
-        if (t == null) return;                       // card filtered out of the grid — #7 is closing the sheet
-        popX = t.xLeft();
-        popRoom = wellH - 24;
-        float want = popContentH + 2 * POP_PAD;
-        popH = Math.max(1f, fit(want, popRoom));      // cap to the viewport; overflow scrolls inside the sheet
-        if (openDrop == null) popBaseH = popH;        // remember the CLOSED height — the push is sized to this
-        // A dropdown does NOT grow the sheet or spill over the cards (owner, pack 5 #3): it stays the closed
-        // height and its option list SCROLLS inside the sheet (ScrollArea draws the side bar). So expanding a
-        // dropdown never changes the push, and the list is contained, not overlaid on the grid.
-        else popH = Math.min(popH, popBaseH);
-        popY = t.yTop() + t.height() + POP_GAP;        // directly under the card, following it through scroll
-        popScroll.layout(popX + POP_PAD, popY + POP_PAD,
-                Math.max(1f, popW - 2 * POP_PAD), Math.max(1f, popH - 2 * POP_PAD));
+    /** Positions the panel's live widgets (scroll body + header master toggle) from the current geometry.
+     *  Called from rebuildPanel and every frame in layoutAll. */
+    private void layoutPanelWidgets() {
+        if (panelScroll != null)
+            panelScroll.layout(panelBodyX, panelBodyY, Math.max(1f, panelBodyW), Math.max(1f, panelBodyH));
+        if (panelMaster != null)
+            panelMaster.layout(panelX + PANEL_W - PANEL_PAD - 40f, panelY + (headH - 22f) / 2f, 40f, 22f);
+        panelRoot.layout(panelX, panelY, Math.max(1f, panelVisW), panelH);
     }
 
-    /**
-     * The sheet's height: what the content WANTS, capped by the room available — and when the cap bites, it
-     * lands in a gap BETWEEN rows instead of through the middle of one.
-     *
-     * <p>This used to be a bare {@code min(want, room)}. When the content was taller than the room, the cap
-     * was an arbitrary pixel, and whichever row straddled it got sliced through its letters — the owner's
-     * item 10, and he was right to call it ugly rather than to call it a scroll: a half-drawn row is neither
-     * shown nor hidden, so the eye reads damage. The scrollbar still says there is more; now everything above
-     * it is whole.
-     */
-    private float fit(float want, float room) {
-        if (want <= room) return want;                        // it all fits — nothing to snap
-        float snapped = popCol.snapToChild(popInnerW, 99999f, room - 2 * POP_PAD);
-        return Math.min(want, snapped + 2 * POP_PAD);
+    /** Longest prefix of {@code t} that fits {@code maxW} with a trailing "…" — mirrors {@link Label}'s own
+     *  ellipsis for the manually drawn panel header title. */
+    private String ellipsizeTo(String t, Weight w, float size, float maxW) {
+        var tx = uiCtx.text();
+        if (maxW <= 0f) return "";
+        if (tx.width(t, w, size) <= maxW) return t;
+        float ell = tx.width("…", w, size);
+        for (int n = t.length() - 1; n >= 1; n--)
+            if (tx.width(t.substring(0, n), w, size) + ell <= maxW) return t.substring(0, n) + "…";
+        return "…";
     }
 
     /** Harness seam: the first card's box in MINECRAFT gui units — i.e. where a real mouse would have to
@@ -761,69 +721,24 @@ public final class ClubMenuScreen extends Screen {
         return ((ModuleTile) grid.children().get(0)).m.enabled();
     }
 
-    /** Harness seam: the open popover's geometry — {contentH, height, y, room below the grid}. All
-     *  zeroes when no popover is open. The only way to assert the "fits below the cards / scrolls when
-     *  it can't" contract from inside a running game. */
+    /** Harness seam: the docked panel's body geometry — {contentH, viewportH, panelY, viewportH}. All zeroes
+     *  when no module is shown. The panel scrolls its body, so "fits below the cards" no longer applies; these
+     *  report the body viewport the rows scroll inside (kept for the existing harness geometry checks). */
     public float[] popoverGeometry() {
-        if (popModule == null) return new float[] {0, 0, 0, 0};
-        return new float[] {popContentH, popH, popY, (wellY + wellH - 8) - popY};
+        if (selectedModule == null) return new float[] {0, 0, 0, 0};
+        return new float[] {panelContentH, panelBodyH, panelY, panelBodyH};
     }
 
-    /**
-     * Harness seam: is the sheet as tall as it CAN be without cutting a row through the middle?
-     *
-     * <p>Two claims in one, and both have to hold or the answer is false:
-     * <ul>
-     *   <li><b>Whole</b> — the bottom edge lands in a gap between rows, never inside one. This is the bug the
-     *       owner reported (item 10): a "Reset to Default" sliced through its letters.</li>
-     *   <li><b>Maximal</b> — and it did not buy that by throwing away room. The height must be the LARGEST
-     *       row-boundary that fits, not merely A row-boundary. Without this half of the check, a sheet that
-     *       snapped down to a single visible row would pass.</li>
-     * </ul>
-     *
-     * <p>It is recomputed from the children, not read back from the value {@link #fit} produced — so a
-     * regression to the old bare {@code min(want, room)} turns it red instead of agreeing with itself.
-     */
-    /**
-     * Harness seam: how far the sheet's reveal has played, 0..1. A LIVE sheet reads 1.
-     *
-     * <p>This exists to make item 7 falsifiable. The bug was one line — {@code openPopover} set
-     * {@code popReveal = null}, so switching cards erased the sheet and grew a new one from zero — and it is
-     * exactly the kind of line a future refactor puts back while "simplifying". Motion cannot be asserted
-     * from a screenshot, but its ABSENCE can: right-click card A, right-click card B, and this must still
-     * read 1. If the sheet died and respawned it reads near 0, and the check goes red.
-     */
+    /** Harness seam: 1 while a module's settings are shown, else 0. The persistent panel never dies and
+     *  respawns on a card switch — selecting another module just repopulates it — so this stays 1 across a
+     *  right-click-to-right-click switch (the old popover-glide invariant, now structural). */
     public float popoverRevealProgress() {
-        if (popModule == null || popReveal == null) return 0f;
-        return popReveal.progress(uiCtx.time());
+        return selectedModule != null ? 1f : 0f;
     }
 
+    /** Harness seam: the panel never slices a row — overflow scrolls inside its {@link ScrollArea}. */
     public boolean popoverIsMaximalAndWhole() {
-        if (popModule == null || popCol == null) return true;
-        float viewportH = popH - 2 * POP_PAD;
-        if (popContentH <= viewportH + 0.5f) return true;          // it all fits — nothing to cut
-        float roomInner = popRoom - 2 * POP_PAD;
-        return Math.abs(popCol.snapToChild(popInnerW, 99999f, roomInner) - viewportH) < 0.5f;
-    }
-
-    /** Deferred close: begins the shrink-out; render() calls {@link #reallyClosePopover} once it has fully collapsed. */
-    private void closePopover() {
-        if (popModule != null) popClosing = true;
-    }
-
-    private void reallyClosePopover() {
-        // Typing in the search box is what closed this sheet (its onChange calls closePopover). The close
-        // finishes a few frames later, HERE — and focus.clear() below would then yank the keyboard off the
-        // search mid-word, so the next letter goes nowhere (owner, final bug: "поиск отвяжется, дальше нельзя
-        // писать"). Remember if the search held focus and hand it straight back.
-        boolean keepSearch = search != null && focus.focused() == search;
-        popModule = null; popCol = null; popScroll = null; openDrop = null;
-        popReveal = null; popClosing = false; resetArmed = false; popResetBtn = null;
-        bindListening = false; bindModule = null; bindReserved = false; popBindBtn = null;
-        focus.clear();
-        if (search != null) focus.register(search);
-        if (keepSearch) focus.focusKeyboard(search);                 // stay in the search — the player is typing
-        else if (popFromGrid) { popFromGrid = false; enterGridZone(); }   // else hand the zone back (Space → Esc round-trip)
+        return true;
     }
 
     private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -857,10 +772,10 @@ public final class ClubMenuScreen extends Screen {
     }
 
     private Column buildSettings(Module m) {
-        // Tight row gap (Stage 57): the popover lives BELOW the cards now, so a simple popover must fit
-        // that room without scrolling — xs keeps the rows neat but compact; only tall ones (Hands) scroll.
+        // Tight row gap (Stage 57): a compact settings stack — xs keeps the rows neat but tight; tall modules
+        // (Hands) scroll inside the panel body.
         Column col = new Column().gap(Tokens.spacing().xs()).crossAlign(CrossAlign.STRETCH);
-        int accent = catAccent(catIndex);   // 11.9: the popover speaks its category's colour
+        int accent = catAccent(categoryOf(m));   // 11.9: the panel speaks the module's category colour
 
         List<Setting> settings0;
         if (m.hasTabs()) {
@@ -880,7 +795,7 @@ public final class ClubMenuScreen extends Screen {
         // The label column takes up to HALF the sheet now (was 0.42): at card width the slider gives ground so
         // the name stays readable (owner, pack 3: "ужми слайдеры… как у hands"), and anything still too long
         // ellipsizes rather than clip mid-glyph.
-        final float labelW = Math.min(Math.max(lw + 8f, 40f), Math.max(48f, popInnerW * 0.5f));
+        final float labelW = Math.min(Math.max(lw + 8f, 40f), Math.max(48f, panelInnerW * 0.5f));
 
         // A module that is ON but standing down says so, at the top, before the controls it isn't applying
         // (Stage 62 — see MenuContent.notice). Hidden behind an expanded dropdown like every other row.
@@ -910,14 +825,14 @@ public final class ClubMenuScreen extends Screen {
                 // hug() so the field hugs its value ("4:3") instead of the 96px alignment slab — that slab ate
                 // the row and squeezed the name down to "P…" (owner, pack 4 #1: "зачем строке 4:3 такой большой бокс").
                 Button field = new Button(d.options()[cur]).variant(Button.Variant.GHOST).accent(accent).compact().hug()
-                        .onClick(() -> { openDrop = (openDrop == d) ? null : d; rebuildPopover(); });
+                        .onClick(() -> { openDrop = (openDrop == d) ? null : d; rebuildPanel(); });
                 row.add(field);
                 col.add(new LaneRow(row)); focus.register(field);
                 if (openDrop == d) {
                     for (int i = 0; i < d.options().length; i++) {
                         final int oi = i;
                         col.add(new OptionRow(d.options()[i], i == cur, accent,
-                                () -> { d.set().accept(oi); openDrop = null; rebuildPopover(); }));
+                                () -> { d.set().accept(oi); openDrop = null; rebuildPanel(); }));
                     }
                 }
             } else if (s instanceof ActionSetting) {
@@ -968,13 +883,13 @@ public final class ClubMenuScreen extends Screen {
             // RESTING label ("Not set") — and the listening state no longer needs a wide one, because the
             // instruction moved to the caption below, which is where an instruction belongs anyway.
             bind.minWidth(Math.min(new Button("Not set").variant(Button.Variant.VALUE).compact().hug().measure(10_000f, 22f).w(),
-                                   popInnerW * 0.55f));
+                                   panelInnerW * 0.55f));
             bind.onClick(() -> {
                 boolean was = bindListening && bindModule == m;
                 bindListening = !was; bindModule = bindListening ? m : null; bindReserved = false;
-                rebuildPopover();
+                rebuildPanel();
             });
-            popBindBtn = bind;
+            panelBindBtn = bind;
             Row rr = new Row().crossAlign(CrossAlign.CENTER).gap(Tokens.spacing().sm());
             rr.add(new Label(hold ? "Hold key" : "Toggle key", Tokens.type().label())
                     .color(Tokens.palette().textMuted()).ellipsize(true), Sizing.fill());
@@ -996,7 +911,7 @@ public final class ClubMenuScreen extends Screen {
                 if (warn != null)
                     col.add(new Label(warn, Tokens.type().caption()).color(Tokens.palette().stateWarn()).ellipsize(true));
             }
-        } else popBindBtn = null;
+        } else panelBindBtn = null;
 
         if (m.hasReset() && resetWorthShowing(m) && openDrop == null) {   // hidden while a dropdown is expanded
             // Stage 35 (hardened in 38): a destructive action asks first. Click 1 ARMS the button — it
@@ -1023,7 +938,7 @@ public final class ClubMenuScreen extends Screen {
             reset.minWidth(new Button("Confirm reset?").compact().hug().measure(10_000f, 22f).w());
             reset.onClick(() -> {
                 if (resetArmed) {
-                    boolean kb = popResetBtn != null && popResetBtn.isFocusVisible();
+                    boolean kb = panelResetBtn != null && panelResetBtn.isFocusVisible();
                     resetArmed = false;
                     m.reset().run();
                     // Reset also restores the key (Stage 46/58): a hold module goes back to its FACTORY
@@ -1033,22 +948,22 @@ public final class ClubMenuScreen extends Screen {
                         com.club.modules.binds.HoldKeys.reset(m.name());
                     else com.club.modules.binds.ModuleBinds.set(m.name(), null);
                     openDrop = null;
-                    rebuildPopover();
-                    if (kb && popResetBtn != null) focus.focusKeyboard(popResetBtn);
+                    rebuildPanel();
+                    if (kb && panelResetBtn != null) focus.focusKeyboard(panelResetBtn);
                 } else {
                     resetArmed = true; resetArmAt = uiCtx.time();
                     // The accent swaps WITH the label: quiet red at rest, the category's own accent once
                     // armed. Both are set in place — a rebuild here would orphan an in-flight slider drag.
-                    if (popResetBtn != null) popResetBtn.label("Confirm reset?").armed(true).accent(accent);
+                    if (panelResetBtn != null) panelResetBtn.label("Confirm reset?").armed(true).accent(accent);
                 }
             });
-            popResetBtn = reset;
+            panelResetBtn = reset;
             // The column's own xs gap already separates this row from the one above. An extra sm spacer on
             // top of it stacked to ~16px — a canyon under a quiet text link (owner, v0.1.3 #3: "слишком много
             // расстояния между ним, выглядит не компактно"). Air, yes — but one step of it, not three.
             Row rr = new Row(); rr.add(reset);
             col.add(rr); focus.register(reset);
-        } else popResetBtn = null;
+        } else panelResetBtn = null;
         return col;
     }
 
@@ -1072,11 +987,32 @@ public final class ClubMenuScreen extends Screen {
     private void layoutAll() {
         updateCanvas();
         float m = 24;
-        winW = Math.min(WIN_W, canvasW - 2 * m);
+        // Docked settings panel: the retract fraction drives BOTH the panel width AND the recentring, so the
+        // window+panel composite always sits balanced (owner #1: a calm, not-oversized footprint). Particles
+        // (no cards) retracts it to 0 and the window glides back to dead-centre.
+        float nowP = uiCtx.time();
+        boolean wantPanel = !particlesActive();
+        // Reserve the docked panel's room inside the window-width clamp so the PAIR never runs off the canvas
+        // on narrow aspect ratios (4:3 / 5:4). On a large 16:9 window there is slack, so the window keeps 660.
+        float panelResv = wantPanel ? (PANEL_GAP + PANEL_W) : 0f;
+        winW = Math.min(WIN_W, canvasW - 2 * m - panelResv);
         winH = Math.min(WIN_H, canvasH - 2 * m);
-        winX = (canvasW - winW) / 2f;                   // always dead centre (no drag, no saved position)
+        if (panelReveal == null) panelReveal = new Transition(wantPanel ? 1f : 0f,
+                Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+        panelReveal.target(wantPanel ? 1f : 0f, nowP);
+        float prv = panelReveal.value(nowP);
+        float panelExt = prv * (PANEL_GAP + PANEL_W);   // 0 when fully retracted → the window sits dead-centre
+        winX = Math.max(m, (canvasW - (winW + panelExt)) / 2f);   // centre the PAIR (clamped on tiny canvases)
         winY = (canvasH - winH) / 2f + entranceYOff;
         bodyY = winY + headH; bodyH = winH - headH - footH;
+
+        // Panel surface box: the rows lay out to the fixed inner width (stable across the retract); the visible
+        // width animates, and the surface is clipped to it when drawn.
+        panelX = winX + winW + PANEL_GAP;
+        panelVisW = prv * PANEL_W;
+        panelY = winY; panelH = winH;
+        panelBodyX = panelX + PANEL_PAD; panelBodyY = panelY + headH;
+        panelBodyW = PANEL_INNER_W; panelBodyH = Math.max(1f, winH - headH - PANEL_PAD);
 
         root.layout(0, 0, canvasW, canvasH);
 
@@ -1141,25 +1077,13 @@ public final class ClubMenuScreen extends Screen {
         }
         cardNameSize = fit;
 
-        // Accordion band (owner, v0.1.3 #4): the sheet drops out of its OWN card, and the rows below it slide
-        // down so every card stays in view. The band grows in lockstep with the sheet's reveal — same height,
-        // same curve — so the push reads as the sheet pushing them, not a separate jump. Driven from the
-        // persisted reveal/height tweens render() advances, so it is at most one frame behind the ink.
-        float bandNow = uiCtx.time();
-        int splitRow = (popModule != null) ? rowOf(popModule) : -1;
-        int splitCol = (popModule != null) ? colOf(popModule) : -1;
-        float band = 0f;
-        // A CONTINUOUS ramp of the closed-sheet footprint (popBaseH, so a dropdown never changes the push).
-        // The cards move RIGIDLY by this at render — not through TileMotion, which re-eased it and made the
-        // card arrive after the sheet (owner, pack 6 #4). Same reveal clock as the sheet ⇒ they move together.
-        if (splitRow >= 0 && popReveal != null)
-            band = popReveal.progress(bandNow) * (popBaseH + 2 * POP_GAP);
-        bandCol = splitCol; bandRow = splitRow; bandPx = band;
-        grid.split(splitRow, band);   // reserve scroll room only; the offset itself is applied per-tile in render
+        // The accordion push-down is gone — settings live in the docked panel now, so the grid no longer
+        // reserves a band under the selected card.
+        grid.split(-1, 0f);
 
         if (gridScroll != null) gridScroll.layout(wellX + 12, wellY + 12, gridW, wellH - 24);
 
-        if (popModule != null) positionPopover();
+        layoutPanelWidgets();
     }
 
     // ---- render --------------------------------------------------------------
@@ -1349,74 +1273,47 @@ public final class ClubMenuScreen extends Screen {
         // (freezing it and skipping its save-on-release) and silently clear keyboard focus.
         if (resetArmed && now - resetArmAt > RESET_ARM_HOLD) {
             resetArmed = false;
-            if (popResetBtn != null)
-                popResetBtn.label("Reset to default").armed(false).accent(Tokens.palette().stateLow());
+            if (panelResetBtn != null)
+                panelResetBtn.label("Reset to default").armed(false).accent(Tokens.palette().stateLow());
         }
 
-        // popover on top — grows in / shrinks out; content clipped to the eased height (also eases resize)
-        if (popModule != null && popScroll != null) {
-            if (popReveal == null) {
-                // normal + standard: fast (0.17s) read as too quick once the push was synced (owner, final pass
-                // #1). The card and the sheet share this reveal, so both settle together at 0.28s — smooth, not
-                // laggy (the old lag was the double-ease, now fixed), and standard (not decelerate) keeps it crisp.
-                popReveal = new Reveal(Tokens.motion().durations().normal(), Tokens.motion().easings().standard(), now);
-                popHTween.snap(popH, now);
-                // A cold open arrives already at its card — there is nothing to glide FROM, and easing in from
-                // a stale position would make the sheet fly across the well on the first frame.
-                popXTween.snap(popX, now); popYTween.snap(popY, now);
-            }
-            popSwapping = false;        // consumed: from here the tweens carry it
-            if (popClosing) popReveal.close(now);
-            popHTween.set(popH, now);   // eases the popover height on open + on resize (dropdown open/close)
-            popXTween.set(popX, now);   // …and its column, when the player switches cards (item 7)
-            popYTween.set(popY, now);
-            if (popClosing && popReveal.gone(now)) {
-                reallyClosePopover();
-            } else {
-                float drawnH = Math.max(1f, popHTween.get(now) * popReveal.progress(now));
-                float pr = Tokens.radius().md();
-                // The sheet now drops out of its card and rides the grid's scroll (it is anchored to the live
-                // tile), so it is clipped to the well exactly like the cards — a sheet on a scrolled-off card
-                // clips at the well edge instead of floating over the header/footer.
-                r.pushClip(wellX + 12, wellY + 12, wellW - 24, wellH - 24);
+        // ---- docked settings panel: the window's twin surface, to its right ----
+        // Reveal/retract: everything is clipped to the animated visible width, and the surface is drawn at
+        // full PANEL_W so its left corners stay rounded while the right edge slides out of / into the window.
+        if (panelVisW > 0.5f) {
+            float plg = Tokens.radius().lg();
+            Weight titleW = ty.title().weight();
+            float titleSz = 12.5f;
+            r.pushClip(panelX, panelY, panelVisW, panelH);
+            r.roundedRect(panelX, panelY, PANEL_W, panelH, plg, Tokens.surface().surface());
 
-                // THE SHEET IS DRAWN WHERE THE TWEENS SAY, NOT WHERE THE LAYOUT SAYS. The two agree at rest;
-                // during a card switch the layout is already standing at the destination while the ink is
-                // still on its way there — which is the whole point of item 7.
-                //
-                // The CONTENT has to travel with the ground, or the sheet glides out from under its own rows.
-                // It is re-laid-out only while the glide is actually in flight (they are equal at rest, so the
-                // common case costs one float compare), and always to the FINAL height: the content must not
-                // reflow as the sheet grows — it is CLIPPED to drawnH, which is what makes a resize read as a
-                // reveal instead of a reflow.
-                float popX = popXTween.get(now), popY = popYTween.get(now);
-                if (Math.abs(popX - this.popX) > 0.01f || Math.abs(popY - this.popY) > 0.01f) {
-                    float off = popScroll.scrollOffset();
-                    popScroll.layout(popX + POP_PAD, popY + POP_PAD,
-                            Math.max(1f, popW - 2 * POP_PAD), Math.max(1f, popH - 2 * POP_PAD));
-                    popScroll.scrollOffset(off);
-                }
-                // Stage 25 (owner board, variant A): the popover is a RAISED SHEET, not a hole —
-                // under the Stage-22 depth grammar (darker = recessed) the old bg2 ground + strong
-                // border read as a punched-out box. Card tone one step above the window ground,
-                // the window's quadratic mini-halo instead of a loud border, and a quiet hairline
-                // to hold the edge where the sheet crosses the light wells. Halo gated on LEGACY
-                // (Stage 26) like the window halo — no pushOpacity there means solid black rings.
-                if (Ui.backend() == Ui.Backend.MODERN) {
-                    for (int i = POP_HALO_ALPHAS.length; i >= 1; i--) {
-                        float hs = i * HALO_STEP;
-                        r.roundedRect(popX - hs, popY - hs, popW + 2 * hs, drawnH + 2 * hs, pr + hs,
-                                Color.withAlpha(0xFF000000, POP_HALO_ALPHAS[i - 1]));
-                    }
-                }
-                r.roundedRect(popX, popY, popW, drawnH, pr, Tokens.surface().surface());
-                r.border(popX, popY, popW, drawnH, pr, Tokens.border().thickness(), Tokens.border().defaultColor());
-                r.pushClip(popX, popY, popW, drawnH);
-                popScroll.mouseMoved(mouseX, mouseY);
-                popScroll.render(uiCtx);
-                r.popClip();
-                r.popClip();   // close the well clip
+            // header: selected module name (or dim "Settings") + master toggle, with a hairline under it
+            float phX = panelX + PANEL_PAD, phCy = panelY + headH / 2f;
+            float titleRight = panelX + PANEL_W - PANEL_PAD - (panelMaster != null ? 40f + 8f : 0f);
+            String title = selectedModule != null ? selectedModule.name() : "Settings";
+            int titleCol = selectedModule != null ? Tokens.palette().textHi() : Tokens.palette().textFaint();
+            float titleClip = Math.max(1f, titleRight - phX);
+            r.pushClip(phX, panelY, titleClip, headH);
+            uiCtx.text().draw(ellipsizeTo(title, titleW, titleSz, titleClip),
+                    phX, phCy - uiCtx.text().lineHeight(titleW, titleSz) / 2f,
+                    TextStyle.of(titleW, titleSz, Color.scaleAlpha(titleCol, screenAlpha)));
+            r.popClip();
+            if (panelMaster != null) panelMaster.render(uiCtx);
+            r.rect(panelX + PANEL_PAD, panelY + headH, PANEL_W - 2 * PANEL_PAD, 1f, Tokens.border().subtle());
+
+            // body: the module's setting rows, or the empty-state prompt
+            if (selectedModule == null) {
+                var emp = ty.body();
+                uiCtx.text().draw("Select a function", panelX + PANEL_W / 2f,
+                        panelBodyY + panelBodyH / 2f - uiCtx.text().lineHeight(emp.weight(), 11.5f) / 2f,
+                        TextStyle.of(emp.weight(), 11.5f, Color.scaleAlpha(Tokens.palette().textFaint(), screenAlpha))
+                                .align(Align.CENTER));
+            } else if (panelScroll != null) {
+                panelScroll.mouseMoved(mouseX, mouseY);
+                panelScroll.render(uiCtx);
             }
+            r.border(panelX, panelY, PANEL_W, panelH, plg, Tokens.border().thickness(), Tokens.border().strong());
+            r.popClip();
         }
         r.popOpacity();
         com.club.ui.LegacyNotice.draw(uiCtx, canvasW);   // loud fallback plaque (draws nothing on MODERN)
@@ -1433,8 +1330,8 @@ public final class ClubMenuScreen extends Screen {
 
     // ---- input ---------------------------------------------------------------
 
-    private boolean insidePop(double mx, double my) {
-        return popModule != null && !popClosing && mx >= popX && mx <= popX + popW && my >= popY && my <= popY + popH;
+    private boolean insidePanel(double mx, double my) {
+        return panelVisW > 4f && mx >= panelX && mx <= panelX + panelVisW && my >= panelY && my <= panelY + panelH;
     }
 
     /** Starts the reverse-of-open animation; render() really closes once it has fully played out.
@@ -1458,7 +1355,7 @@ public final class ClubMenuScreen extends Screen {
             if (cur >= 0.999f) entranceRise = 12f;
         }
         closing = true;
-        closePopover();
+        deselectModule();
         MinecraftClient mc = MinecraftClient.getInstance();
         double cx = mc.getWindow().getWidth() / 2.0, cy = mc.getWindow().getHeight() / 2.0;
         //? if <1.21.9 {
@@ -1509,44 +1406,45 @@ public final class ClubMenuScreen extends Screen {
         double mx = cx(mx0), my = cy(my0);
         if (closing) return true;   // window is fading out — swallow clicks
         gridFocused = false;        // any mouse interaction leaves the keyboard grid zone (ring hides)
-        popFromGrid = false;        //   …and cancels the popover's pending zone hand-back
+        popFromGrid = false;        //   …and cancels the panel's pending zone hand-back
         if (bindListening) {        // a click cancels key capture (clicking the Bind button re-arms it)
             bindListening = false; bindModule = null; bindReserved = false;
-            rebuildPopover();
+            rebuildPanel();
         }
         focus.clickFocus(mx, my);
-        if (insidePop(mx, my)) {
-            popScroll.mouseClicked(mx, my, 0); pressOwner = 1; return true;   // RMB behaves as LMB inside; never closes
+        if (insidePanel(mx, my)) {   // clicks inside the panel go to its widgets and never fall through
+            boolean h = panelRoot.mouseClicked(mx, my, 0);   // RMB behaves as LMB inside, like the old popover
+            pressOwner = 3;
+            return h || true;
         }
         if (b == 0 && mx >= railWX && mx <= railWX + railWW && my >= bodyY + 10 && my < bodyY + 10 + cats.size() * railRow) {
             int i = (int) ((my - (bodyY + 10)) / railRow);
             if (i >= 0 && i < cats.size()) { if (i != catIndex) setCategory(i); return true; }
         }
         if (root.mouseClicked(mx, my, b)) { pressOwner = 2; return true; }
-        closePopover();                                        // click on empty space (any button) → close
-        pressOwner = 0;
+        pressOwner = 0;                                        // empty space: the panel persists (no close)
         return false;
     }
     private boolean onMouseReleased(double mx0, double my0, int b) {
         double mx = cx(mx0), my = cy(my0);
-        // inside the popover the gesture is routed as left-button (RMB acts as LMB there)
-        boolean h = (pressOwner == 1) ? (popScroll != null && popScroll.mouseReleased(mx, my, 0)) : root.mouseReleased(mx, my, b);
+        // inside the panel the gesture is routed as left-button (RMB acts as LMB there)
+        boolean h = (pressOwner == 3) ? panelRoot.mouseReleased(mx, my, 0) : root.mouseReleased(mx, my, b);
         pressOwner = 0;
         return h;
     }
     private boolean onMouseDragged(double mx0, double my0, int b, double dx0, double dy0) {
         double mx = cx(mx0), my = cy(my0), dx = dx0 / canvasK, dy = dy0 / canvasK;   // deltas scale too
-        return (pressOwner == 1) ? (popScroll != null && popScroll.mouseDragged(mx, my, 0, dx, dy))
+        return (pressOwner == 3) ? panelRoot.mouseDragged(mx, my, 0, dx, dy)
                                  : root.mouseDragged(mx, my, b, dx, dy);
     }
     @Override public void mouseMoved(double mx0, double my0) {
         double mx = cx(mx0), my = cy(my0);
         root.mouseMoved(mx, my);
-        if (popScroll != null) popScroll.mouseMoved(mx, my);
+        panelRoot.mouseMoved(mx, my);
     }
     @Override public boolean mouseScrolled(double mx0, double my0, double hx, double v) {
         double mx = cx(mx0), my = cy(my0);
-        if (insidePop(mx, my) && popScroll != null && popScroll.mouseScrolled(mx, my, v)) return true;
+        if (insidePanel(mx, my) && panelRoot.mouseScrolled(mx, my, v)) return true;
         return root.mouseScrolled(mx, my, v) || super.mouseScrolled(mx0, my0, hx, v);
     }
     //? if <1.21.9 {
@@ -1598,7 +1496,7 @@ public final class ClubMenuScreen extends Screen {
             if (matchesOpenMenu(k, scan, mods)) {
                 // RESERVED. Stay in capture and SAY so — cancelling here left the key's GLFW repeat to
                 // land on the close route below, which shut the menu mid-bind (owner, Stage 58).
-                if (!bindReserved) { bindReserved = true; rebuildPopover(); }
+                if (!bindReserved) { bindReserved = true; rebuildPanel(); }
                 return true;
             }
             if (k == GLFW_KEY_ESCAPE) { /* cancel — keep the current bind */ }
@@ -1611,8 +1509,8 @@ public final class ClubMenuScreen extends Screen {
                 else com.club.modules.binds.ModuleBinds.set(bindModule.name(), key.getTranslationKey());
             }
             bindListening = false; bindModule = null; bindReserved = false;
-            rebuildPopover();
-            if (popBindBtn != null) focus.focusKeyboard(popBindBtn);   // keyboard flow continues on the Bind row
+            rebuildPanel();
+            if (panelBindBtn != null) focus.focusKeyboard(panelBindBtn);   // keyboard flow continues on the Bind row
             return true;
         }
 
@@ -1628,11 +1526,11 @@ public final class ClubMenuScreen extends Screen {
                 && !(search != null && search.isFocused())
                 && !(particleSearch != null && particleSearch.isFocused())) { beginClose(); return true; }
 
-        // ESC precedence (Stage 27, chain widened in Stage 31): popover → clear a live query (from
+        // ESC precedence (Stage 27, chain widened in Stage 31): deselect the panel → clear a live query (from
         // ANY zone — arrowing the filtered grid then Esc no longer strands the filter) → blur the
         // focused search → leave the grid zone. Never closes the menu (shouldCloseOnEsc = false).
         if (k == GLFW_KEY_ESCAPE) {
-            if (popModule != null) { closePopover(); return true; }
+            if (selectedModule != null && !particlesActive()) { deselectModule(); return true; }
             if (!query.isEmpty() && search != null) { search.clear(); query = ""; rebuildGrid(GridRebuild.SEARCH); layoutAll(); return true; }
             // Particles mini-search: Esc clears the filter (clear() doesn't fire onChange, so tell the pane too).
             if (particleSearch != null && particleSearch.isFocused()) { particleSearch.clear(); particlesPane.setFilter(""); focus.blur(); return true; }
@@ -1644,8 +1542,10 @@ public final class ClubMenuScreen extends Screen {
         // Ctrl+Tab switches category (the rail) — Up/Down are reserved for the grid.
         if (k == GLFW_KEY_TAB && ctrl) { cycleCategory(shift ? -1 : +1); return true; }
 
-        // While a popover is open its controls own Tab + all keys (unchanged behaviour).
-        if (popModule != null && !popClosing) {
+        // While a module's settings fill the panel, its controls own Tab + all keys (the grid nav resumes
+        // once Esc deselects it) — the same keyboard capture the popover had. Guarded by !particlesActive():
+        // in Particles the panel is retracted/invisible, so a lingering selection must not hijack the keyboard.
+        if (selectedModule != null && !particlesActive()) {
             if (k == GLFW_KEY_TAB) { if (shift) focus.previous(); else focus.next(); return true; }
             return focus.keyPressed(k, scan, mods);
         }
@@ -1780,12 +1680,8 @@ public final class ClubMenuScreen extends Screen {
     private static final float NAME_BASE = 12f;
     private static final float NAME_MIN = 6f;   // hard sanity floor ONLY — the fit math guarantees no
                                                 // overflow (11.8 fix: a 9px floor let long names spill)
-    private static final int POP_PAD = 8;   // tighter popover gutter — the scrollbar fills the right, so a wide left pad read as empty
-    private static final float POP_W_MIN = 140f;   // floor on the sheet width so a squeezed card can't collapse it
-    private static final float POP_GAP = 6f;       // gap between a card and the sheet that drops out of it
-
     /** Module card: icon chip + centered state stripe + name + ghost underlay.
-     *  LMB = enable/disable (or run the action); RMB = settings popover. */
+     *  LMB = enable/disable (or run the action); RMB = load its settings into the docked panel. */
     private final class ModuleTile extends Component {
         private final Module m;
         private final int accent;        // this category's identity colour (palette A)
@@ -1840,14 +1736,6 @@ public final class ClubMenuScreen extends Screen {
                 float sw = w * sc, sh = h * sc;
                 x = ex + (w - sw) / 2f; y = ey + (h - sh) / 2f; w = sw; h = sh;
                 if (ta <= 0.001f) return;   // pre-delay or fully dissolved — nothing to draw
-            }
-
-            // Accordion push — RIGID (owner, pack 6 #4): the sheet's reveal already animates this offset, so it
-            // is added straight to the box rather than eased again through TileMotion (which made the card
-            // arrive AFTER the sheet). Only the sheet's own column, below its row, moves.
-            if (bandPx > 0f && bandRow >= 0 && (tm == null || !tm.leaving)) {
-                int idx = grid.children().indexOf(this);
-                if (idx >= 0 && idx % gridCols == bandCol && idx / gridCols > bandRow) y += bandPx;
             }
 
             // action-only cards (HUD Editor) read as available (full colour), never "off"
@@ -1946,21 +1834,18 @@ public final class ClubMenuScreen extends Screen {
 
         @Override public boolean mouseClicked(double mx, double my, int b) {
             if (!contains(mx, my)) return false;
-            if (b == 0) { activate(m); return true; }
-            if (b == 1) {
+            if (b == 0) { activate(m); return true; }   // LMB = toggle / run the action ONLY — never the panel
+            if (b == 1) {                                // RMB = load this module's settings into the panel
                 if (hasConfigurable(m)) {
-                    if (popModule == m && !popClosing) closePopover(); else openPopover(m, x, y, w, h);
+                    selectModule(m);   // no-op guard inside: RMB on the already-shown module does nothing
                 } else if (hasAction(m)) {
-                    // An action-only card (HUD Editor) has no popover to toggle, so a right-click would sit
-                    // dead — the owner right-clicked it and nothing happened (v0.1.3 #6). Both buttons run the
+                    // An action-only card (HUD Editor) has no settings to show, so both buttons run the
                     // action: opening the editor is the only thing this card can do, and it should not matter
-                    // which button asked for it.
+                    // which button asked for it (v0.1.3 #6).
                     activate(m);
                 } else {
-                    // Nothing to configure (a Performance flag): close any open sheet (owner, pack 6 #2 — a
-                    // right-click elsewhere should dismiss it) and flash the "no settings" mark instead of
-                    // sitting dead, so the player learns it fast (owner, pack 5 #5, variant A).
-                    if (popModule != null && !popClosing) closePopover();
+                    // Nothing to configure: leave the panel exactly as it was and flash the "no settings" mark
+                    // instead of sitting dead, so the player learns it fast (owner, pack 5 #5, variant A).
                     noSetFlashMod = m; noSetFlashAt = uiCtx.time();
                 }
                 return true;
@@ -2282,7 +2167,7 @@ public final class ClubMenuScreen extends Screen {
                 tabIndex = seg;
                 if (segSlide != null) segSlide.target(seg, uiCtx.time());
                 openDrop = null;
-                rebuildPopover();
+                rebuildPanel();
             }
             return true;
         }
