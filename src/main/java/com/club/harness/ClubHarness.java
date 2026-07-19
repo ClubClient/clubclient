@@ -1336,37 +1336,36 @@ public final class ClubHarness {
             step(6, () -> {});
             step(2, () -> shot("popover"));
 
-            // A SWITCH IS A MOVE, NOT A CLOSE AND AN OPEN (owner, item 7). Right-clicking a second card used
-            // to erase the live sheet and grow a new one from zero: no exit played, and the entrance read as
-            // an offcut. The sheet glides now — and this is the check that keeps it that way.
+            // A SWITCH REPOPULATES THE ONE PANEL — it does not stay stuck on the first module (owner, item 7).
+            // Right-clicking a second card must load THAT module's settings into the persistent docked panel.
             //
-            // IT HAS TO BE THE MOUSE. My first version of this check pressed Right-arrow and asserted the
-            // reveal was still 1. It passed — and it passed when I deliberately reinstated the bug, because
-            // Right-arrow only moves grid FOCUS; the open sheet stays on the module it was already showing, so
-            // nothing was ever switched. A check that cannot go red is not a check, and that one was green on
-            // a bug I had planted myself. Two right-clicks, on two different cards, is what a player does.
-            //
-            // Sampled with NO settle: a respawned reveal grows back to 1 in ~280ms, and a settle step would
-            // let it — hiding the exact thing being asked about.
+            // IT HAS TO BE THE MOUSE, AND IT HAS TO READ THE CONTENT. The panel never dies now, so "is it still
+            // revealed?" is 1 whether or not the switch landed — a check that cannot go red. What CAN go red is
+            // the module the panel is SHOWING: right-click Zoom (before), right-click Fullbright (after), and the
+            // panel's reported module name must change from one to the other. Both are Visuals modules with
+            // settings; a broken switch (RMB wrongly a no-op, or the panel failing to repopulate) leaves the
+            // name on "Zoom", and this turns red. Selected by NAME, and the category pinned first, because the
+            // rail's last index is static and a fresh menu can open on another category.
             step(6, () -> mc.setScreen(new ClubMenuScreen()));
+            step(2, () -> { if (mc.currentScreen instanceof ClubMenuScreen cs) cs.selectCategory("Visuals"); });
             step(4, () -> {
-                if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("popover: menu for the switch check", false); return; }
-                double[] a = cs.cardCentreMc(0);
-                if (a == null) { check("popover: a first card to right-click", false); return; }
-                click(cs, a[0], a[1], 1);   // right-click card 0 → its popover
+                if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("panel: menu for the switch check", false); return; }
+                double[] a = cs.cardCentreByName("Zoom");
+                if (a == null) { check("panel: a first card (Zoom) to right-click", false); return; }
+                click(cs, a[0], a[1], 1);   // right-click Zoom → its settings load into the panel
             });
-            step(8, () -> {});                     // let the cold open finish its grow-in
+            step(8, () -> {});                     // let the panel settle on Zoom
             step(0, () -> {
-                if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("popover: menu for the switch check", false); return; }
-                double[] b = cs.cardCentreMc(1);
-                if (b == null) { check("popover: a second card to right-click", false); return; }
-                float before = cs.popoverRevealProgress();
-                click(cs, b[0], b[1], 1);   // right-click card 1 → a SWITCH, not a new sheet
-                float after = cs.popoverRevealProgress();
-                report.add(String.format("INFO  popover switch: reveal %.2f → %.2f  (stays 1.00 = the sheet "
-                        + "glided; drops to 0.00 = it died and respawned)", before, after));
-                check("popover: switching cards MOVES the sheet — it does not die and respawn",
-                        before > 0.9f && after > 0.9f);
+                if (!(mc.currentScreen instanceof ClubMenuScreen cs)) { check("panel: menu for the switch check", false); return; }
+                double[] b = cs.cardCentreByName("Fullbright");
+                if (b == null) { check("panel: a second card (Fullbright) to right-click", false); return; }
+                String before = cs.panelSelectedName();
+                click(cs, b[0], b[1], 1);   // right-click Fullbright → a SWITCH, panel repopulates
+                String after = cs.panelSelectedName();
+                report.add(String.format("INFO  panel switch: shows %s → %s  (must change = the panel repopulated; "
+                        + "stays the same = the switch was a no-op)", before, after));
+                check("panel: right-clicking another card repopulates the ONE panel with that module",
+                        before != null && after != null && "Zoom".equals(before) && "Fullbright".equals(after));
             });
 
             // Bind capture — deterministic via a FLAG module (Fullbright): its popover control set is
@@ -1516,33 +1515,25 @@ public final class ClubHarness {
             step(2, () -> key(GLFW_KEY_SPACE));                  // open Hands popover
             step(10, () -> {});                                  // a step's settle is the delay AFTER it —
             step(2, () -> shot("hands-popover"));                //   so the grow-in needs its own wait step
-            // The tallest popover in the mod. It must use the room under the cards before it starts
-            // scrolling (owner: "размер аккуратный … если там много всего пусть будет скролл") — but NOT by
-            // slicing a row in half to get there.
-            //
-            // THIS CHECK USED TO ASSERT THE BUG. It demanded |h - room| < 1.5, i.e. that the sheet fill the
-            // room EXACTLY — which is only possible if the cap lands wherever it lands, straight through
-            // whatever row happens to be there. That is item 10, the one the owner called "убого": a
-            // "Reset to Default" cut through its own letters. The instrument was not silent about it; it was
-            // DEMANDING it. A green test can be worse than no test.
-            //
-            // The contract now: as tall as it can be WITHOUT cutting a row. Both halves matter — "whole"
-            // alone would pass a sheet that snapped down to one visible row, and "maximal" alone is what we
-            // had. popoverIsMaximalAndWhole() recomputes both from the children rather than reading back the
-            // number the layout produced, so a regression to min(want, room) turns it red.
+            // The tallest panel in the mod. In the docked model the body is a FIXED viewport that scrolls its
+            // rows (owner: "размер аккуратный … если там много всего пусть будет скролл"), so the old "fill the
+            // room exactly / never cut a row" contract is gone — the ScrollArea guarantees every row is
+            // reachable by construction. What is NOT free, and what CAN regress, is the panel's FOOTPRINT: the
+            // window+panel pair is clamped in layoutAll so the composite never runs off the canvas, and the body
+            // must be a positive viewport that fits under the header inside the panel surface. panelStaysOnCanvas()
+            // recomputes that from the live layout, so dropping the clamp (pair overflows the edge) or collapsing
+            // the body height turns it red — on the tallest panel, where a footprint bug shows worst.
             step(2, () -> {
                 if (mc.currentScreen instanceof ClubMenuScreen cs) {
                     float[] g = cs.popoverGeometry();
-                    report.add(String.format("INFO  hands popover: contentH=%.0f h=%.0f y=%.0f room=%.0f waste=%.0f",
-                            g[0], g[1], g[2], g[3], g[3] - g[1]));
-                    // g[0] > 0 FIRST: this whole check is about a TALL popover, so a popover that never opened
-                    // (all zeros) must fail, not pass. popoverIsMaximalAndWhole() answers true for "no popover"
-                    // — correct in isolation, a hole here — so the scene has to prove the sheet exists before
-                    // asking whether it is the right height. Caught exactly this: a mis-navigated scene left
-                    // the Hands popover unopened and the maximality check waved it through.
-                    check("popover: as tall as the room allows, and never cut through a row",
-                            g[0] > 0f && g[1] <= g[3] + 1f && cs.popoverIsMaximalAndWhole());
-                } else check("popover: menu still open for the geometry check", false);
+                    report.add(String.format("INFO  hands panel: contentH=%.0f bodyH=%.0f y=%.0f  onCanvas=%b",
+                            g[0], g[1], g[2], cs.panelStaysOnCanvas()));
+                    // g[0] > 0 FIRST: this whole check is about a TALL open panel, so a panel that never opened
+                    // (all zeros) must fail, not pass. panelStaysOnCanvas() answers false for "no panel", so the
+                    // scene proves the panel exists (tall content) before asking whether its box stays on canvas.
+                    check("panel: the tall docked panel stays on the canvas and its body is well-formed",
+                            g[0] > 0f && cs.panelStaysOnCanvas());
+                } else check("panel: menu still open for the geometry check", false);
             });
 
             // Item Scroll popover — the three v0.1.3 #5 fixes in one frame: NO bind row (removed from KEYED),

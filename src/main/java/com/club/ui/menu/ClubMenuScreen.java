@@ -731,16 +731,30 @@ public final class ClubMenuScreen extends Screen {
         return new float[] {panelContentH, panelBodyH, panelY, panelBodyH};
     }
 
-    /** Harness seam: 1 while a module's settings are shown, else 0. The persistent panel never dies and
-     *  respawns on a card switch — selecting another module just repopulates it — so this stays 1 across a
-     *  right-click-to-right-click switch (the old popover-glide invariant, now structural). */
-    public float popoverRevealProgress() {
-        return selectedModule != null ? 1f : 0f;
+    /** Harness seam: the name of the module whose settings currently fill the panel, or {@code null} for the
+     *  "Select a function" empty state. A right-click SWITCH must repopulate the panel with the OTHER module —
+     *  reading the live {@code selectedModule} lets the harness prove the content actually CHANGED. The old
+     *  reveal-progress seam could not: a persistent panel that never dies stays "revealed" whether or not the
+     *  switch landed, so the check that consumed it could not go red (item: a check that cannot fail is a hole). */
+    public String panelSelectedName() {
+        return selectedModule != null ? selectedModule.name() : null;
     }
 
-    /** Harness seam: the panel never slices a row — overflow scrolls inside its {@link ScrollArea}. */
-    public boolean popoverIsMaximalAndWhole() {
-        return true;
+    /** Harness seam: is the open docked panel a well-formed box that stays on the canvas? The window+panel PAIR
+     *  is clamped in {@code layoutAll} so it never runs off narrow aspect ratios, so the panel's right edge must
+     *  sit inside the canvas margin, the window's left edge must stay on-canvas, and the scrolling body must fit
+     *  under the header inside the panel surface. Recomputed from the live layout on every call, so a regression
+     *  that drops the pair off the edge or collapses the body viewport turns this red. Returns {@code false} when
+     *  no panel is open — the caller proves the panel exists first, since a "no panel → true" would be a hole. */
+    public boolean panelStaysOnCanvas() {
+        if (selectedModule == null) return false;
+        float margin = 24f;   // mirrors layoutAll's `m`
+        boolean rightOnCanvas = (panelX + PANEL_W) <= (canvasW - margin) + 0.5f;
+        boolean leftOnCanvas  = winX >= margin - 0.5f;
+        boolean bodyInside = panelBodyH > 0f
+                && panelBodyY >= panelY + headH - 0.5f
+                && (panelBodyY + panelBodyH) <= panelY + panelH + 0.5f;
+        return rightOnCanvas && leftOnCanvas && bodyInside;
     }
 
     private static float clamp(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
