@@ -60,7 +60,13 @@ public class MixinEntityHitboxDebugRenderer {
         Vec3d lerpedPos = entity.getLerpedPos(tickDelta);
         Vec3d delta = lerpedPos.subtract(entity.getEntityPos());
 
-        GizmoDrawing.box(entity.getBoundingBox().offset(delta), DrawStyle.stroked(color));
+        // Native line width: DrawStyle carries a strokeWidth (vanilla default 2.5), which BoxGizmo feeds to
+        // GizmoDrawer.addLine -> VertexConsumer.lineWidth(...) i.e. MC's SHADER line expansion, not raw
+        // glLineWidth, so it thickens reliably (measured against the 1.21.11 jar). width 1.0 => stroked(color)
+        // (==2.5) is byte-identical to today; above that scales the stroke.
+        float w = HitboxState.lineWidth;
+        DrawStyle boxStyle = w <= 1.0f ? DrawStyle.stroked(color) : DrawStyle.stroked(color, 2.5f * w);
+        GizmoDrawing.box(entity.getBoundingBox().offset(delta), boxStyle);
         GizmoDrawing.point(lerpedPos, color, 2.0f);
 
         if (HitboxState.showJunk()) {

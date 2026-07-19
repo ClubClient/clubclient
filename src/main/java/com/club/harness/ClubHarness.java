@@ -767,6 +767,23 @@ public final class ClubHarness {
                 com.club.combat.HitboxState.cleanLines = was;
             });
 
+            // ===== HITBOXES — line width maps to the concentric-outline count (1.21.1/1.21.8 render path) =====
+            // rings() is the whole thickness contract on the two lines-buffer versions: width 1.0 MUST be a
+            // single box (byte-identical to today's draw), and it climbs one ring per 0.5 step, capped at 7.
+            step(2, () -> {
+                float was = com.club.combat.HitboxState.lineWidth;
+                com.club.combat.HitboxState.lineWidth = 1.0f;
+                check("hitboxes: line width 1.0 draws a single outline (rings() == 1, no visual change)",
+                        com.club.combat.HitboxState.rings() == 1);
+                com.club.combat.HitboxState.lineWidth = 2.0f;
+                check("hitboxes: line width 2.0 stacks 3 concentric outlines (rings() == 3)",
+                        com.club.combat.HitboxState.rings() == 3);
+                com.club.combat.HitboxState.lineWidth = 4.0f;
+                check("hitboxes: line width 4.0 caps at 7 concentric outlines (rings() == 7)",
+                        com.club.combat.HitboxState.rings() == 7);
+                com.club.combat.HitboxState.lineWidth = was;
+            });
+
             // ===== HITBOXES — a fresh config ships the frozen defaults, and the schema version is bumped =====
             // The module ships OFF with the clean look and its colours at the palette-index defaults (accent on
             // a player, white otherwise). version 13 is what tells migrate() an older file predates this section.
@@ -777,7 +794,9 @@ public final class ClubHarness {
                 check("hitboxes: default colours are Accent 'On player' and White 'Default'",
                         d.colorA == com.club.combat.HitboxColors.ACCENT
                                 && d.colorB == com.club.combat.HitboxColors.WHITE);
-                check("hitboxes: the config schema version is bumped to 13", new ClubConfig().version == 13);
+                check("hitboxes: default line width is 1.0 (the vanilla-look no-op default)",
+                        d.lineWidth == 1.0f);
+                check("hitboxes: the config schema version is bumped to 14", new ClubConfig().version == 14);
             });
 
             // ===== HITBOXES — the module has a card, and it sits in Combat =====

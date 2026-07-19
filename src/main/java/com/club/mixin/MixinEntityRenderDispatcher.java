@@ -76,7 +76,14 @@ public class MixinEntityRenderDispatcher {
         float b = (argb & 0xFF) / 255.0f;
 
         Box box = entity.getBoundingBox().offset(-entity.getX(), -entity.getY(), -entity.getZ());
-        WorldRenderer.drawBox(matrices, vertices, box, r, g, b, a);
+        // Native per-box line width is not reachable here (the LINES layer's LineWidth phase overwrites any
+        // RenderSystem.lineWidth at flush, and this inject only has the VertexConsumer). So widen by stacking
+        // concentric outlines: rings==1 at width 1.0 is exactly the single vanilla box (no visual change).
+        int rings = HitboxState.rings();
+        for (int i = 0; i < rings; i++) {
+            double e = (i - (rings - 1) * 0.5) * HitboxState.RING_STEP;
+            WorldRenderer.drawBox(matrices, vertices, e == 0.0 ? box : box.expand(e), r, g, b, a);
+        }
 
         if (HitboxState.showJunk()) {
             if (entity instanceof LivingEntity) {
@@ -106,12 +113,17 @@ public class MixinEntityRenderDispatcher {
         float g = ((argb >>> 8) & 0xFF) / 255.0f;
         float b = (argb & 0xFF) / 255.0f;
 
+        int rings = HitboxState.rings();   // 1 at width 1.0 => a single vanilla-identical box; wider stacks outlines
         for (EntityHitbox hitbox : view.hitboxes()) {
             matrices.push();
             matrices.translate(hitbox.offsetX(), hitbox.offsetY(), hitbox.offsetZ());
-            VertexRendering.drawBox(matrices, vertices,
-                    hitbox.x0(), hitbox.y0(), hitbox.z0(), hitbox.x1(), hitbox.y1(), hitbox.z1(),
-                    r, g, b, a);   // colour overridden: our argb instead of hitbox.red()/green()/blue()
+            for (int i = 0; i < rings; i++) {
+                double e = (i - (rings - 1) * 0.5) * HitboxState.RING_STEP;   // native LineWidth is a per-pass global here, so widen via concentric outlines
+                VertexRendering.drawBox(matrices, vertices,
+                        hitbox.x0() - e, hitbox.y0() - e, hitbox.z0() - e,
+                        hitbox.x1() + e, hitbox.y1() + e, hitbox.z1() + e,
+                        r, g, b, a);   // colour overridden: our argb instead of hitbox.red()/green()/blue()
+            }
             matrices.pop();
         }
 

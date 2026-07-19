@@ -22,6 +22,10 @@ public final class HitboxState {
     public static volatile int argbA;
     /** Packed {@code 0xAARRGGBB} drawn otherwise ("Default"). */
     public static volatile int argbB;
+    /** Outline thickness multiplier, 1.0..4.0 (clamped in config). 1.0 == the vanilla look on every version;
+     *  above 1.0 the mixins widen the box outline (natively on 1.21.11, concentric outlines on 1.21.1/1.21.8).
+     *  Initialised to 1.0 so a render read before the first tick pushes is the harmless no-change default. */
+    public static volatile float lineWidth = 1.0f;
 
     /** The box colour to draw right now: {@code crosshairOnPlayer ? argbA : argbB}. */
     public static int resolveArgb() {
@@ -31,5 +35,20 @@ public final class HitboxState {
     /** Whether the vanilla junk lines (view vector + eye box) should still be drawn: {@code !cleanLines}. */
     public static boolean showJunk() {
         return !cleanLines;
+    }
+
+    /** World-space gap between the concentric outlines the 1.21.1/1.21.8 mixins stack to fake a wider line —
+     *  small enough that adjacent (already shader-expanded ~2.5px) edges read as one thicker band at combat range. */
+    public static final double RING_STEP = 0.005;
+
+    /** How many concentric box outlines the 1.21.1/1.21.8 render path draws for the current {@link #lineWidth}:
+     *  {@code 1} at width 1.0 (⇒ the single vanilla box, pixel-identical to today), rising one ring per 0.5 step
+     *  up to {@code 7} at 4.0. Pure function of {@link #lineWidth} so ClubHarness can assert the mapping. The
+     *  1.21.11 path does NOT use this — it widens natively via {@code DrawStyle.stroked(color, 2.5*lineWidth)}. */
+    public static int rings() {
+        float w = lineWidth;
+        if (w <= 1.0f) return 1;
+        int n = 1 + Math.round((w - 1.0f) / 0.5f);
+        return Math.max(1, Math.min(7, n));
     }
 }

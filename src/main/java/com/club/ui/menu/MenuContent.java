@@ -238,12 +238,15 @@ public final class MenuContent {
             () -> c.hitboxes.enabled, v -> { c.hitboxes.enabled = v; save(); },
             () -> { c.hitboxes.enabled = false; c.hitboxes.cleanLines = true;
                     c.hitboxes.colorA = com.club.combat.HitboxColors.ACCENT;
-                    c.hitboxes.colorB = com.club.combat.HitboxColors.WHITE; save(); },
+                    c.hitboxes.colorB = com.club.combat.HitboxColors.WHITE;
+                    c.hitboxes.lineWidth = 1.0f; save(); },
             List.of(
                 new PaletteSetting("On player", com.club.combat.HitboxColors.ARGB,
                         () -> c.hitboxes.colorA, i -> { c.hitboxes.colorA = i; save(); }),
                 new PaletteSetting("Default", com.club.combat.HitboxColors.ARGB,
                         () -> c.hitboxes.colorB, i -> { c.hitboxes.colorB = i; save(); }),
+                new SliderSetting("Line width", 1f, 4f, 0.5f,
+                        () -> c.hitboxes.lineWidth, v -> c.hitboxes.lineWidth = v),
                 new ToggleSetting("Clean lines",
                         () -> c.hitboxes.cleanLines, v -> { c.hitboxes.cleanLines = v; save(); })));
     }

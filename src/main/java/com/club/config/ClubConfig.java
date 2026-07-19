@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 13; // bumped when new fields are added, for migration
+    public int version = 14; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -92,6 +92,7 @@ public class ClubConfig {
         public boolean cleanLines = true;   // true = strip the junk (view vector + eye box); the clean look
         public int colorA = com.club.combat.HitboxColors.ACCENT;   // "On player"
         public int colorB = com.club.combat.HitboxColors.WHITE;    // "Default"
+        public float lineWidth = 1.0f;      // outline thickness multiplier, 1.0..4.0 (1.0 == vanilla look)
     }
 
     public Hud hud = new Hud();
@@ -340,6 +341,9 @@ public class ClubConfig {
         // Read every client tick by HitboxModule (config -> HitboxState) and by the render mixins that
         // gate on it — a hand-edited "hitboxes": null must be a default, never an NPE mid-frame.
         if (hitboxes == null) hitboxes = new Hitboxes();
+        // Read every frame by the render mixins as an outline-thickness multiplier; a hand-edited or stale
+        // value must self-heal into [1,4] so the loop count / stroke width can never go pathological.
+        hitboxes.lineWidth = Math.max(1.0f, Math.min(4.0f, hitboxes.lineWidth));
         if (hud == null) hud = new Hud();
         // Canonicalize armorLayout ONCE here (Stage 29) instead of clamping at every read site: an
         // old/hand-edited value (e.g. the retired 2, or junk) self-heals to 0/1 on load.
@@ -484,6 +488,13 @@ public class ClubConfig {
             // "hitboxes" section loads correct with nothing to carry over. This step only keeps `version`
             // honest about the schema (line 23), the one place a future safety-net default would go.
             version = 13;
+            changed = true;
+        }
+        if (version < 14) {
+            // Hitboxes "Line width" (v0.1.6) — its float initializer is already 1.0 (the vanilla look), so a
+            // v13 file that lacks the key deserializes to 1.0 with nothing to carry over. This step only keeps
+            // `version` honest about the schema (line 23); sanitize() clamps any hand-edited value into [1,4].
+            version = 14;
             changed = true;
         }
         if (changed) save();

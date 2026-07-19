@@ -39,6 +39,7 @@ public final class HitboxModule {
         HitboxState.cleanLines = c.hitboxes.cleanLines;
         HitboxState.argbA = HitboxColors.argb(c.hitboxes.colorA);
         HitboxState.argbB = HitboxColors.argb(c.hitboxes.colorB);
+        HitboxState.lineWidth = c.hitboxes.lineWidth;
         // Cheap early-out: while disabled nobody reads crosshairOnPlayer and the ray is a wasted box sweep.
         HitboxState.crosshairOnPlayer = c.hitboxes.enabled && playerUnderCrosshair(mc);
     }
