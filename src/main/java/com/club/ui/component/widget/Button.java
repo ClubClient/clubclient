@@ -70,6 +70,12 @@ public final class Button extends Control {
      *  box — "Reset to default" floated away from the left edge (owner, v0.1.3: "почему ресет так съехано
      *  выглядит"). Flush-left, both labels start on the same pixel: no shift, no float. */
     public Button labelLeft() { this.label.align(com.club.ui.text.Align.LEFT); return this; }
+    /** Centre the label — the counterpart to {@link #labelLeft()}, for the moment a TEXT button GROWS A
+     *  GROUND. Flush-left is right while there is nothing behind the text, but {@link #armed(boolean)} paints
+     *  a rounded chip + border around the same box, and a chip whose text hugs one edge while all its padding
+     *  piles up on the other looks crooked, not confirmatory (owner: the armed "Confirm reset?" pill). Armed
+     *  → centre, decayed → back to flush-left. */
+    public Button labelCenter() { this.label.align(com.club.ui.text.Align.CENTER); return this; }
     /** Armed / listening state (confirm-reset, keybind capture): a SOFT accent chip — subtle tinted
      *  fill + accent border + accent text — instead of a solid PRIMARY fill, which read as a garish
      *  pastel block against the flat dark UI (owner, Stage 50). Distinct and urgent, still premium. */

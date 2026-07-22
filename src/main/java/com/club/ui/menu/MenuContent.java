@@ -168,9 +168,19 @@ public final class MenuContent {
         );
     }
 
-    /** A flag-only module: its master toggle IS the setting; no extra rows. Reset restores it to enabled. */
+    /**
+     * A flag-only module: its master toggle IS the setting; no extra rows — and therefore NO reset.
+     *
+     * <p>RESET RESTORES SETTINGS, NEVER THE SWITCH (owner, T2: "нажимаю ресет — модуль выключается"). A reset
+     * button sits inside the panel the player opened to tune a module; using it to flip that module on or off
+     * is a second, hidden on/off switch, and it fires exactly when the player expects the opposite. The card
+     * owns on/off, alone.
+     *
+     * <p>Strip the {@code enabled} write from a flag module and nothing is left to restore, so the reset is
+     * {@code null} outright rather than a button that runs an empty body.
+     */
     private static Module flag(String name, String desc, IconGlyph icon, BooleanSupplier get, BoolConsumer set) {
-        return new Module(name, desc, icon, get, set, () -> set.accept(true), List.of());
+        return new Module(name, desc, icon, get, set, null, List.of());
     }
 
     private static Module animations(ClubConfig c) {
@@ -182,7 +192,9 @@ public final class MenuContent {
         // spec line, not a sentence: it names the feature and says nothing about what it does for you.
         return new Module("Animations", "Replace the vanilla swing with one of your own.", IconGlyph.ANIMATIONS,
             () -> c.animations.enabled, v -> { c.animations.enabled = v; save(); },
-            () -> { c.animations.type = "CLASSIC"; c.animations.speed = 1f; c.animations.amplitude = 1f; c.animations.enabled = true; save(); },
+            // Settings only — the master switch is the CARD's (T2). Reset restores the tuning a player changed,
+            // it does not decide for them whether the module runs.
+            () -> { c.animations.type = "CLASSIC"; c.animations.speed = 1f; c.animations.amplitude = 1f; save(); },
             List.of(
                 new DropdownSetting("Type", labels,
                         () -> AnimationType.fromName(c.animations.type).ordinal(),
@@ -206,7 +218,12 @@ public final class MenuContent {
     private static Module toggleSprint(ClubConfig c) {
         return new Module("Toggle Sprint", "Sprint automatically — no key holding.", IconGlyph.TOGGLE_SPRINT,
             () -> c.toggleSprint.enabled, v -> { c.toggleSprint.enabled = v; save(); },
-            () -> { c.toggleSprint.enabled = true; save(); },
+            // KEYED (ModuleBinds.KEYED), so the card carries a key row and the panel keeps its Reset — but the
+            // only thing this module has to restore is that KEY, and the screen clears it right after running
+            // this body. So the body is deliberately EMPTY, not a write to `enabled`: reset must never flip the
+            // module (T2). An empty Runnable rather than null, because null hides the button entirely and the
+            // key would lose its way back.
+            () -> {},
             List.of());
     }
 
@@ -214,14 +231,14 @@ public final class MenuContent {
      * Hit Distance is a HUD element, but its VISIBILITY lives on this card — the single switch for it (the
      * v0.1.3 "two switches, one pixel" rule: {@link com.club.ui.hud.HitDistanceElement} reads {@code
      * hud.hitDistance}, and the HUD editor shows this element Size only). Size is set in the editor like every
-     * other chip. A flag-style card with no extra rows; reset returns to OFF — a new combat overlay is opt-in,
-     * so its default is not "on", the way {@link #fullbright} keeps surprise brightness off.
+     * other chip. A flag-style card with no extra rows — so, like {@link #flag}, it has NO reset: everything
+     * this card owns is the switch itself, and reset does not touch the switch (T2).
      */
     private static Module hitDistance(ClubConfig c) {
         BoolConsumer set = v -> { c.hud.hitDistance = v; save(); };
         return new Module("Hit Distance", "See how far away the entity under your crosshair is.",
             IconGlyph.HIT_DISTANCE,
-            () -> c.hud.hitDistance, set, () -> set.accept(false), List.of());
+            () -> c.hud.hitDistance, set, null, List.of());
     }
 
     /**
@@ -229,14 +246,16 @@ public final class MenuContent {
      * {@link PaletteSetting}s — a grid of flat swatches whose picked value is an INDEX into {@link
      * com.club.combat.HitboxColors} (the same int-index model the old dropdowns used, so no config migration).
      * "On player" is used while the crosshair is on another player, "Default" the rest of the time. Reset
-     * returns to OFF — a debug overlay is opt-in — with clean lines and the accent/white colour defaults.
+     * restores clean lines, the accent/white colour defaults and a 1.0 line width — and leaves the module
+     * running or not exactly as it found it (T2: this card and Fullbright were the two where the owner
+     * actually watched Reset switch the module off under him).
      */
     private static Module hitboxes(ClubConfig c) {
         return new Module("Hitboxes",
             "Recolour the debug hitbox outline, hide its clutter, and flash a colour when your crosshair lands on a player.",
             IconGlyph.HITBOXES,
             () -> c.hitboxes.enabled, v -> { c.hitboxes.enabled = v; save(); },
-            () -> { c.hitboxes.enabled = false; c.hitboxes.cleanLines = true;
+            () -> { c.hitboxes.cleanLines = true;
                     c.hitboxes.colorA = com.club.combat.HitboxColors.ACCENT;
                     c.hitboxes.colorB = com.club.combat.HitboxColors.WHITE;
                     c.hitboxes.lineWidth = 1.0f; save(); },
@@ -252,12 +271,13 @@ public final class MenuContent {
     }
 
     /** Fullbright is a flag module whose state must ALSO mirror into the module's static (the gamma
-     *  mixin gates on it) — and unlike the No-* flags its reset returns to OFF (surprise brightness
-     *  isn't a default). */
+     *  mixin gates on it). It is KEYED, so the panel shows a Reset — and that Reset restores the KEY and
+     *  nothing else. It used to force the module OFF, which is how the owner found this bug: turn Fullbright
+     *  on, open its panel, press Reset, sit in the dark (T2). */
     private static Module fullbright(ClubConfig c) {
         BoolConsumer set = v -> { c.fullbright = v; com.club.modules.fullbright.FullbrightModule.set(v); save(); };
         return new Module("Fullbright", "See in the dark — maximum brightness.", IconGlyph.FULLBRIGHT,
-            () -> c.fullbright, set, () -> set.accept(false), List.of());
+            () -> c.fullbright, set, () -> {}, List.of());
     }
 
     /**
@@ -290,8 +310,9 @@ public final class MenuContent {
         return new Module("Screen Stretch", "Play at a different aspect ratio than your monitor has.", IconGlyph.SCREEN_STRETCH,
             () -> c.screenStretch.enabled, v -> { c.screenStretch.enabled = v; save(); },
             // Reset goes back to AUTO (no stretch) — resetting must never hand a non-16:9 player a
-            // warped world, which "R16_9" did (Stage 59 audit).
-            () -> { c.screenStretch.preset = "AUTO"; c.screenStretch.blackBars = true; c.screenStretch.enabled = true; save(); },
+            // warped world, which "R16_9" did (Stage 59 audit). It leaves `enabled` alone: the card owns
+            // on/off (T2), and AUTO already means "do not touch the projection" whether the module runs or not.
+            () -> { c.screenStretch.preset = "AUTO"; c.screenStretch.blackBars = true; save(); },
             List.of(
                 new DropdownSetting("Preset", labels,
                         () -> StretchPreset.fromName(c.screenStretch.preset).ordinal(),
@@ -313,8 +334,8 @@ public final class MenuContent {
                 new SliderSetting("Offset Z", -1.0f, 1.0f, 0.01f, () -> lh.offsetZ, v -> lh.offsetZ = v));
         return new Module("Hands", "Reposition and scale the first-person hands.", IconGlyph.HANDS,
             () -> c.hands.enabled, v -> { c.hands.enabled = v; save(); },
-            () -> { c.hands.enabled = true;
-                    rh.scale = 1f; rh.offsetX = 0f; rh.offsetY = 0f; rh.offsetZ = 0f;
+            // Both hands back to neutral; `enabled` is the card's, not the reset's (T2).
+            () -> { rh.scale = 1f; rh.offsetX = 0f; rh.offsetY = 0f; rh.offsetZ = 0f;
                     lh.scale = 1f; lh.offsetX = 0f; lh.offsetY = 0f; lh.offsetZ = 0f; save(); },
             List.of(), List.of(new Tab("Right", right), new Tab("Left", left)));
     }

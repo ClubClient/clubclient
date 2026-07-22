@@ -165,7 +165,6 @@ public final class ClubMenuScreen extends Screen {
     private Module selectedModule;      // the module whose settings fill the panel (null → "Select a function")
     private Column panelCol;            // the built setting rows (reuses buildSettings — unchanged)
     private ScrollArea panelScroll;     // wraps panelCol so long lists scroll INSIDE the body
-    private Toggle panelMaster;         // header master toggle (null for action-only / hold modules)
     private final Pane panelRoot = new Pane();   // input routing for the panel's live widgets (capture chain)
     private int tabIndex;
     private Transition segSlide;        // segmented-tab pill position — outer, so it survives panel rebuilds
@@ -181,6 +180,22 @@ public final class ClubMenuScreen extends Screen {
     // Retract animation: width fraction 1 (a card category) → 0 (Particles, empty-card). Reuses the popover
     // glide's pacing (normal 0.28s, standard easing) — same facility, same feel.
     private Transition panelReveal;
+
+    // Settings SWAP animation (T5): picking a different module used to repaint the whole body on one frame —
+    // a hard cut in an interface that flows everywhere else. The new rows now GLIDE in from behind the panel's
+    // right edge, inside the clip that is already there.
+    //
+    // It is GEOMETRY, not a cross-fade, and that is a deliberate, measured choice: text never rides
+    // pushOpacity on ANY backend (Label.java says so; on ≥1.21.5 Ui.text() is hard-wired to a separate path,
+    // and LegacyBackend.pushOpacity is literally a no-op) — so an alpha fade would silently fade the tracks
+    // and swatches while every label snapped. A slide reads identically on all three versions and in the
+    // shader-failure fallback. Shapes DO take the opacity ramp, which is honest extra polish, not the effect.
+    //
+    // It is seeded ONLY on a genuinely new module: RMB on the module already shown returns at selectModule's
+    // first line, and RMB on a settingless card never reaches here (it flashes the crossed gear on the CARD
+    // and leaves the panel alone) — so neither replays it.
+    private static final float CONTENT_SLIDE_DX = 10f;   // travel in Club units — a nudge, not a swipe
+    private Transition contentSlide;
 
     // "Nothing to configure here" flash (owner, v0.1.3 pack 5 #5, variant A): a right-click on a settingless
     // module marks it for NO_SET_FLASH seconds — a muted gear with a red slash top-right + a very quiet red
@@ -256,7 +271,7 @@ public final class ClubMenuScreen extends Screen {
 
     @Override protected void init() {
         headH = 48; footH = 36;   // footer slimmed with its divider gone (Stage 22)
-        query = ""; selectedModule = null; panelCol = null; panelScroll = null; panelMaster = null;
+        query = ""; selectedModule = null; panelCol = null; panelScroll = null;
         panelRoot.clear(); openDrop = null; pressOwner = 0;
         gridFocused = false; gridFocus = null;
         bindListening = false; bindModule = null; bindReserved = false; keysDown.clear();
@@ -448,10 +463,9 @@ public final class ClubMenuScreen extends Screen {
 
     private void activate(Module m) {
         if (m.hasToggle()) {
+            // The CARD is the only on/off switch now (the panel's header master toggle is gone): a module is
+            // turned on where it is read, and the panel is settings only — so there is nothing left to mirror.
             m.setEnabled(!m.enabled());   // rail counts are read live in render()
-            // If this module's settings are showing in the panel, its header master toggle must follow the
-            // card (the card ↔ panel are two views of the same boolean).
-            if (m == selectedModule && panelMaster != null) panelMaster.setValue(m.enabled());
         } else for (Setting s : m.settings()) if (s instanceof ActionSetting a) { a.action().run(); return; }
     }
 
@@ -595,13 +609,17 @@ public final class ClubMenuScreen extends Screen {
         tabIndex = 0; openDrop = null; resetArmed = false;
         bindListening = false; bindModule = null; bindReserved = false;   // drop any capture from the old module
         segSlide = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+        // Re-seed the swap slide from 0 and let it run to 1 — a NEW module's rows glide in (T5). Seeded HERE,
+        // past the no-op guard above, so a repeat right-click on the open module never replays it.
+        contentSlide = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
+        contentSlide.target(1f, uiCtx != null ? uiCtx.time() : 0f);
         rebuildPanel();
     }
 
     /** Clears the panel back to the "Select a function" empty state (Esc / menu close). */
     private void deselectModule() {
         boolean keepSearch = search != null && focus.focused() == search;
-        selectedModule = null; panelCol = null; panelScroll = null; panelMaster = null; panelContentH = 0f;
+        selectedModule = null; panelCol = null; panelScroll = null; panelContentH = 0f;
         openDrop = null; resetArmed = false; panelResetBtn = null;
         bindListening = false; bindModule = null; bindReserved = false; panelBindBtn = null;
         panelRoot.clear();
@@ -616,32 +634,37 @@ public final class ClubMenuScreen extends Screen {
         focus.clear();
         focus.register(search);
         panelRoot.clear();
-        if (selectedModule == null) { panelCol = null; panelScroll = null; panelMaster = null; panelContentH = 0f; return; }
+        if (selectedModule == null) { panelCol = null; panelScroll = null; panelContentH = 0f; return; }
         // The rows lay out to the panel's fixed inner width (stable across the retract), and the sheet speaks
         // the SELECTED module's category colour. buildSettings is reused verbatim — sliders, dropdowns, tabs,
         // the keybind row and the reset-confirm all build exactly as they did in the popover.
         panelInnerW = PANEL_INNER_W;
-        int accent = catAccent(categoryOf(selectedModule));
         panelCol = buildSettings(selectedModule);
         panelContentH = panelCol.measure(panelInnerW, 99999f).h();
         panelScroll = new ScrollArea(panelCol);   // reserved-lane bar so slider values never sit under it
-        panelMaster = selectedModule.hasToggle()
-                ? new Toggle(selectedModule.enabled()).onChange(v -> selectedModule.setEnabled(v)).accent(accent)
-                : null;
-        if (panelMaster != null) panelRoot.add(panelMaster);
         panelRoot.add(panelScroll);
         layoutPanelWidgets();                 // lay out now (last-known geometry) so the scroll clamp is set…
         panelScroll.scrollOffset(prevOffset); // …then restore the scroll position across the rebuild
     }
 
-    /** Positions the panel's live widgets (scroll body + header master toggle) from the current geometry.
-     *  Called from rebuildPanel and every frame in layoutAll. */
+    /** Positions the panel's live widgets (the scrolling body) from the current geometry.
+     *  Called from rebuildPanel and every frame in layoutAll.
+     *
+     *  <p>The body is laid out at an X OFFSET while {@code contentSlide} runs (T5): a fresh module's rows
+     *  glide in from behind the panel's edge instead of appearing on one frame. The offset rides the layout,
+     *  not the draw, so hit-boxes travel with the pixels — a click during the ~0.28s slide still lands true
+     *  (same rule the HUD editor's toolbar rise follows). */
     private void layoutPanelWidgets() {
         if (panelScroll != null)
-            panelScroll.layout(panelBodyX, panelBodyY, Math.max(1f, panelBodyW), Math.max(1f, panelBodyH));
-        if (panelMaster != null)
-            panelMaster.layout(panelX + PANEL_W - PANEL_PAD - 40f, panelY + (headH - 22f) / 2f, 40f, 22f);
+            panelScroll.layout(panelBodyX + contentSlideDx(), panelBodyY,
+                    Math.max(1f, panelBodyW), Math.max(1f, panelBodyH));
         panelRoot.layout(panelX, panelY, Math.max(1f, panelVisW), panelH);
+    }
+
+    /** Horizontal offset of the panel body for the settings-swap slide: {@code (1-t) * CONTENT_SLIDE_DX}. */
+    private float contentSlideDx() {
+        if (contentSlide == null) return 0f;
+        return (1f - contentSlide.value(uiCtx != null ? uiCtx.time() : 0f)) * CONTENT_SLIDE_DX;
     }
 
     /** Longest prefix of {@code t} that fits {@code maxW} with a trailing "…" — mirrors {@link Label}'s own
@@ -787,9 +810,11 @@ public final class ClubMenuScreen extends Screen {
     }
 
     private Column buildSettings(Module m) {
-        // Tight row gap (Stage 57): a compact settings stack — xs keeps the rows neat but tight; tall modules
-        // (Hands) scroll inside the panel body.
-        Column col = new Column().gap(Tokens.spacing().xs()).crossAlign(CrossAlign.STRETCH);
+        // Row gap: sm (8), not xs (4). The stack was packed tight enough that the rows read as one block
+        // ("все настройки должны стоять свободно", owner) — sm is the next token up and the smallest step
+        // that separates them; there is nothing between the two, and inventing a token is a design change.
+        // Tall modules (Hands) still scroll inside the panel body, so the extra air costs nothing.
+        Column col = new Column().gap(Tokens.spacing().sm()).crossAlign(CrossAlign.STRETCH);
         int accent = catAccent(categoryOf(m));   // 11.9: the panel speaks the module's category colour
 
         List<Setting> settings0;
@@ -955,12 +980,25 @@ public final class ClubMenuScreen extends Screen {
             // and no bigger than the caption it sits under.
             //
             // The ARMED state keeps its full voice ("Confirm reset?" in the category accent): a confirmation
-            // that whispers is a confirmation nobody reads. The width floor pins the box to the WIDER of the
-            // two labels so arming cannot shift the row under the cursor mid-click.
+            // that whispers is a confirmation nobody reads.
+            //
+            // THE ARMED PILL LOOKED CROOKED, for two independent reasons, and both are fixed here (T3):
+            //   (a) the width floor was measured from "Confirm reset?" ALONE — the narrower of the two labels
+            //       — so it never bound. Arming swaps the label IN PLACE (Button.label keeps bounds, by
+            //       design: a rebuild here would orphan an in-flight slider drag), which left the shorter
+            //       armed text inside the box measured for the longer idle one. Floor = the WIDER of the two,
+            //       so one box fits both and neither state rattles inside it.
+            //   (b) labelLeft() draws the text flush on the box's left edge (Label draws LEFT at exactly x —
+            //       zero inset). Correct for a TEXT button, which paints no ground at all; wrong the instant
+            //       `armed` paints a rounded chip + border around that same box, because then every pixel of
+            //       the padding sits on the right. Armed centres (labelCenter), decayed goes back to flush-left.
             Button reset = new Button(resetArmed ? "Confirm reset?" : "Reset to default")
-                    .variant(Button.Variant.TEXT).armed(resetArmed).compact().hug().labelLeft()
+                    .variant(Button.Variant.TEXT).armed(resetArmed).compact().hug()
                     .accent(resetArmed ? accent : Tokens.palette().stateLow());
-            reset.minWidth(new Button("Confirm reset?").compact().hug().measure(10_000f, 22f).w());
+            if (resetArmed) reset.labelCenter(); else reset.labelLeft();
+            float wIdle  = new Button("Reset to default").variant(Button.Variant.TEXT).compact().hug().measure(10_000f, 22f).w();
+            float wArmed = new Button("Confirm reset?").variant(Button.Variant.TEXT).compact().hug().measure(10_000f, 22f).w();
+            reset.minWidth(Math.max(wIdle, wArmed));
             reset.onClick(() -> {
                 if (resetArmed) {
                     boolean kb = panelResetBtn != null && panelResetBtn.isFocusVisible();
@@ -979,7 +1017,8 @@ public final class ClubMenuScreen extends Screen {
                     resetArmed = true; resetArmAt = uiCtx.time();
                     // The accent swaps WITH the label: quiet red at rest, the category's own accent once
                     // armed. Both are set in place — a rebuild here would orphan an in-flight slider drag.
-                    if (panelResetBtn != null) panelResetBtn.label("Confirm reset?").armed(true).accent(accent);
+                    if (panelResetBtn != null)
+                        panelResetBtn.label("Confirm reset?").armed(true).accent(accent).labelCenter();
                 }
             });
             panelResetBtn = reset;
@@ -1036,8 +1075,12 @@ public final class ClubMenuScreen extends Screen {
         panelX = winX + winW + PANEL_GAP;
         panelVisW = prv * PANEL_W;
         panelY = winY; panelH = winH;
-        panelBodyX = panelX + PANEL_PAD; panelBodyY = panelY + headH;
-        panelBodyW = PANEL_INNER_W; panelBodyH = Math.max(1f, winH - headH - PANEL_PAD);
+        // PANEL_PAD of air UNDER the header hairline: the body used to start on the hairline's own pixel
+        // (panelY + headH is exactly where the rule is drawn), so the first row — "Type" on Animations — sat
+        // welded to the bar (owner). The same 12 is taken back out of the body height, or the viewport would
+        // simply overrun the panel's bottom edge instead (panelStaysOnCanvas asserts both ends).
+        panelBodyX = panelX + PANEL_PAD; panelBodyY = panelY + headH + PANEL_PAD;
+        panelBodyW = PANEL_INNER_W; panelBodyH = Math.max(1f, winH - headH - 2 * PANEL_PAD);
 
         root.layout(0, 0, canvasW, canvasH);
 
@@ -1294,10 +1337,27 @@ public final class ClubMenuScreen extends Screen {
         // armed reset decays back to the quiet ghost when the hold expires (Stage 35). In place —
         // NO rebuild (Stage 38): a timer-driven rebuild would orphan an in-flight slider drag
         // (freezing it and skipping its save-on-release) and silently clear keyboard focus.
-        if (resetArmed && now - resetArmAt > RESET_ARM_HOLD) {
+        //
+        // It ALSO disarms the moment the pointer leaves it (T3, owner): an armed confirm is a question aimed
+        // at the cursor that armed it, and moving away is an answer — waiting out the full 3s while a red
+        // "Confirm reset?" sits there is the interface arguing with a player who already left.
+        //
+        // Two guards, and neither is optional:
+        //   !isFocusVisible() — the button can be armed FROM THE KEYBOARD (Tab, Enter) with the mouse parked
+        //     anywhere on screen, which is exactly what the harness does before it shoots `reset-armed`. An
+        //     unconditional hover-disarm would drop the arm on the very next frame: the scene would go on
+        //     passing while photographing an idle button, i.e. silently stop testing the thing it is named for.
+        //   > 0.10f — hover is refreshed later in this same pass (panelScroll.mouseMoved, below), so on the
+        //     first frame after the arming click the flag is still the PREVIOUS frame's, when the press had
+        //     not landed yet. A tenth of a second is enough for the truth to arrive.
+        boolean pointerLeft = panelResetBtn != null
+                && !panelResetBtn.isHovered() && !panelResetBtn.isFocusVisible();
+        if (resetArmed && (now - resetArmAt > RESET_ARM_HOLD
+                        || (pointerLeft && now - resetArmAt > 0.10f))) {
             resetArmed = false;
             if (panelResetBtn != null)
-                panelResetBtn.label("Reset to default").armed(false).accent(Tokens.palette().stateLow());
+                panelResetBtn.label("Reset to default").armed(false)
+                        .accent(Tokens.palette().stateLow()).labelLeft();
         }
 
         // ---- docked settings panel: the window's twin surface, to its right ----
@@ -1305,23 +1365,28 @@ public final class ClubMenuScreen extends Screen {
         // full PANEL_W so its left corners stay rounded while the right edge slides out of / into the window.
         if (panelVisW > 0.5f) {
             float plg = Tokens.radius().lg();
-            Weight titleW = ty.title().weight();
-            float titleSz = 12.5f;
+            // The header names what the body is showing — it is a CAPTION, not a headline. It used to be
+            // SEMIBOLD 12.5 in textHi: the loudest text in the panel, shouting the module's name back at a
+            // player who just clicked that module's card. MEDIUM 10.5 in textMuted (owner). No uppercase and
+            // no eyebrow styling — that would be new vocabulary, and the design is frozen.
+            Weight titleW = ty.label().weight();
+            float titleSz = 10.5f;
             r.pushClip(panelX, panelY, panelVisW, panelH);
             r.roundedRect(panelX, panelY, PANEL_W, panelH, plg, Tokens.surface().surface());
 
-            // header: selected module name (or dim "Settings") + master toggle, with a hairline under it
+            // header: selected module name (or dim "Settings"), with a hairline under it. There is no master
+            // toggle here any more — on/off is the CARD's job (LMB), and the panel is settings only, so the
+            // title owns the full inner width.
             float phX = panelX + PANEL_PAD, phCy = panelY + headH / 2f;
-            float titleRight = panelX + PANEL_W - PANEL_PAD - (panelMaster != null ? 40f + 8f : 0f);
+            float titleRight = panelX + PANEL_W - PANEL_PAD;
             String title = selectedModule != null ? selectedModule.name() : "Settings";
-            int titleCol = selectedModule != null ? Tokens.palette().textHi() : Tokens.palette().textFaint();
+            int titleCol = selectedModule != null ? Tokens.palette().textMuted() : Tokens.palette().textFaint();
             float titleClip = Math.max(1f, titleRight - phX);
             r.pushClip(phX, panelY, titleClip, headH);
             uiCtx.text().draw(ellipsizeTo(title, titleW, titleSz, titleClip),
                     phX, phCy - uiCtx.text().lineHeight(titleW, titleSz) / 2f,
                     TextStyle.of(titleW, titleSz, Color.scaleAlpha(titleCol, screenAlpha)));
             r.popClip();
-            if (panelMaster != null) panelMaster.render(uiCtx);
             r.rect(panelX + PANEL_PAD, panelY + headH, PANEL_W - 2 * PANEL_PAD, 1f, Tokens.border().subtle());
 
             // body: the module's setting rows, or the empty-state prompt
@@ -1333,7 +1398,16 @@ public final class ClubMenuScreen extends Screen {
                                 .align(Align.CENTER));
             } else if (panelScroll != null) {
                 panelScroll.mouseMoved(mouseX, mouseY);
+                // The swap slide (T5). The X offset is baked into the body's LAYOUT (layoutPanelWidgets), so it
+                // is already in the geometry by the time we draw; what is added here is the shape opacity ramp.
+                // HONEST NOTE: this ramps SHAPES only — slider tracks, swatches, toggle pills. Text does not
+                // ride pushOpacity on any backend, and on LEGACY (shader fallback) pushOpacity fades nothing at
+                // all. So the effect is MOTION with a shape ramp riding along, never a cross-fade. The clip is
+                // the panel's own, pushed above, so the rows slide in from behind its edge.
+                float cs = contentSlide == null ? 1f : contentSlide.value(now);
+                r.pushOpacity(cs);
                 panelScroll.render(uiCtx);
+                r.popOpacity();
             }
             r.border(panelX, panelY, PANEL_W, panelH, plg, Tokens.border().thickness(), Tokens.border().strong());
             r.popClip();

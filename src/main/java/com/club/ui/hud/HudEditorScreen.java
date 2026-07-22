@@ -100,7 +100,9 @@ public final class HudEditorScreen extends Screen {
 
     // Compact floating toolbar centred at the top: "Grid snap" [toggle]  [Reset]  [Done].
     // A tight overlay so the whole screen underneath stays usable for positioning HUD elements.
-    private static final float TB_TOGGLE_W = 40, TB_TOGGLE_H = 22, TB_BTN_W = 92, TB_BTN_H = 26,
+    // TB_TOGGLE 30×16 follows the shared Toggle widget down from 40×22 (T4) — the toolbar hard-codes its own
+    // box instead of asking measure(), so it has to be changed here too or the editor keeps the old fat pill.
+    private static final float TB_TOGGLE_W = 30, TB_TOGGLE_H = 16, TB_BTN_W = 92, TB_BTN_H = 26,
                               TB_GAP = 12, TB_PAD = 14, TB_LABEL_W = 32;   // "Grid" (p.7) — was 66 for "Grid snap"
     private static final float TB_RISE = 10f;   // toolbar slide-in distance on the entrance curve (owner #6)
     private Toggle tbGrid;
@@ -230,8 +232,15 @@ public final class HudEditorScreen extends Screen {
         for (int i = 0; i < ctrls.size(); i++) {
             Component ctrl = ctrls.get(i);
             if (i < popLabels.size()) popLabels.get(i).layout(ix, y + 2, iw, 14);
-            float cw = ctrl instanceof Slider ? 88 : ctrl.measure(iw, 20).w(); if (cw <= 0) cw = 88;
-            ctrl.layout(ix + iw - cw, y, cw, 20);   // p.8: 22→20 to fit the 22px row
+            com.club.ui.layout.Size cm = ctrl.measure(iw, 20);
+            float cw = ctrl instanceof Slider ? 88 : cm.w(); if (cw <= 0) cw = 88;
+            // The row is a 20px lane (p.8: 22→20). The control took its WIDTH from measure() but had its
+            // HEIGHT pinned to the full lane — so shrinking the shared Toggle (T4) narrowed this popover's
+            // switch and left it 20 tall: half a fix, and a stretched pill. A control that measures SHORTER
+            // than the lane now keeps its own height and centres in it; anything lane-height or taller (the
+            // slider, the segments) is unchanged.
+            float ch = cm.h() > 0f ? Math.min(20f, cm.h()) : 20f;
+            ctrl.layout(ix + iw - cw, y + (20f - ch) / 2f, cw, ch);
             y += POP_ROW;
         }
     }

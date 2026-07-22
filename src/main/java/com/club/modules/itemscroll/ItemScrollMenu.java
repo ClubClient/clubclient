@@ -37,8 +37,9 @@ public final class ItemScrollMenu {
                 IconGlyph.ITEM_SCROLL,
                 () -> c.itemScroll.enabled,
                 v -> { c.itemScroll.enabled = v; ClubConfig.save(); },
-                () -> { c.itemScroll.enabled = true;
-                        c.itemScroll.reverseScroll = false;
+                // Settings only — never `enabled`. Reset restores the scroll direction and the factory gesture
+                // map; whether the module runs stays where the player put it, on the card (T2).
+                () -> { c.itemScroll.reverseScroll = false;
                         c.itemScroll.gestures.clear();      // back to the factory gesture map
                         ClubConfig.save(); },
                 List.of(

@@ -708,6 +708,49 @@ public final class ClubHarness {
 
             // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
 
+            // ===== RESET RESTORES SETTINGS, IT DOES NOT FLIP THE MODULE =====
+            // The owner's bug (T2): turn Hitboxes on, open its panel, press "Reset to default" — and the module
+            // switched itself OFF, because 10 of 13 reset bodies wrote `enabled`. A reset button lives inside
+            // the panel you opened to TUNE a module; using it as a second, hidden on/off switch is the one
+            // thing a player will not predict, and it fired in the direction they least wanted.
+            //
+            // Hitboxes is the case worth pinning: it is one of the two the owner actually watched turn off,
+            // and it has real settings to restore, so the assert proves BOTH halves — the switch survives AND
+            // the reset still does its job. Asserted from both starting states, because a reset that hard-wrote
+            // `false` would have passed a one-sided "still off" check. Config is snapshotted and put back.
+            step(2, () -> {
+                ClubConfig.Hitboxes hb = cfg.hitboxes;
+                boolean wasEnabled = hb.enabled, wasClean = hb.cleanLines;
+                int wasA = hb.colorA, wasB = hb.colorB;
+                float wasWidth = hb.lineWidth;
+
+                com.club.ui.menu.MenuContent.Module hbm = null;
+                for (com.club.ui.menu.MenuContent.Category cat : com.club.ui.menu.MenuContent.build(() -> {}))
+                    for (com.club.ui.menu.MenuContent.Module m : cat.modules())
+                        if ("Hitboxes".equals(m.name())) hbm = m;
+                check("reset: the Hitboxes card is reachable and still carries a reset", hbm != null && hbm.hasReset());
+
+                if (hbm != null && hbm.hasReset()) {
+                    // ON + every setting nudged off its default → reset must restore the settings, keep it ON.
+                    hbm.setEnabled(true);
+                    hb.cleanLines = false; hb.lineWidth = 3.5f;
+                    hb.colorA = com.club.combat.HitboxColors.WHITE;
+                    hbm.reset().run();
+                    check("reset: Hitboxes stays ENABLED across a reset (was on)", hbm.enabled());
+                    check("reset: …and the settings really did return to their defaults",
+                            hb.cleanLines && Math.abs(hb.lineWidth - 1.0f) < 0.001f
+                                    && hb.colorA == com.club.combat.HitboxColors.ACCENT);
+                    // …and the mirror image: a module the player left OFF must not be switched ON by a reset.
+                    hbm.setEnabled(false);
+                    hbm.reset().run();
+                    check("reset: Hitboxes stays DISABLED across a reset (was off)", !hbm.enabled());
+                }
+
+                hb.enabled = wasEnabled; hb.cleanLines = wasClean;
+                hb.colorA = wasA; hb.colorB = wasB; hb.lineWidth = wasWidth;
+                ClubConfig.save();
+            });
+
             // ===== HITBOXES — the palette the dropdowns and the render hooks share is well-formed =====
             // NAMES feeds the menu dropdowns; ARGB is the packed colour the mixin draws; the "On player" and
             // "Default" dropdowns each store an INDEX into both. A names/colours length mismatch, a colour that

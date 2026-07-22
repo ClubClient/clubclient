@@ -16,7 +16,13 @@ import com.club.ui.theme.Tokens;
 public final class Toggle extends Control {
 
     // Shape geometry (proportions, NOT design tokens).
-    private static final float W = 40f, H = 22f, KNOB_INSET = 3f;
+    //
+    // 30×16, down from 40×22 (owner: the switch must relate to the text beside it). A settings row's label is
+    // MEDIUM 12 on a 16px line box, so a 22px pill stood 1.4× the height of the words it belonged to and read
+    // as the row's subject rather than its control. At 16 the pill IS the line box. 30×16 is also exactly the
+    // pill ParticlesPane draws by hand, so the whole menu now speaks one switch size instead of two.
+    // KNOB_INSET drops 3 → 2.5 so the puck keeps its presence at the smaller height (r = 16/2 − 2.5 = 5.5).
+    private static final float W = 30f, H = 16f, KNOB_INSET = 2.5f;
 
     private boolean value;
     private BoolConsumer onChange;
@@ -31,10 +37,6 @@ public final class Toggle extends Control {
     /** Overrides the accent colour (ON track + focus ring); 0 restores the theme accent. */
     public Toggle accent(int color) { this.accent = color; return this; }
     public boolean value() { return value; }
-    /** Sets the displayed state WITHOUT firing {@code onChange} — for mirroring an external edit (e.g. the
-     *  Club menu's docked-panel master toggle following a left-click on the module's own card). The knob
-     *  re-eases toward the new state on the next render (render() re-targets the transition each frame). */
-    public void setValue(boolean v) { this.value = v; }
 
     @Override protected void activate() {
         value = !value;

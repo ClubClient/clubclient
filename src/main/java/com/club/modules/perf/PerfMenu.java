@@ -52,7 +52,9 @@ public final class PerfMenu {
                         + "your battery and your fans.",
                 IconGlyph.BACKGROUND_FPS,
                 () -> p.throttleWhenUnfocused, v -> { p.throttleWhenUnfocused = v; save(); },
-                () -> { p.throttleWhenUnfocused = true; p.backgroundFps = 15; save(); },
+                // The cap only. `throttleWhenUnfocused` IS this card's master switch, so writing it here would
+                // be a reset that turns the module on — the card owns that (T2).
+                () -> { p.backgroundFps = 15; save(); },
                 List.of(
                         // Floor 15: below that the first frame after you alt-tab back costs 1/cap and the
                         // window feels broken. Not timidity — measured.
