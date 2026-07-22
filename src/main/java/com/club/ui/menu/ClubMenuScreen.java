@@ -141,6 +141,11 @@ public final class ClubMenuScreen extends Screen {
     private boolean resetArmed;
     private float resetArmAt;
     private Button panelResetBtn;   // the live reset button in the docked panel (null when none)
+    // CONFIRMING is the one disarm that cannot swap in place: the confirm rebuilds the panel, so the fresh
+    // button would cut straight to "Reset to default" while the other two exits (timeout, pointer leaves)
+    // fade. This carries the crossfade across that rebuild — the new button is born wearing the armed label
+    // and immediately asked to fade back to the idle one.
+    private boolean resetFadeBack;
 
     // Module keybind capture (Stage 43): the popover's Bind button arms listening; the next
     // keyPressed assigns (Esc cancels, Backspace/Delete clears). Screen-level so it wins over
@@ -606,7 +611,7 @@ public final class ClubMenuScreen extends Screen {
     private void selectModule(Module m) {
         if (selectedModule == m) return;
         selectedModule = m;
-        tabIndex = 0; openDrop = null; resetArmed = false;
+        tabIndex = 0; openDrop = null; resetArmed = false; resetFadeBack = false;
         bindListening = false; bindModule = null; bindReserved = false;   // drop any capture from the old module
         segSlide = new Transition(0f, Tokens.motion().durations().normal(), Tokens.motion().easings().standard());
         // Re-seed the swap slide from 0 and let it run to 1 — a NEW module's rows glide in (T5). Seeded HERE,
@@ -620,7 +625,7 @@ public final class ClubMenuScreen extends Screen {
     private void deselectModule() {
         boolean keepSearch = search != null && focus.focused() == search;
         selectedModule = null; panelCol = null; panelScroll = null; panelContentH = 0f;
-        openDrop = null; resetArmed = false; panelResetBtn = null;
+        openDrop = null; resetArmed = false; resetFadeBack = false; panelResetBtn = null;
         bindListening = false; bindModule = null; bindReserved = false; panelBindBtn = null;
         panelRoot.clear();
         focus.clear();
@@ -979,26 +984,29 @@ public final class ClubMenuScreen extends Screen {
             // cursor because its accent is the palette's own stateLow. Destructive, quiet, unmistakable —
             // and no bigger than the caption it sits under.
             //
-            // The ARMED state keeps its full voice ("Confirm reset?" in the category accent): a confirmation
-            // that whispers is a confirmation nobody reads.
+            // THE ARMED STATE IS THE SAME OBJECT, NOT A DIFFERENT ONE (owner, live check). It used to call
+            // armed(true), which paints a tinted ground + accent border: the control mutated from plain red
+            // text into a bordered pill, so a question that should read as the SAME control asking again
+            // read as a second, heavier widget appearing where the first one was. Confirming is a change of
+            // WORDING, not of species. No armed(), no ground, no border — a TEXT button in both states,
+            // flush-left in both states, and the accent stays stateLow so it is red under the cursor either
+            // way. (armed() itself is untouched: the Bind field and the HUD editor's toolbar still use it.)
             //
-            // THE ARMED PILL LOOKED CROOKED, for two independent reasons, and both are fixed here (T3):
-            //   (a) the width floor was measured from "Confirm reset?" ALONE — the narrower of the two labels
-            //       — so it never bound. Arming swaps the label IN PLACE (Button.label keeps bounds, by
-            //       design: a rebuild here would orphan an in-flight slider drag), which left the shorter
-            //       armed text inside the box measured for the longer idle one. Floor = the WIDER of the two,
-            //       so one box fits both and neither state rattles inside it.
-            //   (b) labelLeft() draws the text flush on the box's left edge (Label draws LEFT at exactly x —
-            //       zero inset). Correct for a TEXT button, which paints no ground at all; wrong the instant
-            //       `armed` paints a rounded chip + border around that same box, because then every pixel of
-            //       the padding sits on the right. Armed centres (labelCenter), decayed goes back to flush-left.
-            Button reset = new Button(resetArmed ? "Confirm reset?" : "Reset to default")
-                    .variant(Button.Variant.TEXT).armed(resetArmed).compact().hug()
-                    .accent(resetArmed ? accent : Tokens.palette().stateLow());
-            if (resetArmed) reset.labelCenter(); else reset.labelLeft();
+            // The width floor is still the WIDER of the two labels, and it still matters even with the box
+            // gone: the label swaps IN PLACE (Button.labelSoft keeps bounds — a rebuild here would orphan an
+            // in-flight slider drag), so the hit-box must already be big enough for both words. Pinned to the
+            // wider one, the target cannot move under the cursor between the two clicks of a confirmation.
+            //
+            // The swap itself CROSSFADES (labelSoft) rather than cutting — both directions, all three exits
+            // (timeout, pointer leaves, confirm). See Button.labelSoft: text cannot ride pushOpacity on any
+            // version, so the fade is Color.scaleAlpha on the label's own colour.
+            Button reset = new Button(resetArmed || resetFadeBack ? "Confirm reset?" : "Reset to default")
+                    .variant(Button.Variant.TEXT).compact().hug().labelLeft()
+                    .accent(Tokens.palette().stateLow());
             float wIdle  = new Button("Reset to default").variant(Button.Variant.TEXT).compact().hug().measure(10_000f, 22f).w();
             float wArmed = new Button("Confirm reset?").variant(Button.Variant.TEXT).compact().hug().measure(10_000f, 22f).w();
             reset.minWidth(Math.max(wIdle, wArmed));
+            if (resetFadeBack) { resetFadeBack = false; reset.labelSoft("Reset to default"); }
             reset.onClick(() -> {
                 if (resetArmed) {
                     boolean kb = panelResetBtn != null && panelResetBtn.isFocusVisible();
@@ -1011,14 +1019,14 @@ public final class ClubMenuScreen extends Screen {
                         com.club.modules.binds.HoldKeys.reset(m.name());
                     else com.club.modules.binds.ModuleBinds.set(m.name(), null);
                     openDrop = null;
+                    resetFadeBack = true;   // the fresh button fades "Confirm reset?" → "Reset to default"
                     rebuildPanel();
                     if (kb && panelResetBtn != null) focus.focusKeyboard(panelResetBtn);
                 } else {
                     resetArmed = true; resetArmAt = uiCtx.time();
-                    // The accent swaps WITH the label: quiet red at rest, the category's own accent once
-                    // armed. Both are set in place — a rebuild here would orphan an in-flight slider drag.
-                    if (panelResetBtn != null)
-                        panelResetBtn.label("Confirm reset?").armed(true).accent(accent).labelCenter();
+                    // Wording only, and it fades in — set in place, because a rebuild here would orphan an
+                    // in-flight slider drag.
+                    if (panelResetBtn != null) panelResetBtn.labelSoft("Confirm reset?");
                 }
             });
             panelResetBtn = reset;
@@ -1027,7 +1035,7 @@ public final class ClubMenuScreen extends Screen {
             // расстояния между ним, выглядит не компактно"). Air, yes — but one step of it, not three.
             Row rr = new Row(); rr.add(reset);
             col.add(rr); focus.register(reset);
-        } else panelResetBtn = null;
+        } else { panelResetBtn = null; resetFadeBack = false; }   // no button to carry the fade-back
         return col;
     }
 
@@ -1355,9 +1363,7 @@ public final class ClubMenuScreen extends Screen {
         if (resetArmed && (now - resetArmAt > RESET_ARM_HOLD
                         || (pointerLeft && now - resetArmAt > 0.10f))) {
             resetArmed = false;
-            if (panelResetBtn != null)
-                panelResetBtn.label("Reset to default").armed(false)
-                        .accent(Tokens.palette().stateLow()).labelLeft();
+            if (panelResetBtn != null) panelResetBtn.labelSoft("Reset to default");   // fades back, never cuts
         }
 
         // ---- docked settings panel: the window's twin surface, to its right ----
@@ -1510,7 +1516,15 @@ public final class ClubMenuScreen extends Screen {
         }
         focus.clickFocus(mx, my);
         if (insidePanel(mx, my)) {   // clicks inside the panel go to its widgets and never fall through
-            boolean h = panelRoot.mouseClicked(mx, my, 0);   // RMB behaves as LMB inside, like the old popover
+            // RMB behaves as LMB inside the panel, like the old popover — with ONE exception. The reset is
+            // the only destructive control here, and destruction belongs to the LEFT button alone (owner,
+            // live check): a right-click must neither arm it nor be the second click that fires it. The
+            // click is still SWALLOWED (it must not fall through to the cards behind the panel), it just
+            // never reaches the widget. Keyboard activation is a different path entirely — Control.keyPressed
+            // never sees a mouse button — so Tab+Enter still arms and confirms exactly as before.
+            boolean rmbOnReset = b != 0 && panelResetBtn != null && panelResetBtn.visible
+                    && panelResetBtn.contains(mx, my);
+            boolean h = !rmbOnReset && panelRoot.mouseClicked(mx, my, 0);
             pressOwner = 3;
             return h || true;
         }

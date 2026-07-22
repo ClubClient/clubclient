@@ -46,7 +46,11 @@ public final class Button extends Control {
     private int accent;   // 0 = theme accent; set for category-tinted contexts (Stage 11.9)
     private final Transition hover =
             new Transition(0f, Tokens.motion().durations().fast(), Tokens.motion().easings().standard());
-    private boolean styleInit, lastHovered;   // discrete label-color state → no per-frame TextStyle rebuild
+    private boolean styleInit, lastHovered, lastFading;   // discrete label-color state → no per-frame TextStyle rebuild
+    private String pendingLabel;   // label requested by labelSoft(); swapped in at the dip's bottom
+    /** Half of a label crossfade: out (1→0), swap, in (0→1) — {@code fast}/2 each leg, ~0.17s end to end. */
+    private final Transition swap =
+            new Transition(1f, Tokens.motion().durations().fast() * 0.5f, Tokens.motion().easings().standard());
 
     public Button(String text) { this.label = new Label(text).align(Align.CENTER); }
 
@@ -73,8 +77,9 @@ public final class Button extends Control {
     /** Centre the label — the counterpart to {@link #labelLeft()}, for the moment a TEXT button GROWS A
      *  GROUND. Flush-left is right while there is nothing behind the text, but {@link #armed(boolean)} paints
      *  a rounded chip + border around the same box, and a chip whose text hugs one edge while all its padding
-     *  piles up on the other looks crooked, not confirmatory (owner: the armed "Confirm reset?" pill). Armed
-     *  → centre, decayed → back to flush-left. */
+     *  piles up on the other looks crooked, not confirmatory. Centre while a ground is painted, flush-left
+     *  while there is none. (The panel's reset no longer arms a ground at all — it stays flush-left in both
+     *  states — so this is currently API for the next control that does.) */
     public Button labelCenter() { this.label.align(com.club.ui.text.Align.CENTER); return this; }
     /** Armed / listening state (confirm-reset, keybind capture): a SOFT accent chip — subtle tinted
      *  fill + accent border + accent text — instead of a solid PRIMARY fill, which read as a garish
@@ -83,6 +88,22 @@ public final class Button extends Control {
     /** Swap the label text in place (armed/confirm states) — bounds are kept, callers pass a narrower
      *  or equal label so no re-layout is needed. */
     public Button label(String text) { this.label.text(text); return this; }
+    /** Swap the label with a short CROSSFADE instead of a cut. A two-word control that changes its mind
+     *  ("Reset to default" ⇄ "Confirm reset?") reads as a glitch when the glyphs are simply replaced between
+     *  two frames — the eye catches the substitution, not the message.
+     *
+     *  <p>The fade is driven through the label's COLOUR ALPHA, not {@code pushOpacity}: the renderer ignores
+     *  the opacity stack for glyphs on every version (see {@link Label}), so {@code Color.scaleAlpha} on the
+     *  text colour is the only thing that actually fades text here. One {@link Transition} dips 1→0, the
+     *  string is swapped at the bottom, and it rises 0→1 — so the two labels never overlap as doubled glyphs.
+     *  Bounds are kept exactly as {@link #label(String)} keeps them: nothing re-measures, nothing re-lays out,
+     *  so the hit-box cannot move under the cursor mid-swap. Retargeting mid-flight is safe (the transition
+     *  re-bases from its current value), which is what makes arm → immediate disarm smooth in both directions. */
+    public Button labelSoft(String text) {
+        String shown = pendingLabel != null ? pendingLabel : label.textValue();
+        if (!text.equals(shown)) this.pendingLabel = text;
+        return this;
+    }
     /** Width floor in px: a state-swapped label (e.g. armed "Sure? Reset") keeps the idle box, so the
      *  click target never shrinks under the cursor between the two clicks of a confirmation. */
     public Button minWidth(float px) { this.minWidth = px; return this; }
@@ -126,6 +147,13 @@ public final class Button extends Control {
         hover.target(hovered ? 1f : 0f, now);
         float hv = hover.value(now);                    // animated via int colors only (alloc-free)
 
+        // Label crossfade (see labelSoft): dip the text out, swap the string at the bottom, bring it back in.
+        if (pendingLabel != null && swap.target() != 0f) swap.target(0f, now);
+        float la = swap.value(now);
+        if (pendingLabel != null && la <= 0.002f) {     // the bottom: nothing is on screen to substitute
+            label.text(pendingLabel); pendingLabel = null; swap.target(1f, now); la = 0f;
+        }
+
         if (armed) {   // soft accent chip: tinted fill + accent border + accent text (Stage 50)
             int a = WidgetPaint.acc(accent);
             ctx.renderer().roundedRect(x, y, w, h, r, Color.withAlpha(a, 0x2B));
@@ -155,8 +183,11 @@ public final class Button extends Control {
         }
 
         // Discrete label color: Label rebuilds its TextStyle only on a state change, never per-frame (alloc-free).
-        if (!styleInit || hovered != lastHovered) {
-            label.color(armed ? WidgetPaint.acc(accent)
+        // A running crossfade is the one case that MUST write every frame — plus the frame it settles on, so
+        // the cached style goes back to the un-scaled colour instead of freezing at the fade's last value.
+        boolean fading = la < 0.999f;
+        if (!styleInit || hovered != lastHovered || fading || lastFading) {
+            int lc = (armed ? WidgetPaint.acc(accent)
                         : variant == Variant.PRIMARY ? Tokens.accent().onAccent()
                         // TEXT rests QUIET (textFaint), not textHi: it is a footnote, and a footnote that is
                         // as bright as the rows above it is not a footnote. GHOST keeps textHi — it has a
@@ -168,7 +199,9 @@ public final class Button extends Control {
                         // It does NOT tint on hover — a value that recolours under the cursor looks like it acted.
                         : variant == Variant.VALUE ? Tokens.palette().textMuted()
                             : (hovered ? WidgetPaint.acc(accent) : Tokens.palette().textHi()));
+            label.color(fading ? Color.scaleAlpha(lc, la) : lc);
             lastHovered = hovered;
+            lastFading = fading;
             styleInit = true;
         }
         label.render(ctx);                              // bounds set in layout(); no per-frame measure/alloc
