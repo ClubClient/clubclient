@@ -33,7 +33,68 @@ public final class Ui {
         Backends.MODERN_R.unitScale(k);
         //?}
         Backends.LEGACY_R.unitScale(k);
+        var mc = net.minecraft.client.MinecraftClient.getInstance();
+        // k is MC GUI units per caller unit; the window's scale factor is DEVICE px per MC GUI unit. Their
+        // product is the only number a hairline needs: how many physical pixels one caller unit is worth.
+        devicePx = (mc == null) ? 0f : (float) (k * mc.getWindow().getScaleFactor());
     }
+
+    // -------------------------------------------------------------------------
+    // Hairline pixel snapping
+    // -------------------------------------------------------------------------
+
+    /**
+     * DEVICE pixels per caller unit for the frame in flight, or 0 when unknown.
+     *
+     * <p>Set by {@link #beginFrame(DrawContext, float)}. Zero means "nobody told us the scale", and every
+     * helper below then returns its input unchanged — an un-snapped hairline is the old behaviour, which is
+     * merely soft; snapping against a guessed scale would move it somewhere wrong.
+     */
+    private static float devicePx = 0f;
+
+    /** DEVICE pixels per caller unit, or 0 if this frame never opened with {@link #beginFrame}. */
+    public static float devicePxPerUnit() { return devicePx; }
+
+    /**
+     * A coordinate moved to the nearest whole DEVICE pixel, in caller units.
+     *
+     * <p><b>Only hairlines may use this.</b> Club's layout is fractional by design — {@code railWW} is 171.6
+     * units, {@code cellW} is 100.1 — so four cards in one row start at four different sub-pixel phases. For
+     * a card that is invisible: its fill is 200 px wide and half a pixel of phase is nothing. For the 1-unit
+     * BORDER around it, the phase IS the appearance: the same border renders at a different weight on each
+     * of the four cards, which is the mechanical source of "не точно". Snapping general geometry instead
+     * would change the layout the design is frozen at, so the rule is narrow on purpose — thin lines only,
+     * where sub-pixel phase is what makes them mushy.
+     *
+     * <p>Safe under the menu's matrix because the only transform between caller units and the framebuffer is
+     * {@code Mtx.scale(canvasK)} — a pure scale about the origin, so {@code round(v*K)/K} really does land on
+     * a physical pixel boundary. A caller that pushed a fractional TRANSLATE would break that assumption;
+     * none does today (the sole translate in the shape path is inside {@code line()}'s rotated branch, which
+     * draws a rounded rect and never reaches here).
+     */
+    public static float snapPx(float v) {
+        return devicePx <= 0f ? v : Math.round(v * devicePx) / devicePx;
+    }
+
+    /** One device pixel expressed in caller units — the floor a snapped hairline may never fall below. */
+    public static float onePx() { return devicePx <= 0f ? 0f : 1f / devicePx; }
+
+    /**
+     * A stroke width rounded to a whole number of device pixels, never below one.
+     *
+     * <p>The floor is what stops the fix from erasing anything: on a small window a 1-unit border is 1.33
+     * device px, which rounds to 1 — thinner, but still drawn. Rounding to 0 would delete every border on
+     * the screen.
+     */
+    public static float snapThickness(float t) {
+        if (devicePx <= 0f) return t;
+        return Math.max(1f, Math.round(t * devicePx)) / devicePx;
+    }
+
+    /** True when a primitive is thin enough that sub-pixel phase, not size, decides how it reads. Card
+     *  borders are 1 unit, the focus ring 1.5, the "no settings" outline 1.6, the panel rule and the footer
+     *  chevron's stacked rects 1 — everything the recon named sits at or under 3. */
+    public static boolean isHairline(float thickness) { return thickness > 0f && thickness <= 3f; }
 
     /**
      * Call at the END of every render pass that called {@link #beginFrame}. Shapes are BATCHED (Stage

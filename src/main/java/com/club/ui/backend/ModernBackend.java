@@ -117,6 +117,19 @@ public final class ModernBackend implements UiRenderer {
 
     @Override
     public void rect(float x, float y, float w, float h, int color) {
+        // A rect thin enough to be a LINE — a separator, the panel rule, one of the footer chevron's four
+        // stacked bars — is snapped to whole device pixels; see Ui.snapPx for why only hairlines are.
+        // Anything wider keeps its exact fractional geometry, because moving a card is a layout change and
+        // the design is frozen. ModernShapes.rect does the same on 1.21.5+ — they must agree.
+        if (w > 0f && h > 0f && (com.club.ui.Ui.isHairline(w) || com.club.ui.Ui.isHairline(h))) {
+            float x0 = com.club.ui.Ui.snapPx(x), y0 = com.club.ui.Ui.snapPx(y);
+            float x1 = com.club.ui.Ui.snapPx(x + w), y1 = com.club.ui.Ui.snapPx(y + h);
+            float px = com.club.ui.Ui.onePx();
+            if (x1 - x0 < px) x1 = x0 + px;   // rounding may never DELETE a line
+            if (y1 - y0 < px) y1 = y0 + px;
+            shapeWithRadii(x0, y0, x1 - x0, y1 - y0, 0f, 0f, 0f, 0f, 0f, MODE_FILL, color, color, 0, 0f, 0f);
+            return;
+        }
         // Routes through primitive-radii overload — no Radii record allocation.
         shapeWithRadii(x, y, w, h, 0f, 0f, 0f, 0f, 0f, MODE_FILL, color, color, 0, 0f, 0f);
     }
@@ -136,6 +149,20 @@ public final class ModernBackend implements UiRenderer {
 
     @Override
     public void border(float x, float y, float w, float h, float radius, float thickness, int color) {
+        // Every border in the menu is a hairline (1 unit for cards and the frame, 1.5 for the focus ring,
+        // 1.6 for the "no settings" outline), and a hairline's sub-pixel phase IS its appearance. Snap the
+        // ring's outer edge and its width to whole device pixels so the four cards in a row stop rendering
+        // at four different weights. Twin of ModernShapes.border.
+        if (com.club.ui.Ui.isHairline(thickness) && w > 0f && h > 0f) {
+            float x0 = com.club.ui.Ui.snapPx(x), y0 = com.club.ui.Ui.snapPx(y);
+            float x1 = com.club.ui.Ui.snapPx(x + w), y1 = com.club.ui.Ui.snapPx(y + h);
+            float px = com.club.ui.Ui.onePx();
+            if (x1 - x0 < px) x1 = x0 + px;
+            if (y1 - y0 < px) y1 = y0 + px;
+            shapeWithRadii(x0, y0, x1 - x0, y1 - y0, radius, radius, radius, radius, 0f,
+                    MODE_BORDER, color, color, 0, 0f, Math.max(com.club.ui.Ui.snapThickness(thickness), 1e-4f));
+            return;
+        }
         shapeWithRadii(x, y, w, h, radius, radius, radius, radius, 0f,
                 MODE_BORDER, color, color, 0, 0f, Math.max(thickness, 1e-4f));
     }

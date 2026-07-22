@@ -5,6 +5,7 @@ import com.club.compat.ShapePipe;
 import com.club.ui.Axis;
 import com.club.ui.Color;
 import com.club.ui.Radii;
+import com.club.ui.Ui;
 import com.club.ui.UiRenderer;
 import net.minecraft.client.gui.DrawContext;
 
@@ -60,6 +61,19 @@ public final class ModernShapes implements UiRenderer {
     // -------------------------------------------------------------------------
 
     @Override public void rect(float x, float y, float w, float h, int color) {
+        // A rect thin enough to be a LINE — a separator, the panel rule, one of the footer chevron's four
+        // stacked bars — is snapped to whole device pixels; see Ui.snapPx for why only hairlines are.
+        // Anything wider keeps its exact fractional geometry, because moving a card is a layout change and
+        // the design is frozen. ModernBackend.rect does the same on 1.21.1 — they must agree.
+        if (w > 0f && h > 0f && (Ui.isHairline(w) || Ui.isHairline(h))) {
+            float x0 = Ui.snapPx(x), y0 = Ui.snapPx(y);
+            float x1 = Ui.snapPx(x + w), y1 = Ui.snapPx(y + h);
+            float px = Ui.onePx();
+            if (x1 - x0 < px) x1 = x0 + px;   // rounding may never DELETE a line
+            if (y1 - y0 < px) y1 = y0 + px;
+            shape(x0, y0, x1 - x0, y1 - y0, 0f, 0f, 0f, color, color, color, color);
+            return;
+        }
         shape(x, y, w, h, 0f, 0f, 0f, color, color, color, color);
     }
 
@@ -106,6 +120,20 @@ public final class ModernShapes implements UiRenderer {
         // thickness > 0 is what tells the shader "this is a BORDER". A hairline would encode to 0 and
         // silently become a FILLED shape, so a border always keeps at least one unit of the carrier.
         float th = Math.max(thickness, 1f / ShapePipe.EDGE_SCALE);
+        // Every border in the menu is a hairline (1 unit for cards and the frame, 1.5 for the focus ring,
+        // 1.6 for the "no settings" outline), and a hairline's sub-pixel phase IS its appearance. Snap the
+        // ring's outer edge and its width to whole device pixels so the four cards in a row stop rendering
+        // at four different weights. Twin of ModernBackend.border.
+        if (Ui.isHairline(thickness) && w > 0f && h > 0f) {
+            float x0 = Ui.snapPx(x), y0 = Ui.snapPx(y);
+            float x1 = Ui.snapPx(x + w), y1 = Ui.snapPx(y + h);
+            float px = Ui.onePx();
+            if (x1 - x0 < px) x1 = x0 + px;
+            if (y1 - y0 < px) y1 = y0 + px;
+            float st = Math.max(Ui.snapThickness(th), 1f / ShapePipe.EDGE_SCALE);
+            shape(x0, y0, x1 - x0, y1 - y0, radius, st, 0f, color, color, color, color);
+            return;
+        }
         shape(x, y, w, h, radius, th, 0f, color, color, color, color);
     }
 

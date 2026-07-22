@@ -6,7 +6,7 @@
 //   #moj_import <minecraft:dynamictransforms.glsl>  — ColorModulator (vanilla's GUI-wide factor).
 //
 // THE MATHS IS ui_sdf_shape.fsh's, UNCHANGED. That shader is what 1.21.1 has shipped to players since
-// v0.1, and the whole point of this port is "один в один" — so the SDF, the smoothstep coverage, the
+// v0.1, and the whole point of this port is "один в один" — so the SDF, the coverage filter, the
 // glow falloff curve and the dither are copied rather than re-derived. What changed is only WHERE the
 // parameters come from: uniforms there, vertices here (they cannot be uniforms any more — see the
 // vertex include). A difference in this file would be a difference the player can see between versions.
@@ -33,18 +33,25 @@ void main() {
     // fwidth() asks the GPU how fast d moves across this pixel, so the edge anti-aliases correctly at
     // any scale and under any matrix — including the rotation line() draws diagonals with — without the
     // shader ever being told the scale. This is why the backend is resolution-independent.
+    //
+    // aa is therefore d's travel across ONE pixel, and the coverage ramp must span exactly that: -aa/2 to
+    // +aa/2 around the edge. The original smoothstep(-aa, aa, d) spanned 2*aa, anti-aliasing every edge
+    // over TWO pixels — a 1-unit border rendered as a 3.3-4.7 device-px band that never reached full
+    // opacity below 1440p ("размыто"). clamp(0.5 - d/aa) is the correct 1-pixel box filter. The same
+    // three lines changed in ui_sdf_shape.fsh and ui_sdf_batch.fsh: "один в один" means a border is the
+    // same border on 1.21.1, 1.21.8 and 1.21.11, so this maths may never differ between them.
     float aa = max(fwidth(d), 1e-4);
 
     float cov;
     if (thickness > 0.0) {                       // BORDER — the ring between d and d + thickness
-        float outer = 1.0 - smoothstep(-aa, aa, d);
-        float inner = 1.0 - smoothstep(-aa, aa, d + thickness);
+        float outer = clamp(0.5 - d / aa, 0.0, 1.0);
+        float inner = clamp(0.5 - (d + thickness) / aa, 0.0, 1.0);
         cov = clamp(outer - inner, 0.0, 1.0);
     } else if (thickness < 0.0) {                // GLOW / SHADOW — feather = -thickness
         float g = 1.0 - clamp(max(d, 0.0) / (-thickness), 0.0, 1.0);
         cov = g * g * (3.0 - 2.0 * g);           // smoothstep by hand: g is already the 0..1 ramp
     } else {                                     // FILL
-        cov = 1.0 - smoothstep(-aa, aa, d);
+        cov = clamp(0.5 - d / aa, 0.0, 1.0);
     }
 
     vec4 o = vertexColor * ColorModulator;

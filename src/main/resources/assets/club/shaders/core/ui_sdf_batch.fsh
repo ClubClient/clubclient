@@ -22,15 +22,17 @@ float sdRoundBox(vec2 p, vec2 b, float r) {
 void main() {
     float r = min(radius, min(halfSize.x, halfSize.y));
     float d = sdRoundBox(localPos, halfSize, r);
+    // One-pixel box filter: aa is d's travel across a single pixel, so the ramp runs -aa/2 .. +aa/2.
+    // The old smoothstep(-aa, aa, d) spanned TWO pixels. Identical to ui_sdf_shape.fsh by construction.
     float aa = max(fwidth(d), 1e-4);
 
     float cov;
     if (thickness > 0.0) {                       // BORDER
-        float outer = 1.0 - smoothstep(-aa, aa, d);
-        float inner = 1.0 - smoothstep(-aa, aa, d + thickness);
+        float outer = clamp(0.5 - d / aa, 0.0, 1.0);
+        float inner = clamp(0.5 - (d + thickness) / aa, 0.0, 1.0);
         cov = clamp(outer - inner, 0.0, 1.0);
     } else {                                     // FILL
-        cov = 1.0 - smoothstep(-aa, aa, d);
+        cov = clamp(0.5 - d / aa, 0.0, 1.0);
     }
 
     vec4 o = vertexColor * ColorModulator;

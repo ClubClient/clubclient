@@ -21,11 +21,15 @@ void main() {
         : (localPos.y < 0.0 ? CornerRadii.y : CornerRadii.z);
     r = min(r, min(HalfSize.x, HalfSize.y));
     float d = sdRoundBox(localPos, HalfSize, r);
+    // aa = how far d moves across ONE pixel, so the coverage ramp must span exactly aa — from -aa/2 to
+    // +aa/2 around the edge. smoothstep(-aa, aa, d) spans 2*aa and blurred every edge over TWO pixels;
+    // clamp(0.5 - d/aa) is the correct 1-pixel box filter. Same change in ui_sdf_batch.fsh and
+    // club:club_shape_frag.glsl — they must agree or the versions diverge.
     float aa = max(fwidth(d), 1e-4);
     vec4 col; float cov;
     if (Mode == 1) {
-        float outer = 1.0 - smoothstep(-aa, aa, d);
-        float inner = 1.0 - smoothstep(-aa, aa, d + Thickness);
+        float outer = clamp(0.5 - d / aa, 0.0, 1.0);
+        float inner = clamp(0.5 - (d + Thickness) / aa, 0.0, 1.0);
         cov = clamp(outer - inner, 0.0, 1.0); col = vertexColor;
     } else if (Mode == 2) {
         float g = 1.0 - clamp(max(d, 0.0) / Feather, 0.0, 1.0);
@@ -35,9 +39,9 @@ void main() {
             ? (localPos.x + HalfSize.x) / (2.0 * HalfSize.x)
             : (localPos.y + HalfSize.y) / (2.0 * HalfSize.y);
         col = mix(vertexColor, ColorB, clamp(t, 0.0, 1.0));
-        cov = 1.0 - smoothstep(-aa, aa, d);
+        cov = clamp(0.5 - d / aa, 0.0, 1.0);
     } else {
-        col = vertexColor; cov = 1.0 - smoothstep(-aa, aa, d);
+        col = vertexColor; cov = clamp(0.5 - d / aa, 0.0, 1.0);
     }
     vec4 o = col * ColorModulator;
     o.a *= cov;
