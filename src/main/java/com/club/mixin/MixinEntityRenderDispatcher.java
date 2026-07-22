@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-//? if <1.21.8 {
+//? if <1.21.5 {
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.entity.EntityRenderDispatcher;
 import net.minecraft.entity.Entity;
@@ -41,20 +41,31 @@ import net.minecraft.client.render.entity.state.EntityHitboxAndView;*/
  * lives in a different place on each version, so the whole {@code @Mixin} + class is guarded per branch (like
  * {@code MixinBlockEntityRenderDispatcher}) rather than sharing a class declaration:
  *
- * <pre>{@code 1.21.1   EntityRenderDispatcher.renderHitbox(MatrixStack;VertexConsumer;Entity;FFFF)V   — colour is method args, drawBox via WorldRenderer
- * 1.21.8   EntityRenderDispatcher.renderHitboxes(MatrixStack;EntityHitboxAndView;VertexConsumer;F)V — colour is per-box EntityHitbox record fields, drawBox via VertexRendering
- * 1.21.11  EntityRenderDispatcher itself is GONE (renamed EntityRenderManager) and the hitbox draw MOVED to EntityHitboxDebugRenderer — Task 3}</pre>
+ * <pre>{@code <1.21.5      EntityRenderDispatcher.renderHitbox(MatrixStack;VertexConsumer;Entity;FFFF)V   — colour is method args, drawBox via WorldRenderer
+ * 1.21.5..1.21.10  EntityRenderDispatcher.renderHitboxes(MatrixStack;EntityHitboxAndView;VertexConsumer;F)V — colour is per-box EntityHitbox record fields, drawBox via VertexRendering
+ * >=1.21.11        EntityRenderDispatcher itself is GONE (renamed EntityRenderManager) and the hitbox draw MOVED to EntityHitboxDebugRenderer}</pre>
  *
- * <p><b>Why the 1.21.8 branch is {@code elif <1.21.11}, and why 1.21.11 gets NOTHING here.</b> This one
- * shared source file is COMPILED by all three version builds even though {@code club.mixins.json} only
- * registers it for 1.21.1 + 1.21.8. Measured against the 1.21.11 jar,
+ * <p><b>The first boundary is 1.21.5, not 1.21.8 — corrected 2026-07-22 when the 1.21.6 node was added.</b>
+ * It read {@code <1.21.8} from the day this file was written, which was harmless only because no node existed
+ * between 1.21.1 and 1.21.8: the branch was true over [1.21.1, 1.21.8) but ever compiled at just the one
+ * endpoint. Measured with javap against the named jars, {@code renderHitboxes} (render-state) is present from
+ * <b>1.21.5</b>, and {@code WorldRenderer.drawBox} — which the args body calls — has zero hits in 1.21.6. Left
+ * uncorrected, 1.21.6 would have taken the 1.21.1 body. Worse than a compile error: the args body's
+ * {@code @Inject(method = "renderHitbox")} is a BARE-NAME selector and 1.21.6 does have a {@code renderHitbox}
+ * (the 3-arg {@code (MatrixStack;VertexConsumer;EntityHitbox)}), so it would resolve, then fail the
+ * callback-signature check at class load, and {@code required:true} would stop the client from starting.
+ * javac cannot see that. Only the boundary can.
+ *
+ * <p><b>Why the render-state branch is {@code elif <1.21.11}, and why 1.21.11 gets NOTHING here.</b> This one
+ * shared source file is COMPILED by all four version builds even though {@code club.mixins.json} only
+ * registers it for 1.21.1 + 1.21.6 + 1.21.8. Measured against the 1.21.11 jar,
  * {@code net.minecraft.client.render.entity.EntityRenderDispatcher} does NOT exist (renamed
  * {@code EntityRenderManager}) and {@code EntityHitboxAndView} is gone. So both branches fall away on 1.21.11
  * and the file collapses to a bare {@code package} statement — a legal empty compilation unit that produces
  * no class, which is exactly right: 1.21.11 is not in this mixin's json list, and Task 3 adds
  * {@code MixinEntityHitboxDebugRenderer} for that version's GizmoDrawing path.
  */
-//? if <1.21.8 {
+//? if <1.21.5 {
 @Mixin(EntityRenderDispatcher.class)
 public class MixinEntityRenderDispatcher {
 

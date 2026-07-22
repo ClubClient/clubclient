@@ -18,14 +18,18 @@ import java.util.List;
  * drawn by vanilla's tooltip renderer — the Club backend is neither available nor appropriate here, and the
  * design-system's "no low-level render" rule ({@code ArchitectureRuleTest}) rightly does not reach it.</p>
  *
- * <h2>The version fork, all on ONE boundary (1.21.8), measured not guessed</h2>
+ * <h2>The version fork, all on ONE boundary — 1.21.2, corrected 2026-07-22</h2>
  * <ul>
- *   <li>{@code getHeight} gained a {@code TextRenderer} parameter at 1.21.8.</li>
- *   <li>{@code drawItems} gained {@code (width, height)} parameters at 1.21.8.</li>
- *   <li>The count/durability overlay was RENAMED {@code drawItemInSlot -> drawStackOverlay} at 1.21.8.</li>
+ *   <li>{@code getHeight} gained a {@code TextRenderer} parameter at 1.21.2.</li>
+ *   <li>{@code drawItems} gained {@code (width, height)} parameters at 1.21.2.</li>
+ *   <li>The count/durability overlay was RENAMED {@code drawItemInSlot -> drawStackOverlay} at 1.21.2.</li>
  * </ul>
+ * <p>This heading said 1.21.8 until the 1.21.6 node was added. It was never measured across the middle of the
+ * range — only at 1.21.1 (where the old branch was true) and at 1.21.8 (where it was false) — and both boundaries
+ * give the same answer at those two points, so nothing could catch it. Re-measured against the named jars, all
+ * three signatures actually changed at 1.21.2.</p>
  * <p>{@code getWidth(TextRenderer)}, {@code drawItem(stack, x, y)} and {@code fill(x,y,x,y,argb)} are identical
- * on all three, so they carry no {@code //?}.</p>
+ * on all four, so they carry no {@code //?}.</p>
  */
 public class ShulkerTooltipComponent implements TooltipComponent {
     /** Slots per row = a shulker's own width, so a full box reads as the familiar 9x3. */
@@ -56,16 +60,21 @@ public class ShulkerTooltipComponent implements TooltipComponent {
     private int cols() { return Math.max(1, Math.min(items.size(), COLS)); }
     private int rows() { return Math.max(1, (items.size() + COLS - 1) / COLS); }
 
-    // getWidth's signature is the SAME on all three versions (measured), so no fork.
+    // getWidth's signature is the SAME on all four versions (measured), so no fork.
     @Override public int getWidth(TextRenderer textRenderer) { return cols() * CELL; }
 
-    //? if <1.21.8 {
+    // The three forks below are cut at 1.21.2, not 1.21.8 — corrected 2026-07-22 with the 1.21.6 node.
+    // They read <1.21.8 originally, which was true over [1.21.1, 1.21.8) but only ever compiled at 1.21.1,
+    // so nothing caught it until a node landed inside the interval. Measured against the named jars, all
+    // three signatures changed at 1.21.2: getHeight gained a TextRenderer, drawItems gained width/height,
+    // and drawItemInSlot became drawStackOverlay. 1.21.6 takes the modern arities.
+    //? if <1.21.2 {
     @Override public int getHeight() { return rows() * CELL; }
     //?} else {
     /*@Override public int getHeight(TextRenderer textRenderer) { return rows() * CELL; }*/
     //?}
 
-    //? if <1.21.8 {
+    //? if <1.21.2 {
     @Override public void drawItems(TextRenderer textRenderer, int x, int y, DrawContext context) { paint(textRenderer, x, y, context); }
     //?} else {
     /*@Override public void drawItems(TextRenderer textRenderer, int x, int y, int width, int height, DrawContext context) { paint(textRenderer, x, y, context); }*/
@@ -86,7 +95,7 @@ public class ShulkerTooltipComponent implements TooltipComponent {
             ItemStack stack = items.get(i);
             int ix = cx + 1, iy = cy + 1;   // the 16px icon sits inside the 1px bevel
             context.drawItem(stack, ix, iy);
-            //? if <1.21.8 {
+            //? if <1.21.2 {
             context.drawItemInSlot(textRenderer, stack, ix, iy);
             //?} else {
             /*context.drawStackOverlay(textRenderer, stack, ix, iy);*/

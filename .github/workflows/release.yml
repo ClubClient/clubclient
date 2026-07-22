@@ -33,7 +33,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       # Stonecutter makes root `build` depend on every version node, so this one line builds all of them.
-      # Verified with `./gradlew build --dry-run`: :1.21.1:build, :1.21.8:build and :1.21.11:build all appear.
+      # Verified with `./gradlew build --dry-run`: :1.21.1:build, :1.21.6:build, :1.21.8:build and
+      # :1.21.11:build all appear. Nothing here names the versions — the node list lives in settings.gradle
+      # and this job counts whatever is there, so adding a node needs no edit to this file.
       - name: build
         run: ./gradlew build
 

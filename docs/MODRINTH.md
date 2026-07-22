@@ -4,7 +4,7 @@
 > **Summary** field. The images in `docs/gallery/` go in the **Gallery**; `01-hero.png` is the featured one.
 >
 > **Uploading a release is not one upload — it is one per Minecraft version.** See
-> [How to publish three versions in one update](#how-to-publish-three-versions-in-one-update) at the bottom.
+> [How to publish every version in one update](#how-to-publish-every-version-in-one-update) at the bottom.
 
 ---
 
@@ -18,8 +18,8 @@
 
 # Club
 
-A first-person utility client for Fabric — **1.21.1, 1.21.8 and 1.21.11**. Zoom, Fullbright, Freelook, a
-movable HUD, hand and animation controls — in one menu, without fighting the game underneath it.
+A first-person utility client for Fabric — **1.21.1, 1.21.6, 1.21.8 and 1.21.11**. Zoom, Fullbright, Freelook,
+a movable HUD, hand and animation controls — in one menu, without fighting the game underneath it.
 
 Same mod on every version. Same menu, same modules, same keybinds, same config.
 
@@ -118,7 +118,8 @@ a win — and prints that it refuses. We publish what we measured, in the scene 
 measured it.
 
 From **1.21.11** Minecraft culls particles itself, and better than we did — so Club stops doing it there. When
-the game does the work, we get out of the way.
+the game does the work, we get out of the way. On **1.21.1, 1.21.6 and 1.21.8** the particle cull is still
+Club's: vanilla only took that job over at 1.21.11.
 
 **What we did not build:** an entity culler. It existed, it measured −22%, and it was deleted — vanilla's
 visible-section list only holds sections that contain blocks, so a phantom in open sky belongs to none of them
@@ -135,6 +136,11 @@ Client-side only: Club works on any server and installs on none of them. Java 21
 **One jar per Minecraft version.** The file says which one it is (`club-0.1.5+mc1.21.8.jar`), and each jar
 refuses to load on anything else rather than half-working — a client that starts and then behaves strangely is
 worse than one that tells you it is the wrong download.
+
+**1.21.7, 1.21.9 and 1.21.10 are not covered, and that is a decision, not a gap.** Their mappings and Fabric
+API coordinates have never been measured here, and Club does not declare a version range it has never built
+against. If one of them matters to you, say so — measuring it is the work, and we would rather do the work than
+widen a range and hope.
 
 ## ⌨️ Controls
 
@@ -221,7 +227,7 @@ source is public: check any row of it.
 
 | Module | What it does | What goes to the server |
 |---|---|---|
-| **Background FPS** | Caps the frame rate while the game sits behind another window. Not in the 1.21.8 and 1.21.11 builds: Minecraft has done this itself since 1.21.2. | Nothing |
+| **Background FPS** | Caps the frame rate while the game sits behind another window. **1.21.1 only** — Minecraft has done this itself since 1.21.2, so it is absent from the 1.21.6, 1.21.8 and 1.21.11 builds. | Nothing |
 | **Shulker Tooltip** | Hover a shulker box (or any container item) to see its contents as a chest-slot grid, without placing and opening it. Reads what is already in the item; no packet. | Nothing |
 
 ---
@@ -240,43 +246,50 @@ License 1.1.
 ---
 ---
 
-# How to publish three versions in one update
+# How to publish every version in one update
 
-**Read this first: Modrinth has no "one upload, three Minecraft versions" for a mod like ours.** It offers one,
-and it is a trap — see *Why not one entry* below. Three jars means **three version entries**, created back to
-back. It takes about five minutes.
+**Read this first: Modrinth has no "one upload, many Minecraft versions" for a mod like ours.** It offers one,
+and it is a trap — see *Why not one entry* below. One jar per version means **one version entry per jar**,
+created back to back. It takes about five minutes.
+
+From 0.1.6 there are **four** of them, not three: 1.21.6 joined the set.
 
 The jars come from the GitHub release the tag builds, or from `versions/*/build/libs/` locally:
 
 ```
-club-0.1.5+mc1.21.1.jar
-club-0.1.5+mc1.21.8.jar
-club-0.1.5+mc1.21.11.jar
+club-0.1.6+mc1.21.1.jar
+club-0.1.6+mc1.21.6.jar
+club-0.1.6+mc1.21.8.jar
+club-0.1.6+mc1.21.11.jar
 ```
 
-## Do this three times — once per jar
+## Do this once per jar
 
 Modrinth → your project → **Versions** → **Create version**.
 
-| Field | 1.21.1 | 1.21.8 | 1.21.11 |
-|---|---|---|---|
-| **Version number** | `0.1.5+mc1.21.1` | `0.1.5+mc1.21.8` | `0.1.5+mc1.21.11` |
-| **Version name** | `Club 0.1.5 — MC 1.21.1` | `Club 0.1.5 — MC 1.21.8` | `Club 0.1.5 — MC 1.21.11` |
-| **Loaders** | Fabric | Fabric | Fabric |
-| **Game versions** | `1.21.1` **only** | `1.21.8` **only** | `1.21.11` **only** |
-| **File** | `club-0.1.5+mc1.21.1.jar` | `club-0.1.5+mc1.21.8.jar` | `club-0.1.5+mc1.21.11.jar` |
-| **Release channel** | Release | Release | Release |
-| **Changelog** | the same text in all three | ← | ← |
+| Field | 1.21.1 | 1.21.6 | 1.21.8 | 1.21.11 |
+|---|---|---|---|---|
+| **Version number** | `0.1.6+mc1.21.1` | `0.1.6+mc1.21.6` | `0.1.6+mc1.21.8` | `0.1.6+mc1.21.11` |
+| **Version name** | `Club 0.1.6 — MC 1.21.1` | `Club 0.1.6 — MC 1.21.6` | `Club 0.1.6 — MC 1.21.8` | `Club 0.1.6 — MC 1.21.11` |
+| **Loaders** | Fabric | Fabric | Fabric | Fabric |
+| **Game versions** | `1.21.1` **only** | `1.21.6` **only** | `1.21.8` **only** | `1.21.11` **only** |
+| **File** | `club-0.1.6+mc1.21.1.jar` | `club-0.1.6+mc1.21.6.jar` | `club-0.1.6+mc1.21.8.jar` | `club-0.1.6+mc1.21.11.jar` |
+| **Release channel** | Release | Release | Release | Release |
+| **Changelog** | the same text in all four | ← | ← | ← |
 
-The version number is already inside the jar (`fabric.mod.json` says `0.1.5+mc1.21.8`), so the field and the
+**Tick only the one version each entry names.** 1.21.7, 1.21.9 and 1.21.10 are never ticked: we have not built
+against them, and a game-version tag is a claim that we have.
+
+The version number is already inside the jar (`fabric.mod.json` says `0.1.6+mc1.21.8`), so the field and the
 artifact agree by construction — nothing to keep in sync by hand.
 
-**Changelog:** paste the `## v0.1.5` section of `docs/CHANGELOG.md`. Same text in all three entries — it is one
-release that happens to ship three files, and a player on 1.21.8 should read the same notes as one on 1.21.1.
+**Changelog:** paste the `## v0.1.6` section of `docs/CHANGELOG.md`. Same text in every entry — it is one
+release that happens to ship four files, and a player on 1.21.8 should read the same notes as one on 1.21.1.
 
-## Why not one entry with three game versions
+## Why not one entry with every game version
 
-Modrinth *will* let you tick 1.21.1, 1.21.8 and 1.21.11 on a single version and attach three files. Do not.
+Modrinth *will* let you tick 1.21.1, 1.21.6, 1.21.8 and 1.21.11 on a single version and attach four files.
+Do not.
 
 A version has **one primary file**. Launchers, the API and the big green Download button all take that one. A
 player on 1.21.8 would be handed the 1.21.1 jar, Fabric would refuse it, and the error would name **our mod** —
@@ -288,8 +301,8 @@ that runs on 1.21.11, and no others.
 
 ## Order, and the one thing that matters
 
-Upload **oldest first** (1.21.1 → 1.21.8 → 1.21.11). Modrinth sorts by publish time, so the newest Minecraft
-lands on top of the version list, which is where people look.
+Upload **oldest first** (1.21.1 → 1.21.6 → 1.21.8 → 1.21.11). Modrinth sorts by publish time, so the newest
+Minecraft lands on top of the version list, which is where people look.
 
 Nothing here is destructive and nothing is rushed: you can edit or delete a version entry after publishing,
 and the project page updates immediately.
@@ -300,6 +313,6 @@ Tell whoever is holding the tag. **The GitHub release is pushed after Modrinth, 
 announcement fires from the tag and links to Modrinth, so the link has to already work when the ping lands.
 
 The rest is automatic once the tag is pushed:
-- `release.yml` builds all three nodes, refuses to publish unless there are as many jars as version nodes,
-  attaches them, and pulls the release body out of `docs/CHANGELOG.md`.
+- `release.yml` builds every version node, refuses to publish unless there are as many jars as version nodes
+  (so adding 1.21.6 needed no edit there), attaches them, and pulls the release body out of `docs/CHANGELOG.md`.
 - Discord gets an `@everyone` announcement built from `.github/discord-release.md`.

@@ -7,22 +7,31 @@
 ## 1. Что это за проект
 
 **Club** — клиентский utility-мод для Minecraft на **Fabric**, **Java 21**. Пакет `com.club`, версия
-`0.1.4` (`gradle.properties`). Меню открывается на **Right Shift**.
+`0.1.6` (`gradle.properties`). Меню открывается на **Right Shift**.
 «Премиальный» first-person клиент: кастомные анимации/позиционирование рук, screen-stretch, зум/фрилук/
 фуллбрайт, стильный HUD на собственном холсте, перенос предметов жестами (Item Scroll).
 
-**Три версии Minecraft: 1.21.1, 1.21.8, 1.21.11** — один исходник, ноды Stonecutter в `versions/<v>/`,
-по джару на версию (`club-0.1.4+mc1.21.8.jar`). Каждый джар объявляет ровно свою версию и на другой не
-грузится. Подробности — `docs/superpowers/specs/2026-07-16-multiversion-design.md`, там же §4a: таблица
-ИЗМЕРЕННЫХ границ версий.
+**Четыре версии Minecraft: 1.21.1, 1.21.6, 1.21.8, 1.21.11** — один исходник, ноды Stonecutter в
+`versions/<v>/`, по джару на версию (`club-0.1.6+mc1.21.8.jar`). Каждый джар объявляет ровно свою версию
+и на другой не грузится. Подробности — `docs/superpowers/specs/2026-07-16-multiversion-design.md`, там же
+§4a: таблица ИЗМЕРЕННЫХ границ версий (+ аддендум от 2026-07-22 про ноду 1.21.6).
+
+**1.21.6 — нода 0.1.6-dev, НЕ выпущена** (нет тега, нет загрузки на Modrinth). Координаты — в
+`versions/1.21.6/gradle.properties`: yarn `1.21.6+build.1`, fabric-api `0.128.2+1.21.6`, диапазон
+`>=1.21.6 <1.21.7`. **1.21.7 / 1.21.9 / 1.21.10 НЕ покрыты сознательно** — их маппинги и координаты
+Fabric API не измерены, а диапазон, под который не собирали, — это как раз то число, которое здесь
+печатать нельзя.
 
 Два правила, которые дороже всего стоили:
 - **Границы версий ИЗМЕРЯТЬ, не угадывать.** Угадали `<1.21.2` — оказалось 1.21.5. Угадали `<1.21.6` для
   `enableScissor` — оказалось, 1.21.5 уже трансформирует, и клип вырезал всё меню. Всегда `javap` по джару.
 - **`javac` не видит НИЧЕГО из того, чем миксин привязан к цели** — имя, дескриптор, `@At`, модификаторы,
   тип возврата, `@Shadow`-поля, параметры `@Inject`-колбэка. Каждый из этих семи промахов стоил запуска
-  игры, пока не появился `tools/check-mixins.sh`. **Гонять его на всех трёх нодах перед тем, как просить
+  игры, пока не появился `tools/check-mixins.sh`. **Гонять его на всех четырёх нодах перед тем, как просить
   кого-то запустить.**
+- **Ветка Stonecutter достоверна только там, где её кто-то компилирует.** Интервал, внутри которого нет
+  ни одной ноды, — не проверен, а лишь не опровергнут: два предиката читались `<1.21.8` и оба оказались
+  срезаны не там, как только появилась нода 1.21.6 (см. §6 и аддендум спеки).
 
 **Это не чит-клиент.** Ни killaura, ни ESP, ни reach, ни X-ray — и не будет: PR с ними закрывается
 без обсуждения (§11).
@@ -59,13 +68,21 @@
 
 ## 3. Карта пакетов
 
-164 java-файла в `src/main/java/com/club`.
+198 java-файлов в `src/main/java/com/club`.
 
 ```
 com.club
 ├── ClubMod / ClubClient            — инициализация; кейбинд Right Shift → ui.menu.ClubMenuScreen;
 │                                     reload-листенер дуотон-иконок (PixelIcons); [SEAM:init]
 ├── config/ClubConfig               — модель настроек + load/save/migrate (Gson); ArmorLayout
+├── compat/  (10 файлов)            — ПОДОШВА многоверсионности: `Mtx`, `Equip`, `TextPipe`, `ShapePipe`,
+│                                     `IconPipe`, `Tex`, `Img`, `Cam`, `Kbd`, `HudCounters`. Почти все
+│                                     комментарии Stitcher (`//? if`) живут здесь и в `mixin/`
+├── combat/  (3 файла)              — Hitboxes: `HitboxModule` (карточка Combat), `HitboxState`
+│                                     (ширина линии, концентрические контуры), `HitboxColors` (палитра,
+│                                     16 свотчей). ТРИ разных пути рендера по версиям → §6
+├── tooltip/  (2 файла)             — Shulker Tooltip: `ShulkerTooltipComponent` (сетка ячеек-сундука,
+│                                     форки на границе 1.21.2) + `ShulkerTooltipData`
 ├── harness/                        — ТРИ ПРИБОРА (dev-only, включаются env-переменными)  → §7
 │   ├── ClubHarness                 — самоуправляемый клиент: асерты + скриншоты; [SEAM:checks]
 │   ├── ClubBench                   — A/B-бенч с чередованием ON/OFF; умеет сказать INVALID
@@ -93,6 +110,9 @@ com.club
 │   ├── fullbright/FullbrightModule — статик-зеркало гамма-оверрайда (READ-side, 15.0), scope = lightmap
 │   ├── togglesprint/               — авто-спринт (vanilla-toggle-safe) + HUD-чип SprintElement
 │   ├── freelook/FreelookModule     — hold-обзор камеры (перспектива+yaw/pitch, игрок не крутится)
+│   ├── totem/SmallTotem            — поп тотема меньше и поднят из центра экрана; вшит, карточки нет
+│   ├── particles/                  — категория Particles: все частицы игры по семи группам, гасятся
+│   │                                 на СПАВНЕ (`MixinParticleManagerVisibility`), не на рендере
 │   ├── binds/                      — ДВА пространства клавиш, воруют ключ друг у друга (одна физ.
 │   │   ├── ModuleBinds               клавиша = одно действие): toggle-бинды модулей (name→translationKey,
 │   │   │                             фронты в тике) …
@@ -122,7 +142,7 @@ com.club
 │   └── ServerPolicy                — таблица правил ЗАШИТА (правило в конфиге = обход нашими
 │                                     руками); чистое ядро host/lookup — таблица ПАРАМЕТР, оттого
 │                                     тестируемо при пустой боевой таблице; + адаптер allows()
-└── mixin/  (16 штук)               — §6
+└── mixin/  (21 класс в пакете; в джар версии едет НЕ весь пакет) — §6
 ```
 
 Ресурсы: `assets/club/ui/font/msdf` (MSDF-атлас текста), `assets/club/ui/icon/msdf/icons.{png,json}`
@@ -173,9 +193,33 @@ msdf_text, icon), `assets/club/lang/{en_us,ru_ru}.json`, `assets/club/icon.png`,
 - Секции: `hands`, `animations`, `zoom`, `toggleSprint`, `freelook`, `screenStretch`, `moduleBinds`,
   `itemScroll`, `perf`, `hud`, флаги `noHurtCam/noFireOverlay/noBobbing/fullbright`.
 
-## 6. Миксины (16) — и правило, которое надо знать ДО первого
+## 6. Миксины — и правило, которое надо знать ДО первого
 
-`src/main/resources/club.mixins.json`, все клиентские, `"required": true`, `defaultRequire: 1`.
+**Ростер СВОЙ на каждой версии** — это отдельный файл на ноду, а не один общий список. Пересчитано по
+файлам 2026-07-22:
+
+| Версия | Файл | Записей |
+|---|---|---|
+| 1.21.1 | `src/main/resources/club.mixins.json` | **19** |
+| 1.21.6 | `versions/1.21.6/src/main/resources/club.mixins.json` | **20** |
+| 1.21.8 | `versions/1.21.8/src/main/resources/club.mixins.json` | **20** |
+| 1.21.11 | `versions/1.21.11/src/main/resources/club.mixins.json` | **18** |
+
+Все клиентские, `"required": true`, `defaultRequire: 1`. Чем ростеры расходятся:
+
+- **1.21.6 и 1.21.8 совпадают запись в запись.** Отсюда простое правило приёмки 1.21.6: там, где 1.21.8
+  что-то умеет по части миксинов, 1.21.6 умеет то же самое.
+- **1.21.1** — единственный без `DrawContextStateAccessor`: до 1.21.5 `DrawContext` рисует, а не пишет
+  в `GuiRenderState`, и дверь в буфер записи там не нужна.
+- **1.21.11** — минус три (`WorldRendererAccessor`, `MixinParticleManager`,
+  `MixinEntityRenderDispatcher`) и плюс один (`MixinEntityHitboxDebugRenderer`): ваниль сама режет
+  частицы с 1.21.11, а отрисовка хитбоксов уехала из (переименованного) диспетчера в
+  `EntityHitboxDebugRenderer` поверх нового `GizmoDrawing`.
+- `MixinMinecraftClientFps` лежит во **всех четырёх** ростерах, но его тело — под `//? if <1.21.2`.
+  На 1.21.6 / 1.21.8 / 1.21.11 это пустая оболочка без инъекции, и `PerfMenu.backgroundFps()` не отдаёт
+  карточку. **Background FPS — фича только 1.21.1.**
+- **Частичный культ (`MixinParticleManager`) — НАШ на 1.21.1, 1.21.6 и 1.21.8.** Ваниль забрала эту
+  работу только в 1.21.11; 1.21.6 — по эту сторону границы.
 
 > ### `@Redirect` — ЭКСКЛЮЗИВНАЯ ЗАЯВКА. Не пиши его.
 >
@@ -204,11 +248,16 @@ msdf_text, icon), `assets/club/lang/{en_us,ru_ru}.json`, `assets/club/icon.png`,
 | `MixinLightmapTextureManager` | окно, В КОТОРОМ это разрешено: гамма подменяется только внутри lightmap, никогда при записи `options.txt` |
 | `MouseAccessor` | `cursorLocked` для закрытия меню (ловушка `Mouse.lockCursor`) |
 | `MixinHandledScreenAccessor` | **весь** мixin-след Item Scroll: `@Accessor`/`@Invoker`, ноль инъекций |
-| `MixinParticleManager` | `@WrapOperation` на `buildGeometry` → `ParticleCull` |
+| `MixinParticleManager` | `@WrapOperation` на `buildGeometry` → `ParticleCull`. **Нет на 1.21.11** |
+| `MixinParticleManagerVisibility` | категория Particles: скрытый тип гасится на СПАВНЕ (`addParticle`, HEAD+cancellable), а не на рендере — у построенной частицы уже нет её registry id |
 | `MixinBlockEntityRenderDispatcher` | `@Inject` на `render` → `BlockEntityCull` (переживает Sodium: тот меняет итерацию, но зовёт тот же диспетчер) |
 | `MixinWorldRendererFrustum` | забирает фрустум ГЛАВНОЙ камеры в момент его постройки (поле читать нельзя: Sodium его затеняет, Iris гоняет второй проход солнцем) |
-| `WorldRendererAccessor` | `regularEntityCount` — единственный счётчик, который не врёт (`blockEntityCount` в 1.21.1 — мёртвое поле) |
-| `MixinMinecraftClientFps` | `getFramerateLimit` → `BackgroundThrottle` |
+| `WorldRendererAccessor` | `regularEntityCount` — единственный счётчик, который не врёт (`blockEntityCount` в 1.21.1 — мёртвое поле). **Нет на 1.21.11** |
+| `MixinMinecraftClientFps` | `getFramerateLimit` → `BackgroundThrottle`. Тело под `//? if <1.21.2` — **живо только на 1.21.1** |
+| `MixinEntityRenderDispatcher` | стилизация ванильного F3+B: чистые линии, цвет из палитры, подсветка цели. **Две ветки: `<1.21.5`** (цвет — аргументы метода, `WorldRenderer.drawBox`) **и `elif <1.21.11`** (цвет — поля записи `EntityHitbox`, `VertexRendering`). Регистрируется на 1.21.1 / 1.21.6 / 1.21.8 |
+| `MixinEntityHitboxDebugRenderer` | близнец предыдущего **только для 1.21.11**: отрисовка хитбоксов уехала в `debug/EntityHitboxDebugRenderer` поверх нового immediate-API `GizmoDrawing` (`box`/`point`/`arrow`) |
+| `DrawContextStateAccessor` | единственная дверь в буфер записи GUI (`GuiRenderState`) для `compat/ShapePipe`; поле `private final` — публичного пути нет. **Нет на 1.21.1** |
+| `MixinItemStackShulkerTooltip` | Shulker Tooltip: обе половины на `ItemStack` — гасим ванильный текстовый список в `getTooltip` и отдаём свои данные компонента |
 
 ## 7. Приборы (это не тесты — это отдельные программы)
 
@@ -263,7 +312,7 @@ msdf_text, icon), `assets/club/lang/{en_us,ru_ru}.json`, `assets/club/icon.png`,
 | `ClubClient.java` | `[SEAM:init]` (`:96`) | одну строку `MyModule.init();` |
 | `ui/menu/MenuContent.java` | `[SEAM:cards]` (`:125`) | одну строку — фабрику карточки из своего пакета. **Больше в этом файле ничего** (меню заморожено) |
 | `harness/ClubHarness.java` | `[SEAM:checks]` (`:533`) | свой блок асертов, каждый в своём `step(...)` |
-| `resources/club.mixins.json` | массив `client` | имя миксина **в конец** |
+| `club.mixins.json` (**четыре файла**: `src/main/resources/` + `versions/{1.21.6,1.21.8,1.21.11}/src/main/resources/`) | массив `client` | имя миксина **в конец** — в КАЖДЫЙ ростер, где миксин должен жить (§6) |
 
 **Строка «почему модуль стоит» — без якоря вообще:** `ModuleNotices.register("My Module", () -> …)`
 из `init()` своего модуля. `MenuContent.notice()` не трогается. Саплаер зовётся каждый кадр открытого

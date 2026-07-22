@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.1.6 — in development
+
+Not released: no tag, nothing on Modrinth, no announcement. What is written here is in the source, not in
+anyone's `mods/` folder yet.
+
+**A fourth Minecraft version: 1.21.6.** Club builds 1.21.1, 1.21.6, 1.21.8 and 1.21.11 from one source —
+four jars, one per version. Same modules, same keybinds, same HUD, same menu, same config.
+
+- The 1.21.6 jar declares `>=1.21.6 <1.21.7` and nothing wider. **1.21.7, 1.21.9 and 1.21.10 stay uncovered
+  on purpose**: their mappings and Fabric API coordinates have never been measured here, and we do not claim
+  a range we have not built against.
+- **Background FPS is not in the 1.21.6 build either**, for the same reason it is missing from 1.21.8 and
+  1.21.11 — Minecraft caps its own frame rate behind another window from 1.21.2 on. It remains a 1.21.1-only
+  card.
+- **On 1.21.6 the particle cull is still ours.** Vanilla only took that job over at 1.21.11, so 1.21.6 sits on
+  the near side of the line, alongside 1.21.1 and 1.21.8.
+- Everything else — Shulker Tooltip, Small Totem, Low Shield, hitbox styling, Item Scroll — is present on
+  1.21.6 exactly as it is on 1.21.8.
+
+**Two version boundaries were found mis-cut while adding the node.** Entity hitboxes and the shulker tooltip
+both read `<1.21.8`, which was true but untested: no version node had ever existed between 1.21.1 and 1.21.8,
+so the branch was never compiled anywhere inside that interval. Measured against 1.21.6, the real boundaries
+are **1.21.5** and **1.21.2**. Left alone, the 1.21.6 build would have quietly taken the 1.21.1 body.
+
 ## v0.1.5
 
 **See inside a shulker box without opening it.** Hover one and its contents show as a little chest-slot grid —

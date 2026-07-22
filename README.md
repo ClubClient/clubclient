@@ -2,7 +2,8 @@
 
 # Club
 
-A clean, **flat** first-person utility client for Minecraft (Fabric **1.21.1**, **1.21.8** and **1.21.11**).
+A clean, **flat** first-person utility client for Minecraft (Fabric **1.21.1**, **1.21.8** and **1.21.11**;
+a **1.21.6** build is in development and ships with 0.1.6).
 Zoom, fullbright, freelook, item scrolling, a movable HUD, custom hands & attack animations, and per-module
 hotkeys — all behind one calm menu. No glass, no glow, no clutter.
 
@@ -88,7 +89,7 @@ a cheat" — it says the same word eighteen times.
 
 | Module | What it does | What goes to the server |
 |---|---|---|
-| **Background FPS** | Caps the frame rate while the game sits behind another window — your battery and your fans, zero in-game cost. Not in the 1.21.8 and 1.21.11 builds: Minecraft has done this itself since 1.21.2. | Nothing |
+| **Background FPS** | Caps the frame rate while the game sits behind another window — your battery and your fans, zero in-game cost. Only in the 1.21.1 build: Minecraft has done this itself since 1.21.2, so it is absent from 1.21.6, 1.21.8 and 1.21.11. | Nothing |
 | **Hide Effects** | Hides Minecraft's own potion icons. | Nothing |
 
 ### Where Club stands down
@@ -110,13 +111,14 @@ ourselves.
 Club skips drawing particles behind the camera, and block entities off-screen inside a section the game
 already decided was visible. Both are always on and baked in: they never change a pixel, so they were never
 dials worth tuning. On **1.21.11 the particle cull is gone** — the game does it itself now, and by a better
-test than ours.
+test than ours. On **1.21.1, 1.21.6 and 1.21.8 the particle cull is still ours**: vanilla only took the job
+over at 1.21.11, and 1.21.6 is on the near side of that line.
 
 Measured **on 1.21.1**, interleaved in one session on a fixed-seed scene: **−5.3%** frame time on a normal
 machine, **−8.1%** on a CPU-bound one. Where the **GPU** is your bottleneck our own benchmark refuses to claim
 a win, and prints that it refuses. Those numbers belong to that version and that scene and nowhere else — the
-1.21.8 and 1.21.11 builds have never been benched, and the 1.21.11 build no longer contains half of what was
-being measured. Run it yourself: `CLUB_BENCH=1 ./gradlew runClient`, report in [docs/bench/](docs/bench/).
+1.21.6, 1.21.8 and 1.21.11 builds have never been benched, and the 1.21.11 build no longer contains half of
+what was being measured. Run it yourself: `CLUB_BENCH=1 ./gradlew runClient`, report in [docs/bench/](docs/bench/).
 
 **Everything is keyboard-friendly**, and every toggleable module can be bound to its own **hotkey** from its
 settings popover.
@@ -137,14 +139,20 @@ settings popover.
 2. Download [Fabric API](https://modrinth.com/mod/fabric-api) for that same version and drop it in `mods/`.
 3. Get Club from [Modrinth](https://modrinth.com/mod/clubclient) or
    [Releases](https://github.com/ClubClient/clubclient/releases) — **one jar per Minecraft version**, named
-   for the one it is built against (`club-0.1.4+mc1.21.8.jar`). Drop it in `mods/`.
+   for the one it is built against (`club-0.1.5+mc1.21.8.jar`). Drop it in `mods/`.
 4. Launch. Press **Right Shift** to open the menu.
 
 Each jar declares the single Minecraft version it was built for and will not load on another. That is
 deliberate: a client that starts and then behaves strangely is worse than one that says you have the wrong
 download.
 
-**Requirements:** Minecraft 1.21.1 / 1.21.8 / 1.21.11 · Fabric Loader ≥ 0.15 · Fabric API · Java 21.
+A **1.21.6** jar is being built alongside these and is not published yet; it arrives with 0.1.6.
+
+**1.21.7, 1.21.9 and 1.21.10 are not covered, and that is a decision rather than a gap.** Their mappings and
+Fabric API coordinates have never been measured here, and this project does not declare a version range it has
+not built against — a jar that loads and then misbehaves is worse than one that is honestly absent.
+
+**Requirements:** Minecraft 1.21.1 / 1.21.8 / 1.21.11 (1.21.6 from 0.1.6) · Fabric Loader ≥ 0.15 · Fabric API · Java 21.
 **Compatible with:** Sodium, Iris (shaderpacks included), Freecam — the gallery images were shot with all
 three loaded at once.
 
@@ -171,10 +179,21 @@ Java 21 and an internet connection (for the first dependency fetch) are required
 Club ships its own instruments, and they are not tests — they are separate programs that drive a real client:
 
 ```bash
-CLUB_HARNESS=1 ./gradlew runClient --args="--quickPlaySingleplayer club-harness-world"  # 94 checks, 25 screenshots
+CLUB_HARNESS=1 ./gradlew ":1.21.6:runClient" --args="--quickPlaySingleplayer club-harness-world"  # 127/0, 35 shots
 CLUB_BENCH=1 ./gradlew runClient                                                        # ON/OFF interleaved, paired deltas
 ./gradlew runClient -PclubCompat -PclubIris                                             # Sodium + Iris + Freecam
 ```
+
+Name the version node (`:1.21.6:runClient`), do not run the bare task: with four Stonecutter nodes an unscoped
+`runClient` starts a client for every one of them at once, and they fight over the window focus — which reads as
+a broken feature rather than as a broken way of measuring. Each node also needs its own
+`versions/<v>/run/saves/club-harness-world`, or the client waits on the title screen forever for a world that is
+never loaded. Seed it from a LOWER version: Minecraft upgrades a world silently but stops on a modal dialog when
+asked to downgrade one, and a harness parked behind a dialog looks exactly like a harness that hung.
+
+The counts above are one measured run, not a constant: 1.21.6 asserted 127/0 and 1.21.8 126/0 on 2026-07-22, both
+with 35 screenshots. They differ because the harness only asserts what a version actually ships. Re-measure before
+quoting either.
 
 See [CONTRIBUTING.md](.github/CONTRIBUTING.md) before opening a pull request — there are six rules that will close
 one, and each was bought with a bug.

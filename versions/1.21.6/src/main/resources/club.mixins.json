@@ -1,0 +1,30 @@
+{
+  "required": true,
+  "package": "com.club.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "MixinGameRenderer",
+    "MixinInGameOverlayRenderer",
+    "MixinHeldItemRenderer",
+    "MixinLivingEntity",
+    "MixinCamera",
+    "MixinInGameHud",
+    "MixinLightmapTextureManager",
+    "MixinMouse",
+    "MixinSimpleOption",
+    "MouseAccessor",
+    "MixinHandledScreenAccessor",
+    "WorldRendererAccessor",
+    "MixinWorldRendererFrustum",
+    "MixinParticleManager",
+    "MixinParticleManagerVisibility",
+    "MixinBlockEntityRenderDispatcher",
+    "MixinEntityRenderDispatcher",
+    "MixinMinecraftClientFps",
+    "DrawContextStateAccessor",
+    "MixinItemStackShulkerTooltip"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
