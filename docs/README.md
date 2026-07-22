@@ -1,7 +1,7 @@
 # Club — docs
 
 Start with **[ARCHITECTURE.md](ARCHITECTURE.md)**. It is the only one you must read before touching code: it
-carries the build (three Minecraft versions, one source tree), the version seams, and the two rules that cost
+carries the build (four Minecraft versions, one source tree), the version seams, and the two rules that cost
 the most to learn.
 
 ## Living documents

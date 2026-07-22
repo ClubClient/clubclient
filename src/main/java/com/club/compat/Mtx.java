@@ -108,6 +108,7 @@ public final class Mtx {
      * <pre>{@code 1.21.1   ScreenRect.<init> -> ScissorStack.push                          (no matrix at all)
      * 1.21.2   ScreenRect.<init> -> ScissorStack.push                          (no matrix at all)
      * 1.21.5   ScreenRect.<init> -> matrices.peek().getPositionMatrix() -> transform(Matrix4f)
+     * 1.21.6   ScreenRect.<init> -> getfield matrices -> transform(Matrix3x2f)
      * 1.21.8   ScreenRect.<init> -> getfield matrices -> transform(Matrix3x2f)
      * 1.21.11  ScreenRect.<init> -> getfield matrices -> transform(Matrix3x2fc)}</pre>
      *
@@ -119,11 +120,16 @@ public final class Mtx {
      * prevent, one version bump later. Two unrelated changes, two different dates; only measurement separates
      * them.
      *
-     * <p><b>Where it sits, honestly.</b> Measured: 1.21.1 and 1.21.2 do not transform, 1.21.5, 1.21.8 and
-     * 1.21.11 do. The flip is therefore in 1.21.3..1.21.5, and {@code <1.21.5} is the condition that is right
-     * for every version measured. Club ships 1.21.1, 1.21.8 and 1.21.11, and all three are on the correct side
-     * of it whatever 1.21.3 and 1.21.4 turn out to do — but 1.21.3/1.21.4 are UNMEASURED, so anyone adding a
-     * node between them owes this line a javap before trusting it.
+     * <p><b>Where it sits, honestly.</b> Measured: 1.21.1 and 1.21.2 do not transform, 1.21.5, 1.21.6, 1.21.8
+     * and 1.21.11 do. The flip is therefore in 1.21.3..1.21.5, and {@code <1.21.5} is the condition that is
+     * right for every version measured. Club ships 1.21.1, 1.21.6, 1.21.8 and 1.21.11, and all four are on the
+     * correct side of it whatever 1.21.3 and 1.21.4 turn out to do — but 1.21.3/1.21.4 are UNMEASURED, so
+     * anyone adding a node between them owes this line a javap before trusting it.
+     *
+     * <p>That debt was paid for 1.21.6 on 2026-07-22 rather than assumed from its neighbours: the row above is
+     * a fresh {@code javap -c} of {@code DrawContext.enableScissor} on the 1.21.6 jar, not an interpolation
+     * between 1.21.5 and 1.21.8. Sitting between two measured versions is not the same as being measured — the
+     * five predicates corrected the same day all sat between two measured versions too.
      *
      * <p>Club's menu draws through a matrix scaled by {@code canvasK} and ALSO passed {@code canvasK} as
      * {@code unitK}. So on 1.21.6+ the hand conversion and vanilla's own transform both fired: the clip landed

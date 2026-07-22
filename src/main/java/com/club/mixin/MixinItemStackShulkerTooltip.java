@@ -21,13 +21,13 @@ import java.util.Optional;
  * <h2>Two halves, both here on ItemStack</h2>
  *
  * <ul>
- *   <li><b>The grid</b> — {@code getTooltipData()} is {@code Optional<TooltipData>} on all three versions, so
+ *   <li><b>The grid</b> — {@code getTooltipData()} is {@code Optional<TooltipData>} on all four versions, so
  *       filling its empty Optional with our {@link ShulkerTooltipData} is version-agnostic. The render half
  *       (forked at 1.21.8) lives in {@code com.club.tooltip.ShulkerTooltipComponent}, and a Fabric
  *       {@code TooltipComponentCallback} maps the data to it (registered in {@code ClubClient}). It first
  *       shipped as vanilla's {@code BundleTooltipData}, but that dragged in the bundle chrome — dark cells, a
  *       fill bar, a "Full" label — so it draws its own chest grid now.</li>
- *   <li><b>The text</b> — {@code getTooltip()} (same signature on all three) returns EMPTY whenever the grid
+ *   <li><b>The text</b> — {@code getTooltip()} (same signature on all four) returns EMPTY whenever the grid
  *       shows, dropping the item name and the vanilla contents list in one hook. This replaced two forked
  *       appendTooltip mixins (the contents line came from {@code ShulkerBoxBlock} on 1.21.1 and
  *       {@code ContainerComponent} on 1.21.2+); clearing the whole return needs neither split.</li>

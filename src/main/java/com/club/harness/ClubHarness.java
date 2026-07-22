@@ -453,7 +453,7 @@ public final class ClubHarness {
             // instrument produced rather than round-tripped through the owner's eye. Draws our tooltip on a
             // blank screen; drawItemTooltip runs getTooltipData -> our data -> callback -> our component, so
             // the shot is the whole thing: panel, slots, icons, counts and the tooltip frame around them.
-            // Screen.render and drawItemTooltip are byte-identical on all three versions (measured), no //?.
+            // Screen.render and drawItemTooltip are byte-identical on all four versions (measured), no //?.
             step(2, () -> {
                 net.minecraft.item.ItemStack box = new net.minecraft.item.ItemStack(net.minecraft.item.Items.SHULKER_BOX);
                 box.set(net.minecraft.component.DataComponentTypes.CONTAINER,

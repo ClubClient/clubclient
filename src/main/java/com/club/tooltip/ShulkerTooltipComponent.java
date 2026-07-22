@@ -39,7 +39,7 @@ public class ShulkerTooltipComponent implements TooltipComponent {
 
     // The vanilla container slot, so the grid reads as a chest's own inventory (owner: "take the chest menu")
     // rather than icons floating on the dark tooltip. A recessed cell: dark top-left, light bottom-right, grey
-    // face — the three greys the GUI uses, drawn with DrawContext.fill (identical on all three, so no //?).
+    // face — the three greys the GUI uses, drawn with DrawContext.fill (identical on all four, so no //?).
     private static final int SLOT_SHADOW = 0xFF373737;   // top + left edge
     private static final int SLOT_LIGHT  = 0xFFFFFFFF;   // bottom + right edge
     private static final int SLOT_FACE   = 0xFF8B8B8B;   // interior

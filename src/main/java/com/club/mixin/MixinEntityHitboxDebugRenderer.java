@@ -41,7 +41,7 @@ import net.minecraft.world.debug.gizmo.GizmoDrawing;*/
  * to vanilla by the cancel-vs-return branch.
  *
  * <p><b>Guarded to 1.21.11 only.</b> {@code EntityHitboxDebugRenderer}, {@code GizmoDrawing} and
- * {@code DrawStyle} exist only from 1.21.11, and this one source file is compiled by all three version builds,
+ * {@code DrawStyle} exist only from 1.21.11, and this one source file is compiled by all four version builds,
  * so the whole {@code @Mixin} + class + its version-specific imports live inside a {@code //? if >=1.21.11}
  * block (mirroring {@code MixinBlockEntityRenderDispatcher} / {@code DrawContextStateAccessor}). On
  * 1.21.1 / 1.21.8 the block falls away and the file collapses to a bare {@code package} statement — a legal

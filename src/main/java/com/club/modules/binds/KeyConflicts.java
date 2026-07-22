@@ -68,9 +68,9 @@ public final class KeyConflicts {
 
     /**
      * The path vanilla's own {@code Language.create()} reads to build the default language. Measured, not
-     * assumed: {@code javap -c net/minecraft/util/Language} in 1.21.1, 1.21.8 and 1.21.11 all show
+     * assumed: {@code javap -c net/minecraft/util/Language} in 1.21.1, 1.21.6, 1.21.8 and 1.21.11 all show
      * {@code ldc "/assets/minecraft/lang/en_us.json"} followed by {@code Class.getResourceAsStream}. The file
-     * ships INSIDE the client jar in all three (434 KB / 468 KB / 493 KB), and it is the fallback every
+     * ships INSIDE the client jar in all four (434 / 468 / 468 / 493 KB, re-measured 2026-07-22), and it is the fallback every
      * untranslated string in the game resolves through — so if this resource were ever missing or moved, the
      * game would not reach our code to care.
      */

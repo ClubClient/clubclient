@@ -193,7 +193,7 @@ public final class ClubMenuScreen extends Screen {
     // It is GEOMETRY, not a cross-fade, and that is a deliberate, measured choice: text never rides
     // pushOpacity on ANY backend (Label.java says so; on ≥1.21.5 Ui.text() is hard-wired to a separate path,
     // and LegacyBackend.pushOpacity is literally a no-op) — so an alpha fade would silently fade the tracks
-    // and swatches while every label snapped. A slide reads identically on all three versions and in the
+    // and swatches while every label snapped. A slide reads identically on all four versions and in the
     // shader-failure fallback. Shapes DO take the opacity ramp, which is honest extra polish, not the effect.
     //
     // It is seeded ONLY on a genuinely new module: RMB on the module already shown returns at selectModule's
