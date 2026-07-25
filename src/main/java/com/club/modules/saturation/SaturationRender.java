@@ -1,15 +1,21 @@
 package com.club.modules.saturation;
 
 import com.club.mixin.MixinHungerManagerAccessor;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.entity.player.HungerManager;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 
 /**
- * Draws AppleSkin's food/hunger information onto the vanilla food and health bars — the SATURATION reserve,
- * the ghost preview of what a held food would restore, and the single-player exhaustion line.
+ * Draws AppleSkin's food/hunger information onto the vanilla food and health bars — the SATURATION reserve
+ * and the ghost preview of what a held food would restore.
+ *
+ * <p><b>No exhaustion line.</b> AppleSkin also draws an exhaustion bar, but vanilla never syncs exhaustion to
+ * a remote client (only single-player has the real value), so it could only ever be honest in single-player.
+ * Rather than a feature that appears and vanishes with the connection, it was removed outright (owner call):
+ * the module now behaves the same everywhere. The one remaining reader of exhaustion is the health-regen
+ * estimate below, where it is one input among health/food/saturation and degrades gracefully to ~0 on a
+ * server — an approximation, not a bar that reads silently empty.</p>
  *
  * <p><b>Flat by choice, not by limitation.</b> AppleSkin ships its own pixel-art icon sheet; Club's design is
  * frozen flat-dark, and copying another mod's texture is a licence question besides. So the behaviour is
@@ -30,7 +36,6 @@ public final class SaturationRender {
     // Flat palette. Saturation reserve reads as a light film over the food it backs; the restore preview uses
     // Club's flat accent (#7CABFF) so it is unmistakably "what you would gain", not "what you have".
     private static final int SATURATION_ARGB = 0x8CFFFFFF;   // white, ~55% — the reserve line
-    private static final int EXHAUSTION_ARGB = 0x593C3C3C;   // faint dark — the receding exhaustion bar
     private static final int ACCENT_RGB      = 0x7CABFF;      // Club accent, alpha added per-frame (flash)
 
     /**
@@ -56,16 +61,6 @@ public final class SaturationRender {
             int fillFrom = right - Math.round(clamp01(restored / 20f) * ROW_W);
             int fillTo   = right - Math.round(clamp01(food / 20f) * ROW_W);
             if (fillTo > fillFrom) ctx.fill(fillFrom, y, fillTo, y + ICON_H, flashAccent(player));
-        }
-
-        // 3. Exhaustion — a receding faint bar, ONLY where the value is real (integrated server). Vanilla never
-        //    syncs exhaustion to a remote client, so on someone else's server this would always read empty; a
-        //    bar that is silently empty is a lie, so it is simply not drawn there.
-        if (isDataAuthoritative()) {
-            float exhaustion = exhaustionOf(hunger);
-            float ratio = clamp01(exhaustion / 4.0f);
-            int w = Math.round(ratio * ROW_W);
-            if (w > 0) ctx.fill(right - w, y, right, y + 1, EXHAUSTION_ARGB);
         }
     }
 
@@ -108,12 +103,6 @@ public final class SaturationRender {
         if (player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.WITHER)) return false;
         if (player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.REGENERATION)) return false;
         return true;
-    }
-
-    /** Exhaustion is only truthful on an integrated server (single-player) — see MixinHungerManagerAccessor. */
-    private static boolean isDataAuthoritative() {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        return mc != null && mc.getServer() != null;
     }
 
     private static float exhaustionOf(HungerManager hunger) {

@@ -17,10 +17,14 @@ import org.spongepowered.asm.mixin.gen.Accessor;
  * <p><b>The honest limit this cannot fix.</b> Reading the field is not the same as the field being true.
  * Vanilla never SYNCS exhaustion to a remote client ({@code HealthUpdateS2CPacket} carries only health, food
  * and saturation), so on a multiplayer server this reads ~0 regardless of the player's real exhaustion.
- * AppleSkin only shows a truthful exhaustion bar because it ships a server-side companion that pushes the
- * value. Club is client-only, so {@link com.club.modules.saturation.SaturationRender} draws the exhaustion
- * line ONLY when an integrated server is running (single-player), where the field is authoritative — never a
- * bar that is silently empty on someone else's server.
+ * AppleSkin only shows a truthful exhaustion display because it ships a server-side companion that pushes the
+ * value; Club is client-only.
+ *
+ * <p>Because of that limit, the module draws <b>no exhaustion line</b> (it could only ever be honest in
+ * single-player, and a feature that appears and vanishes with the connection was judged worse than none). The
+ * sole remaining reader is {@link com.club.modules.saturation.FoodHelper#estimatedHealthIncrement}, the
+ * health-regen preview, where exhaustion is one input among health/food/saturation and degrades to ~0 on a
+ * server — an approximation, exactly as AppleSkin's own preview behaves without its companion.
  */
 @Mixin(HungerManager.class)
 public interface MixinHungerManagerAccessor {

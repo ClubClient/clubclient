@@ -18,8 +18,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *   <li><b>Hide the vanilla status-effect overlay</b> while Club's Potion HUD is drawing (gated on
  *       {@code hud.potions}).</li>
  *   <li><b>Saturation module</b> (AppleSkin-style): after vanilla has drawn the food and health bars, overlay
- *       the hidden saturation reserve, a held-food restore preview, and — single-player only — the exhaustion
- *       line. Gated on {@code saturation}; off means the bars are never touched.</li>
+ *       the hidden saturation reserve and a held-food restore preview. Gated on {@code saturation}; off means
+ *       the bars are never touched.</li>
  * </ol>
  *
  * <p>Both {@code renderFood} and {@code renderHealthBar} were measured to have one identical descriptor across

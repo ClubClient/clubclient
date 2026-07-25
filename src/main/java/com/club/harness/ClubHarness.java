@@ -709,7 +709,7 @@ public final class ClubHarness {
             // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
 
             // ===== SATURATION (AppleSkin) — logic floor + tooltip gating, both version-agnostic =====
-            // The bars themselves (saturation reserve, food/health ghost, exhaustion) render onto the vanilla
+            // The bars themselves (saturation reserve, food/health ghost) render onto the vanilla
             // HUD and their LOOK is the owner's eye (criterion 5). What the instrument CAN pin is the data
             // behind them and the module gate on the one feature that runs through a real registered event —
             // the food tooltip. FQNs, self-contained, the harness style.
