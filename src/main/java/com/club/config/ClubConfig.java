@@ -20,7 +20,7 @@ public class ClubConfig {
     private static ClubConfig INSTANCE;
     private static transient Path path;
 
-    public int version = 14; // bumped when new fields are added, for migration
+    public int version = 15; // bumped when new fields are added, for migration
 
     // --- module sections ---
     public Hands hands = new Hands();
@@ -36,6 +36,10 @@ public class ClubConfig {
     // Low Shield is NOT here on purpose (owner: "как и щит… вшита внутрь и всегда включена"). Like the perf
     // culls, it is baked into the renderer with no toggle and no setting — see com.club.mixin.MixinHeldItemRenderer.
     public boolean fullbright = false; // gamma READ override (15.0) — off by default, mirrored in FullbrightModule
+    // Saturation (AppleSkin-style): surfaces the hidden saturation/food-restore state on the vanilla food &
+    // health bars, plus food values in item tooltips. OFF by default — it reveals state the game hides, so it
+    // is opt-in like fullbright, never turned on behind the player's back. Read directly by MixinInGameHud.
+    public boolean saturation = false;
     // Per-module toggle keybinds (Stage 43): module name → InputUtil translation key ("key.keyboard.r").
     // Bound from each module's popover; fired by ModuleBinds on key edges while no screen is open.
     public java.util.Map<String, String> moduleBinds = new java.util.HashMap<>();
@@ -495,6 +499,14 @@ public class ClubConfig {
             // v13 file that lacks the key deserializes to 1.0 with nothing to carry over. This step only keeps
             // `version` honest about the schema (line 23); sanitize() clamps any hand-edited value into [1,4].
             version = 14;
+            changed = true;
+        }
+        if (version < 15) {
+            // Saturation module (v0.1.6) ships OFF — its boolean initializer is already `false`, so a v14 file
+            // that lacks the "saturation" key loads with the right value and nothing to carry over. This step
+            // only keeps `version` honest about the schema (line 23), the one place a future safety-net default
+            // would go.
+            version = 15;
             changed = true;
         }
         if (changed) save();

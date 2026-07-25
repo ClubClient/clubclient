@@ -135,7 +135,8 @@ public final class MenuContent {
                 fullbright(c),
                 flag("No Hurt Cam",     "Removes the red damage screen tilt.",       IconGlyph.NO_HURT_CAM, () -> c.noHurtCam,     v -> { c.noHurtCam = v; save(); }),
                 flag("No Fire Overlay", "Hides the first-person flames while burning.", IconGlyph.NO_FIRE_OVERLAY, () -> c.noFireOverlay, v -> { c.noFireOverlay = v; save(); }),
-                flag("No Bobbing",      "Stops the view bobbing as you walk.",        IconGlyph.NO_BOBBING, () -> c.noBobbing,     v -> { c.noBobbing = v; save(); }))),
+                flag("No Bobbing",      "Stops the view bobbing as you walk.",        IconGlyph.NO_BOBBING, () -> c.noBobbing,     v -> { c.noBobbing = v; save(); }),
+                flag("Saturation",      "Shows saturation, food-restore preview and food values, like AppleSkin.", IconGlyph.FX_HUNGER, () -> c.saturation, v -> { c.saturation = v; save(); }))),
             // cards(), not List.of(): Freelook's factory returns null where the server forbids it, and
             // List.of() throws on a null element — which would take the whole menu down with it.
             new Category("Player", IconGlyph.PLAYER, cards(

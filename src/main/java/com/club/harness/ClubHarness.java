@@ -708,6 +708,64 @@ public final class ClubHarness {
 
             // [SEAM:checks] New workstreams add their assert blocks here, each in its own step(...).
 
+            // ===== SATURATION (AppleSkin) — logic floor + tooltip gating, both version-agnostic =====
+            // The bars themselves (saturation reserve, food/health ghost, exhaustion) render onto the vanilla
+            // HUD and their LOOK is the owner's eye (criterion 5). What the instrument CAN pin is the data
+            // behind them and the module gate on the one feature that runs through a real registered event —
+            // the food tooltip. FQNs, self-contained, the harness style.
+            step(2, () -> {
+                report.add("== saturation (AppleSkin) ==");
+                boolean prevSat = cfg.saturation;
+
+                net.minecraft.item.ItemStack beef = new net.minecraft.item.ItemStack(net.minecraft.item.Items.COOKED_BEEF);
+                net.minecraft.item.ItemStack stone = new net.minecraft.item.ItemStack(net.minecraft.item.Items.STONE);
+                check("saturation: cooked beef is detected as food", com.club.modules.saturation.FoodHelper.isFood(beef));
+                check("saturation: it reports a positive hunger value", com.club.modules.saturation.FoodHelper.nutrition(beef) > 0);
+                check("saturation: a stone is not food", !com.club.modules.saturation.FoodHelper.isFood(stone));
+
+                // Regen estimate is pure, so fixed inputs pin a fixed shape (the ghost-hearts number).
+                check("saturation: no regen preview below food 18",
+                        com.club.modules.saturation.FoodHelper.estimatedHealthIncrement(17, 17f, 0f, 10f, 20f) == 0f);
+                check("saturation: fed and hurt previews some heal",
+                        com.club.modules.saturation.FoodHelper.estimatedHealthIncrement(20, 20f, 0f, 4f, 20f) > 0f);
+
+                // The food tooltip runs through the REAL registered ItemTooltipCallback — invoke it and prove
+                // the module gates it. TooltipContext.DEFAULT / TooltipType.BASIC were measured stable on all four.
+                cfg.saturation = true;
+                java.util.List<net.minecraft.text.Text> onLines = new java.util.ArrayList<>();
+                net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback.EVENT.invoker().getTooltip(
+                        beef, net.minecraft.item.Item.TooltipContext.DEFAULT, net.minecraft.item.tooltip.TooltipType.BASIC, onLines);
+                check("saturation: ON, a food tooltip gains a values line", onLines.size() >= 1);
+
+                java.util.List<net.minecraft.text.Text> stoneLines = new java.util.ArrayList<>();
+                net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback.EVENT.invoker().getTooltip(
+                        stone, net.minecraft.item.Item.TooltipContext.DEFAULT, net.minecraft.item.tooltip.TooltipType.BASIC, stoneLines);
+                check("saturation: a non-food tooltip is untouched even when ON", stoneLines.isEmpty());
+
+                cfg.saturation = false;
+                java.util.List<net.minecraft.text.Text> offLines = new java.util.ArrayList<>();
+                net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback.EVENT.invoker().getTooltip(
+                        beef, net.minecraft.item.Item.TooltipContext.DEFAULT, net.minecraft.item.tooltip.TooltipType.BASIC, offLines);
+                check("saturation: OFF, the food tooltip is untouched", offLines.isEmpty());
+
+                cfg.saturation = prevSat;
+            });
+
+            // A REAL tooltip render pass, screenshotted — the food line is drawn by the same registered event,
+            // so the shot is the actual feature, not a mock. drawItemTooltip is byte-identical on all four.
+            step(2, () -> {
+                cfg.saturation = true;
+                net.minecraft.item.ItemStack beef = new net.minecraft.item.ItemStack(net.minecraft.item.Items.COOKED_BEEF);
+                mc.setScreen(new net.minecraft.client.gui.screen.Screen(net.minecraft.text.Text.empty()) {
+                    @Override public void render(net.minecraft.client.gui.DrawContext ctx, int mx, int my, float delta) {
+                        super.render(ctx, mx, my, delta);
+                        ctx.drawItemTooltip(mc.textRenderer, beef, 90, 70);
+                    }
+                });
+            });
+            step(2, () -> shot("saturation-food-tooltip"));
+            step(0, () -> { mc.setScreen(null); cfg.saturation = false; });
+
             // ===== RESET RESTORES SETTINGS, IT DOES NOT FLIP THE MODULE =====
             // The owner's bug (T2): turn Hitboxes on, open its panel, press "Reset to default" — and the module
             // switched itself OFF, because 10 of 13 reset bodies wrote `enabled`. A reset button lives inside
@@ -839,7 +897,10 @@ public final class ClubHarness {
                                 && d.colorB == com.club.combat.HitboxColors.WHITE);
                 check("hitboxes: default line width is 1.0 (the vanilla-look no-op default)",
                         d.lineWidth == 1.0f);
-                check("hitboxes: the config schema version is bumped to 14", new ClubConfig().version == 14);
+                // Pins the CURRENT schema head — bumped to 15 by the Saturation module (v0.1.6). A fresh
+                // config always carries the latest version so migrate() runs on nothing.
+                check("config: the schema version head is 15 (Saturation is the latest field)",
+                        new ClubConfig().version == 15);
             });
 
             // ===== HITBOXES — the module has a card, and it sits in Combat =====

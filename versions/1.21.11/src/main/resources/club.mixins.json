@@ -20,6 +20,7 @@
     "MixinEntityHitboxDebugRenderer",
     "MixinMinecraftClientFps",
     "DrawContextStateAccessor",
+    "MixinHungerManagerAccessor",
     "MixinItemStackShulkerTooltip"
   ],
   "injectors": {

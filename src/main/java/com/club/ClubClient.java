@@ -141,6 +141,20 @@ public class ClubClient implements ClientModInitializer {
                         ? new com.club.tooltip.ShulkerTooltipComponent(shulker.items())
                         : null);
 
+        // Saturation module — the food-values half. AppleSkin appends the hunger/saturation a food restores to
+        // its tooltip; Club does it as one muted English line (flat, no icon sheet to copy). ItemTooltipCallback
+        // was measured to carry ONE identical signature across all four versions (fabric-item-api-v1), so no
+        // split. Gated on the module: off means the tooltip is vanilla. The values come from FoodHelper, which
+        // reads the FOOD component present on every version.
+        net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback.EVENT.register((stack, ctx, type, lines) -> {
+            if (!ClubConfig.get().saturation || !com.club.modules.saturation.FoodHelper.isFood(stack)) return;
+            int hunger = com.club.modules.saturation.FoodHelper.nutrition(stack);
+            float sat = com.club.modules.saturation.FoodHelper.saturationIncrement(stack);
+            lines.add(net.minecraft.text.Text.literal(
+                    "Hunger +" + hunger + "   Saturation +" + String.format(java.util.Locale.ROOT, "%.1f", sat))
+                    .formatted(net.minecraft.util.Formatting.GRAY));
+        });
+
         // config writes are async (Stage 30) — drain the writer before the JVM goes down
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ClubConfig.close());
 

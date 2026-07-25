@@ -21,6 +21,7 @@
     "MixinBlockEntityRenderDispatcher",
     "MixinEntityRenderDispatcher",
     "MixinMinecraftClientFps",
+    "MixinHungerManagerAccessor",
     "MixinItemStackShulkerTooltip"
   ],
   "injectors": {
