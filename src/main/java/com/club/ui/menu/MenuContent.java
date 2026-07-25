@@ -135,8 +135,7 @@ public final class MenuContent {
                 fullbright(c),
                 flag("No Hurt Cam",     "Removes the red damage screen tilt.",       IconGlyph.NO_HURT_CAM, () -> c.noHurtCam,     v -> { c.noHurtCam = v; save(); }),
                 flag("No Fire Overlay", "Hides the first-person flames while burning.", IconGlyph.NO_FIRE_OVERLAY, () -> c.noFireOverlay, v -> { c.noFireOverlay = v; save(); }),
-                flag("No Bobbing",      "Stops the view bobbing as you walk.",        IconGlyph.NO_BOBBING, () -> c.noBobbing,     v -> { c.noBobbing = v; save(); }),
-                flag("Saturation",      "Shows saturation, food-restore preview and food values, like AppleSkin.", IconGlyph.FX_HUNGER, () -> c.saturation, v -> { c.saturation = v; save(); }))),
+                flag("No Bobbing",      "Stops the view bobbing as you walk.",        IconGlyph.NO_BOBBING, () -> c.noBobbing,     v -> { c.noBobbing = v; save(); }))),
             // cards(), not List.of(): Freelook's factory returns null where the server forbids it, and
             // List.of() throws on a null element — which would take the whole menu down with it.
             new Category("Player", IconGlyph.PLAYER, cards(
@@ -165,7 +164,8 @@ public final class MenuContent {
                 com.club.modules.perf.PerfMenu.backgroundFps(),
                 // Hiding the vanilla effect overlay behind our own is baked in now (owner: "always on, drop the
                 // card") — see MixinInGameHud, which gates on hud.potions alone.
-                flag("Shulker Tooltip", "Hover a shulker box to see what's inside it.", IconGlyph.SHULKER_TOOLTIP, () -> c.shulkerTooltip, v -> { c.shulkerTooltip = v; save(); })))
+                flag("Shulker Tooltip", "Hover a shulker box to see what's inside it.", IconGlyph.SHULKER_TOOLTIP, () -> c.shulkerTooltip, v -> { c.shulkerTooltip = v; save(); }),
+                flag("Saturation",      "Shows saturation, food-restore preview and food values, like AppleSkin.", IconGlyph.SATURATION, () -> c.saturation, v -> { c.saturation = v; save(); })))
         );
     }
 

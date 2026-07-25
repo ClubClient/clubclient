@@ -54,6 +54,8 @@ public enum IconGlyph {
     BACKGROUND_FPS(0xE022),
     SHULKER_TOOLTIP(0xE023),
     HIT_DISTANCE(0xE024),
+    /** Saturation module (AppleSkin-style food info) — an apple, distinct from the hunger-EFFECT drumstick. */
+    SATURATION(0xE025),
     /** Hitboxes module — reuses the box-outline glyph (0xE01F, the block-entities chest) rather than shipping
      *  a new SDF asset: a hitbox is literally a box outline, and that codepoint is drawn on no live card. */
     HITBOXES(0xE01F),
