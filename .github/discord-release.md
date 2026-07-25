@@ -1,16 +1,20 @@
-**See inside a shulker** 📦
-Hover a shulker box and its contents show as a chest-slot grid — the real items and their counts — without placing and opening it. Prefer the plain text list? Turn it off in Misc.
+**Saturation** 🍗
+An AppleSkin-style read on food and hunger — your saturation drawn over the hunger bar, and a preview of the hunger, saturation and hearts a piece of food restores, before you eat it. New module in Misc, off by default. It reads client-side values only, so it works the same on any server.
 
-**Small Totem & Low Shield** ⚔️
-The totem-of-undying pop is smaller and lifted out of the centre of your screen; a raised shield drops low instead of covering half your view. Both always on, drawing-only — the block and the totem work exactly as the game intends.
+**Hitboxes** 📦
+Vanilla's F3+B, cleaned up: one clean outline instead of the white-box-and-two-lines clutter, coloured from the palette, line width your choice. It restyles the game's own boxes — no reach, no ESP, never through a wall.
 
-**Freelook turns itself off on Astrum** 🛡️
-Astrum bans Perspective Mod, and Freelook *is* Perspective Mod under our name. On Astrum it is simply gone — no card, no key. On Aormio it stays: their rules never named it. One jar, no switch to flip.
+**Hit Distance** 🎯
+A HUD readout of how far away your last hit landed — in blocks, held for ten seconds, gone until you hit again. What you did, not a rangefinder on what you might do.
 
-**A slimmer, quieter HUD** 📊
-The Target chip is about a sixth smaller — same HP, name and health bar, less bulk. The sprint pill is a touch more transparent, the FPS readout a touch brighter, and hiding the vanilla effect icons behind Club's is automatic now.
+**A new settings panel** 🎛️
+Right-click a module and its settings open in a slim panel down the side instead of shoving the card grid around. Left-click toggles, right-click configures. Square cards, palette swatches, and a Reset that finally leaves your on/off switches alone.
 
-• 📦 Shulker Tooltip — see inside without opening
-• ⚔️ Small Totem + Low Shield — baked in, always on
-• 🛡️ Freelook off on Astrum (Perspective Mod), stays on Aormio
-• 📊 Slimmer Target, quieter chips
+**A fourth Minecraft version: 1.21.6** 🧩
+One source, four jars — 1.21.1, 1.21.6, 1.21.8 and 1.21.11. Same modules, same menu, same config.
+
+• 🍗 Saturation — AppleSkin-style food info (Misc, off by default)
+• 📦 Hitboxes — vanilla F3+B, restyled from the palette
+• 🎯 Hit Distance — last-hit range on the HUD
+• 🎛️ New docked settings panel — left-click toggles, right-click configures
+• 🧩 1.21.6 joins 1.21.1 / 1.21.8 / 1.21.11

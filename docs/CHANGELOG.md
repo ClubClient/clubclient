@@ -1,9 +1,57 @@
 # Changelog
 
-## v0.1.6 — in development
+## v0.1.6
 
-Not released: no tag, nothing on Modrinth, no announcement. What is written here is in the source, not in
-anyone's `mods/` folder yet.
+**Saturation — the hunger bar, read in full.** A new module in Misc, off until you turn it on. It draws what
+AppleSkin draws: the saturation you already have sits as a thin overlay on the hunger bar, and hovering a
+piece of food previews how much hunger and saturation eating it would restore — and the hearts that hunger
+would later heal — before you take the bite. It reads values the client already holds and asks the server for
+nothing, so it behaves the same on a public server as in single-player.
+
+- **No exhaustion line.** AppleSkin can show the invisible exhaustion counter creeping toward your next lost
+  hunger point, and the first cut of this module did too — but a vanilla server never sends that number to the
+  client, so anywhere but single-player it was drawing a guess dressed as a fact. A readout that is honest in
+  only one place is not honest, so it is gone. Everything Saturation shows is a value the client genuinely has.
+- Flat, in the HUD's own language — not a bar grafted in from another mod's screenshot.
+
+**Hitboxes — vanilla's F3+B, cleaned up.** A new Combat module that restyles the game's own hitbox overlay
+rather than drawing one of its own. Vanilla's F3+B throws a white box, a red eye-line and a blue look-vector
+over every entity at once; Hitboxes drops that to a single clean outline, colours it from the menu's palette,
+and lets you set the line width from 1.0 to 4.0.
+
+- **It shows what the game already shows, and no more.** Only entities you could see anyway, never through a
+  wall, and it does not enlarge a single box — the shape it outlines is the exact one the game already uses
+  for your hits. This is a paint job on a vanilla debug view, not a reach and not an ESP. Turning it on does
+  not turn the boxes on; it styles them when the game is drawing them.
+- The entity under your crosshair is picked out from the rest, so in a crowd you can tell which box belongs to
+  the thing your next hit will land on.
+
+**Hit Distance — how far away your last hit landed.** A new HUD readout, its card in Combat. The moment you
+land a hit on something it shows the distance to it, in blocks, and holds that number for ten seconds before
+it fades. No hit, nothing on screen: it reports what you just did, not what you might do. In the HUD editor it
+moves and scales like any other element.
+
+- An earlier version measured the live distance to whatever your crosshair sat on — green inside reach, red
+  beyond it. But a number that names an opponent's range before you have touched them is the same soft cheat
+  the Target chip refuses, so it was cut back to reporting only the hit you already threw.
+
+**The menu's settings live on their own panel now.** Right-click a module and its settings no longer unfold
+under the card and shove the grid down — they open in a slim panel down the right-hand side of the menu, the
+card lit on the left while you work. **Left-click a card toggles the module on or off; right-click opens its
+settings.** The cards are square now, the icon above the name.
+
+- A module with a colour to choose — Hitboxes, and the hitbox palette — gets a grid of swatches, not a slider
+  you cannot read a colour off.
+- **Reset touches only what a module configures, and leaves it enabled or disabled exactly as you had it.** The
+  old reset quietly switched ten of the thirteen modules back on. It is a plain left-click that swaps its own
+  label to confirm instead of arming a second click, and it never reaches the enabled switch.
+
+**Crisp edges, and a HUD editor that stays out of its own way.** The menu and HUD render a touch sharper: the
+anti-aliasing ramp on every shape is exactly one device-pixel wide now, and thin lines snap to the pixel grid
+instead of smearing across two. In the editor, an element clamps to the screen edge instead of sliding
+half-off it, the toolbar sits along the bottom, the settings popover is slimmer and titleless, an element you
+are configuring holds still instead of dragging out from under you, and its background matches the chip the
+HUD draws in play.
 
 **A fourth Minecraft version: 1.21.6.** Club builds 1.21.1, 1.21.6, 1.21.8 and 1.21.11 from one source —
 four jars, one per version. Same modules, same keybinds, same HUD, same menu, same config.

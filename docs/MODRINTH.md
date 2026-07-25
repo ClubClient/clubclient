@@ -53,11 +53,30 @@ a card for its own settings. The whole menu is keyboard-navigable, and every mod
 
 Both are always on, drawing-only, and the block and the totem work exactly as the game intends underneath.
 
+- 📦 **Hitboxes** — restyle Minecraft's own F3+B hitbox overlay: one clean outline instead of the white box and
+  two debug lines, coloured from the menu's palette, line width 1.0–4.0, and the entity under your crosshair
+  picked out from the rest. It paints the game's own boxes — it never enlarges one, never draws through a wall,
+  and adds no reach.
+- 🎯 **Hit Distance** — a HUD readout of how far away your *last* hit landed, in blocks, held for ten seconds
+  and then gone. It reports the hit you already threw, not the range to a target you have not — the line the
+  Target chip won't cross either. Its on/off card lives in Combat.
+
 ## 📦 See inside a shulker
 
 **Shulker Tooltip** — hover a shulker box (or any container item) and its contents appear as a chest-slot grid,
 the real items with their counts, without placing and opening it. Prefer Minecraft's plain text list? Turn it
 off in Misc.
+
+## 🍗 Read the hunger bar in full
+
+**Saturation** — an AppleSkin-style read on food and hunger, off until you turn it on in Misc. Your hidden
+saturation is drawn as a thin overlay on the hunger bar, and hovering a piece of food previews the hunger,
+saturation and hearts it would restore before you eat it.
+
+It reads only values the client already holds, so it never asks the server for anything and behaves the same on
+a public server as in single-player. There is no exhaustion line: a vanilla server never sends that number to
+the client, so drawing it anywhere but single-player would be a guess dressed as a fact — and everything
+Saturation shows is a value the client genuinely has.
 
 ## ✨ Particles — choose what you see
 
@@ -133,7 +152,7 @@ three loaded at once.
 
 Client-side only: Club works on any server and installs on none of them. Java 21, requires **Fabric API**.
 
-**One jar per Minecraft version.** The file says which one it is (`club-0.1.5+mc1.21.8.jar`), and each jar
+**One jar per Minecraft version.** The file says which one it is (`club-0.1.6+mc1.21.8.jar`), and each jar
 refuses to load on anything else rather than half-working — a client that starts and then behaves strangely is
 worse than one that tells you it is the wrong download.
 
@@ -159,7 +178,8 @@ All rebindable, along with a hotkey for every module.
 - **It never acts for you.** No killaura, no autoclicker, no auto-totem, no combat automation of any kind.
 - **It never shows you what a wall hides.** No X-ray, no ESP, no chest or spawner finders, no minimap. The
   Target HUD will not name an entity through a block, and never names one you cannot see at all.
-- **It never reaches further than your arm.** No reach, no hitbox.
+- **It never reaches further than your arm.** No reach — and the Hitboxes module only restyles the game's own
+  F3+B boxes, never enlarging one and never drawing one through a wall.
 - **It says nothing to the server your own hand doesn't.**
 
 What Club *does* change is what your own eyes get from what the game already draws: brightness, magnification,
@@ -199,6 +219,8 @@ source is public: check any row of it.
 | **Animations** | Replaces the vanilla first-person swing with one of your own, with speed and amplitude. Drawing only — the swing the server sees is vanilla's, at vanilla's timing. | Nothing |
 | **Small Totem** | Shrinks the totem-of-undying pop and lifts it out of the centre of the screen. Always on, no card. Drawing only — the totem still works exactly as the game intends. | Nothing |
 | **Low Shield** | Drops a raised (blocking) shield low so it stops covering your view. Always on, no card. A first-person camera offset only — the block itself is vanilla's. | Nothing |
+| **Hitboxes** | Restyles Minecraft's own F3+B hitbox overlay — one clean outline in your palette colour, at your chosen line width, with the entity under your crosshair highlighted. Drawing only: it never enlarges a box, reaches nothing, and draws nothing through a wall. | Nothing |
+| **Hit Distance** | A HUD readout of how far away your last hit landed, in blocks — shown for ten seconds after a hit, then hidden. Its on/off card is in Combat. A readout of a hit you already threw, never a live range to a target you have not. | Nothing |
 
 **Particles**
 
@@ -229,6 +251,7 @@ source is public: check any row of it.
 |---|---|---|
 | **Background FPS** | Caps the frame rate while the game sits behind another window. **1.21.1 only** — Minecraft has done this itself since 1.21.2, so it is absent from the 1.21.6, 1.21.8 and 1.21.11 builds. | Nothing |
 | **Shulker Tooltip** | Hover a shulker box (or any container item) to see its contents as a chest-slot grid, without placing and opening it. Reads what is already in the item; no packet. | Nothing |
+| **Saturation** | AppleSkin-style food and hunger info: your saturation over the hunger bar, and the hunger, saturation and hearts a food would restore, previewed on hover. Off by default. Reads client-side values only; no packet. | Nothing |
 
 ---
 
